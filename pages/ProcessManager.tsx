@@ -1051,6 +1051,27 @@ export const ProcessManager = () => {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => {
+                    const processToEdit = selectedProcessHistory.length > 0 ? selectedProcessHistory[0] : null;
+                    if (processToEdit) {
+                      handleOpenModal({
+                        ...processToEdit,
+                        id: '',
+                        number: processToEdit.number,
+                        entryDate: new Date().toISOString().split('T')[0],
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                      });
+                    }
+                    setIsHistoryModalOpen(false);
+                  }} 
+                  className="px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded transition-colors flex items-center gap-2 text-sm font-bold shadow-sm" 
+                  title="Adicionar nova movimentação para este fluxo"
+                >
+                  <Plus size={18} />
+                  <span>Novo Fluxo</span>
+                </button>
+                <button 
+                  onClick={() => {
                     if (confirm('Tem certeza que deseja excluir este fluxo completamente? Esta ação não pode ser desfeita.')) {
                       setDeleteType('process');
                       setIsHistoryModalOpen(false);
