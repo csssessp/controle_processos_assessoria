@@ -60,12 +60,14 @@ interface ComboboxProps {
   defaultValue?: string;
   required?: boolean;
   placeholder?: string;
+  onLoadOptions?: () => Promise<string[]>;
 }
 
-const Combobox = ({ label, name, options, defaultValue = '', required = false, placeholder = '' }: ComboboxProps) => {
+const Combobox = ({ label, name, options, defaultValue = '', required = false, placeholder = '', onLoadOptions }: ComboboxProps) => {
   const [inputValue, setInputValue] = useState(defaultValue || '');
   const [filteredOptions, setFilteredOptions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { 
@@ -97,6 +99,21 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
     setShowSuggestions(false);
   };
 
+  const handleFocus = async () => {
+    setShowSuggestions(true);
+    if (onLoadOptions && options.length === 0) {
+      setLoadingOptions(true);
+      try {
+        const loadedOptions = await onLoadOptions();
+        setFilteredOptions(loadedOptions.slice(0, 15));
+      } catch (err) {
+        console.error('Error loading options:', err);
+      } finally {
+        setLoadingOptions(false);
+      }
+    }
+  };
+
   return (
     <div className="relative" ref={wrapperRef}>
       <label className="block text-sm font-bold text-slate-700 mb-1">{label}</label>
@@ -106,15 +123,19 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
           name={name} 
           value={inputValue}
           onChange={(e) => { setInputValue(e.target.value); setShowSuggestions(true); }}
-          onFocus={() => setShowSuggestions(true)}
+          onFocus={handleFocus}
           className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all"
           placeholder={placeholder} required={required} autoComplete="off"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-          <ChevronDown size={14} />
+          {loadingOptions ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />}
         </div>
       </div>
-      {showSuggestions && filteredOptions.length > 0 && (
+      {showSuggestions && (loadingOptions ? (
+        <div className="absolute z-[100] w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 p-4 text-center text-slate-500 text-sm">
+          Carregando opções...
+        </div>
+      ) : filteredOptions.length > 0 ? (
         <ul className="absolute z-[100] w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-150 border-t-0">
           {filteredOptions.map((opt, idx) => (
             <li 
@@ -130,7 +151,11 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
             </li>
           ))}
         </ul>
-      )}
+      ) : (
+        <div className="absolute z-[100] w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 p-4 text-center text-slate-400 text-sm">
+          Nenhuma opção encontrada
+        </div>
+      ))}
     </div>
   );
 };
@@ -1194,7 +1219,8 @@ export const ProcessManager = () => {
                     options={sectorOptions} 
                     defaultValue={editingProcess?.sector} 
                     required 
-                    placeholder="Selecione ou digite o setor" 
+                    placeholder="Selecione ou digite o setor"
+                    onLoadOptions={() => DbService.getUniqueValues('sector')}
                    />
                 </div>
               </div>
@@ -1216,8 +1242,8 @@ export const ProcessManager = () => {
                 </div>
               </div>
               <div className="space-y-4">
-                <div><Combobox label="Interessada" name="interested" options={interestedOptions} defaultValue={editingProcess?.interested} required placeholder="Quem solicita ou órgão" /></div>
-                <div><Combobox label="Assunto" name="subject" options={subjectOptions} defaultValue={editingProcess?.subject} required placeholder="Objeto do processo" /></div>
+                <div><Combobox label="Interessada" name="interested" options={interestedOptions} defaultValue={editingProcess?.interested} required placeholder="Quem solicita ou órgão" onLoadOptions={() => DbService.getUniqueValues('interested')} /></div>
+                <div><Combobox label="Assunto" name="subject" options={subjectOptions} defaultValue={editingProcess?.subject} required placeholder="Objeto do processo" onLoadOptions={() => DbService.getUniqueValues('subject')} /></div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

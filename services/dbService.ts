@@ -389,17 +389,30 @@ export const DbService = {
   },
 
   getUniqueValues: async (column: 'sector' | 'interested' | 'subject'): Promise<string[]> => {
-    const rpcMap = {
-      sector: 'distinct_setor',
-      interested: 'distinct_interessada',
-      subject: 'distinct_assunto'
-    };
-    const { data, error } = await supabase.rpc(rpcMap[column]);
-    if (error) {
-      console.error(`Error fetching unique ${column}:`, error.message);
+    try {
+      const { data, error } = await supabase
+        .from('processes')
+        .select(column)
+        .not(column, 'is', null);
+      
+      if (error) {
+        console.error(`Error fetching unique ${column}:`, error.message);
+        return [];
+      }
+
+      // Remover duplicatas e valores vazios, ordenar alfabeticamente
+      const unique = Array.from(new Set(
+        (data as any[])
+          .map(item => item[column])
+          .filter((val: string) => val && val.trim() !== '')
+          .map((val: string) => val.trim())
+      )).sort();
+
+      return unique as string[];
+    } catch (err) {
+      console.error(`Error fetching unique ${column}:`, err);
       return [];
     }
-    return (data as any[]).map(item => item.value).filter(Boolean);
   },
 
   // --- LOGS ---
