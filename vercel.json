@@ -1,14 +1,4 @@
 {
   "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "framework": "vite",
-  "env": {
-    "VITE_SUPABASE_URL": {
-      "description": "Supabase project URL"
-    },
-    "VITE_SUPABASE_ANON_KEY": {
-      "description": "Supabase anonymous public key"
-    }
-  }
+  "framework": "vite"
 }
