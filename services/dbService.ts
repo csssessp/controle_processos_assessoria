@@ -297,6 +297,7 @@ export const DbService = {
       process_link: processLink || null,
       is_prestacao_conta: isPrestacaoConta || false
     };
+    console.log('Saving process with is_prestacao_conta:', payload.is_prestacao_conta);
     const { error } = await supabase.from('processes').upsert(payload);
     if (error) {
       // Se o erro for sobre coluna não encontrada, tente sem o campo is_prestacao_conta
@@ -440,6 +441,7 @@ export const DbService = {
       return [];
     }
     
+    console.log('Processos de prestação encontrados:', data?.length || 0);
     return (data || []).map(mapProcessFromDB) as Process[];
   },
 
