@@ -967,6 +967,28 @@ export const PrestacaoContas = () => {
                               </p>
                               <p className="text-slate-700 text-sm mt-1">{entrada.descricao}</p>
                               
+                              {/* Informações da Prestação */}
+                              <div className="mt-2 p-2 bg-white rounded border-l-2 border-slate-300 space-y-1">
+                                {entrada.mes && (
+                                  <div className="text-xs">
+                                    <span className="text-slate-500 font-bold">Mês:</span>
+                                    <span className="text-slate-700 ml-2">{new Date(entrada.mes + '-01').toLocaleString('pt-BR', {month: 'long', year: 'numeric'})}</span>
+                                  </div>
+                                )}
+                                {entrada.dataEntrada && (
+                                  <div className="text-xs">
+                                    <span className="text-slate-500 font-bold">Entrada:</span>
+                                    <span className="text-slate-700 ml-2">{new Date(entrada.dataEntrada).toLocaleDateString('pt-BR')}</span>
+                                  </div>
+                                )}
+                                {entrada.dataSaida && (
+                                  <div className="text-xs">
+                                    <span className="text-slate-500 font-bold">Saída:</span>
+                                    <span className="text-slate-700 ml-2">{new Date(entrada.dataSaida).toLocaleDateString('pt-BR')}</span>
+                                  </div>
+                                )}
+                              </div>
+                              
                               {entrada.motivoNovo && (
                                 <div className="mt-2 p-2 bg-white rounded border-l-2 border-orange-300">
                                   <p className="text-xs text-slate-500 font-bold">Motivo:</p>

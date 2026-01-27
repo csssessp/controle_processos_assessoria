@@ -707,16 +707,17 @@ export const DbService = {
   },
 
   getHistoricoByProcessNumber: async (processNumber: string): Promise<any[]> => {
-    // Buscar todos os IDs de prestações com esse número de processo
+    // Buscar todas as prestações com esse número de processo
     const { data: prestacoes, error: prestError } = await supabase
       .from('prestacoes_contas')
-      .select('id')
+      .select('id, month, entry_date, exit_date')
       .eq('process_number', processNumber);
 
     if (prestError) throw prestError;
     if (!prestacoes || prestacoes.length === 0) return [];
 
     const prestacaoIds = prestacoes.map(p => p.id);
+    const prestacaoMap = new Map(prestacoes.map(p => [p.id, p]));
 
     // Buscar histórico de todas essas prestações
     const { data, error } = await supabase
@@ -726,18 +727,25 @@ export const DbService = {
       .order('data_alteracao', { ascending: false });
 
     if (error) throw error;
-    return (data || []).map((item: any) => ({
-      ...item,
-      prestacaoId: item.prestacao_id,
-      versionNumber: item.version_number,
-      statusAnterior: item.status_anterior,
-      statusNovo: item.status_novo,
-      motivoAnterior: item.motivo_anterior,
-      motivoNovo: item.motivo_novo,
-      alteradoPor: item.alterado_por,
-      nomeUsuario: item.nome_usuario,
-      dataAlteracao: item.data_alteracao
-    }));
+    return (data || []).map((item: any) => {
+      const prestacao = prestacaoMap.get(item.prestacao_id);
+      return {
+        ...item,
+        prestacaoId: item.prestacao_id,
+        versionNumber: item.version_number,
+        statusAnterior: item.status_anterior,
+        statusNovo: item.status_novo,
+        motivoAnterior: item.motivo_anterior,
+        motivoNovo: item.motivo_novo,
+        alteradoPor: item.alterado_por,
+        nomeUsuario: item.nome_usuario,
+        dataAlteracao: item.data_alteracao,
+        // Dados da prestação
+        mes: prestacao?.month,
+        dataEntrada: prestacao?.entry_date,
+        dataSaida: prestacao?.exit_date
+      };
+    });
   },
 
   saveHistoricoPrestacao: async (entrada: any): Promise<void> => {
