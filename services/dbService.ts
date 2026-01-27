@@ -587,44 +587,55 @@ export const DbService = {
   },
 
   savePrestacao: async (prestacao: any, user: User): Promise<void> => {
-    const isNew = !prestacao.id;
-    const id = prestacao.id || crypto.randomUUID();
+    try {
+      const isNew = !prestacao.id;
+      const id = prestacao.id || crypto.randomUUID();
 
-    const payload: any = {
-      id,
-      process_id: prestacao.processId || null,
-      process_number: prestacao.processNumber,
-      month: prestacao.month,
-      status: prestacao.status,
-      motivo: prestacao.status === 'IRREGULAR' ? prestacao.motivo : null,
-      observations: prestacao.observations || null,
-      entry_date: prestacao.entryDate || null,
-      exit_date: prestacao.exitDate || null,
-      link: prestacao.link || null,
-      created_by: prestacao.createdBy || user.id,
-      updated_by: user.id,
-      created_at: prestacao.createdAt || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    console.log('📝 Salvando prestação:', payload);
+      const payload: any = {
+        id,
+        process_id: prestacao.processId || null,
+        process_number: prestacao.processNumber,
+        month: prestacao.month,
+        status: prestacao.status,
+        motivo: prestacao.status === 'IRREGULAR' ? prestacao.motivo : null,
+        observations: prestacao.observations || null,
+        entry_date: prestacao.entryDate || null,
+        exit_date: prestacao.exitDate || null,
+        link: prestacao.link || null,
+        created_by: prestacao.createdBy || user.id,
+        updated_by: user.id,
+        created_at: prestacao.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      console.log('📝 [DEBUG-SAVE-1] Salvando prestação:', payload);
 
-    if (isNew) {
-      const { error } = await supabase.from('prestacoes_contas').insert(payload);
-      if (error) {
-        console.error('❌ Erro ao inserir prestação:', error);
-        throw error;
+      if (isNew) {
+        console.log('📝 [DEBUG-SAVE-2] Executando INSERT...');
+        const { data, error } = await supabase.from('prestacoes_contas').insert(payload);
+        console.log('📝 [DEBUG-SAVE-3] INSERT retornou:', { data, error });
+        
+        if (error) {
+          console.error('❌ [ERROR-INSERT] Erro ao inserir prestação:', error);
+          throw new Error(`Insert failed: ${error.message}`);
+        }
+        console.log('✅ Prestação inserida com sucesso');
+      } else {
+        console.log('📝 [DEBUG-SAVE-2] Executando UPDATE com id:', prestacao.id);
+        const { data, error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
+        console.log('📝 [DEBUG-SAVE-3] UPDATE retornou:', { data, error });
+        
+        if (error) {
+          console.error('❌ [ERROR-UPDATE] Erro ao atualizar prestação:', error);
+          throw new Error(`Update failed: ${error.message}`);
+        }
+        console.log('✅ Prestação atualizada com sucesso');
       }
-      console.log('✅ Prestação inserida com sucesso');
-    } else {
-      const { error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
-      if (error) {
-        console.error('❌ Erro ao atualizar prestação:', error);
-        throw error;
-      }
-      console.log('✅ Prestação atualizada com sucesso');
+
+      await DbService.logAction('CREATE', `Prestação de contas ${isNew ? 'criada' : 'atualizada'}: ${prestacao.processNumber} - ${prestacao.month}`, user, id);
+    } catch (err: any) {
+      console.error('❌ [CATCH-SAVE] Erro em savePrestacao:', err);
+      throw err;
     }
-
-    await DbService.logAction('CREATE', `Prestação de contas ${isNew ? 'criada' : 'atualizada'}: ${prestacao.processNumber} - ${prestacao.month}`, user, id);
   },
 
   deletePrestacao: async (id: string, user: User): Promise<void> => {
