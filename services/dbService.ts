@@ -706,6 +706,40 @@ export const DbService = {
     }));
   },
 
+  getHistoricoByProcessNumber: async (processNumber: string): Promise<any[]> => {
+    // Buscar todos os IDs de prestações com esse número de processo
+    const { data: prestacoes, error: prestError } = await supabase
+      .from('prestacoes_contas')
+      .select('id')
+      .eq('process_number', processNumber);
+
+    if (prestError) throw prestError;
+    if (!prestacoes || prestacoes.length === 0) return [];
+
+    const prestacaoIds = prestacoes.map(p => p.id);
+
+    // Buscar histórico de todas essas prestações
+    const { data, error } = await supabase
+      .from('prestacoes_contas_historico')
+      .select('*')
+      .in('prestacao_id', prestacaoIds)
+      .order('data_alteracao', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((item: any) => ({
+      ...item,
+      prestacaoId: item.prestacao_id,
+      versionNumber: item.version_number,
+      statusAnterior: item.status_anterior,
+      statusNovo: item.status_novo,
+      motivoAnterior: item.motivo_anterior,
+      motivoNovo: item.motivo_novo,
+      alteradoPor: item.alterado_por,
+      nomeUsuario: item.nome_usuario,
+      dataAlteracao: item.data_alteracao
+    }));
+  },
+
   saveHistoricoPrestacao: async (entrada: any): Promise<void> => {
     const payload = {
       id: crypto.randomUUID(),

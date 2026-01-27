@@ -218,15 +218,19 @@ export const PrestacaoContas = () => {
     });
   }, [prestacoes]);
 
-  const handleNumberClick = (processNumber: string) => {
-    // Mostrar todas as prestações com esse número no histórico
-    const allWithNumber = prestacoes.filter(p => p.processNumber === processNumber);
-    setHistoricoData(allWithNumber.sort((a, b) => {
-      const monthA = new Date(a.month + '-01');
-      const monthB = new Date(b.month + '-01');
-      return monthB.getTime() - monthA.getTime();
-    }));
-    setIsHistoricoModalOpen(true);
+  const handleNumberClick = async (processNumber: string) => {
+    // Buscar histórico da tabela prestacoes_contas_historico
+    setHistoricoLoading(true);
+    try {
+      const historico = await DbService.getHistoricoByProcessNumber(processNumber);
+      setHistoricoData(historico);
+      setIsHistoricoModalOpen(true);
+    } catch (error) {
+      console.error('Erro ao buscar histórico:', error);
+      alert('Erro ao carregar histórico do processo');
+    } finally {
+      setHistoricoLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
