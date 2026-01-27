@@ -535,7 +535,12 @@ export const DbService = {
 
       const { data, count, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro na query de prestações:', error);
+        throw error;
+      }
+      
+      console.log('✅ Prestações encontradas:', data?.length || 0, 'Total:', count);
 
       return { 
         data: (data || []).map((item: any) => ({
