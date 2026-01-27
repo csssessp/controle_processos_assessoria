@@ -509,10 +509,17 @@ export const DbService = {
         query = query.or(`process_number.ilike.%${params.searchTerm}%,motivo.ilike.%${params.searchTerm}%`);
       }
 
-      // Ordenação
+      // Ordenação - Mapear camelCase para snake_case
       if (params.sortBy?.field) {
         const order = params.sortBy.order === 'asc' ? { ascending: true } : { ascending: false };
-        query = query.order(params.sortBy.field === 'processNumber' ? 'process_number' : params.sortBy.field, order);
+        let orderField = params.sortBy.field;
+        
+        // Mapear campos camelCase para snake_case
+        if (orderField === 'processNumber') orderField = 'process_number';
+        else if (orderField === 'updatedAt') orderField = 'updated_at';
+        else if (orderField === 'createdAt') orderField = 'created_at';
+        
+        query = query.order(orderField, order);
       } else {
         query = query.order('updated_at', { ascending: false });
       }
