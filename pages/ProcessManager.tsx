@@ -628,6 +628,7 @@ export const ProcessManager = () => {
       processDate, urgent: formData.get('urgent') === 'on',
       deadline, observations: formData.get('observations') as string,
       processLink: formData.get('processLink') as string,
+      isPrestacaoConta: formData.get('isPrestacaoConta') === 'on',
       createdBy: editingProcess?.createdBy || currentUser?.id || 'system',
       createdAt: editingProcess?.createdAt || now,
       updatedBy: currentUser?.id || 'system',
@@ -1404,6 +1405,12 @@ export const ProcessManager = () => {
               <div>
                 <label className="block text-sm font-bold mb-1 text-slate-700">Observações</label>
                 <textarea name="observations" rows={3} defaultValue={editingProcess?.observations} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" placeholder="Informações adicionais..."></textarea>
+              </div>
+              <div className="flex items-center gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100 w-fit">
+                <input name="isPrestacaoConta" type="checkbox" id="prestacao-check" defaultChecked={editingProcess?.isPrestacaoConta} className="w-4 h-4 text-blue-600 focus:ring-blue-200" />
+                <label htmlFor="prestacao-check" className="text-sm font-bold text-blue-700 cursor-pointer">
+                  🧾 Este processo é uma Prestação de Contas
+                </label>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
                 <button type="button" onClick={handleCloseModal} className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold transition-colors">Cancelar</button>

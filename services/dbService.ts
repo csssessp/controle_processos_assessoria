@@ -415,6 +415,21 @@ export const DbService = {
     }
   },
 
+  getProcessesPrestacaoConta: async (): Promise<Process[]> => {
+    const { data, error } = await supabase
+      .from('processes')
+      .select('*')
+      .eq('isPrestacaoConta', true)
+      .order('number', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching prestação de contas processes:', error.message);
+      return [];
+    }
+    
+    return (data || []).map(mapProcessFromDB) as Process[];
+  },
+
   // --- LOGS ---
   getLogs: async (): Promise<Log[]> => {
     const { data, error } = await supabase.from('logs').select('*').order('timestamp', { ascending: false }).limit(500);

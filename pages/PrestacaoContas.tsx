@@ -27,6 +27,7 @@ export const PrestacaoContas = () => {
   const [prestacoes, setPrestacoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [processosPrestacao, setProcessosPrestacao] = useState<any[]>([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPrestacao, setEditingPrestacao] = useState<any | null>(null);
@@ -98,6 +99,18 @@ export const PrestacaoContas = () => {
   useEffect(() => {
     fetchPrestacoes();
   }, [fetchPrestacoes]);
+
+  useEffect(() => {
+    const loadProcessosPrestacao = async () => {
+      try {
+        const processos = await DbService.getProcessesPrestacaoConta();
+        setProcessosPrestacao(processos);
+      } catch (error) {
+        console.error('Erro ao buscar processos de prestação:', error);
+      }
+    };
+    loadProcessosPrestacao();
+  }, []);
 
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
     setter(value);
@@ -535,6 +548,36 @@ export const PrestacaoContas = () => {
               </button>
             </div>
             <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold mb-1 text-slate-700">
+                  Selecione um Processo
+                </label>
+                <select 
+                  name="processoSelecionado"
+                  onChange={(e) => {
+                    const processo = processosPrestacao.find(p => p.id === e.target.value);
+                    if (processo) {
+                      const form = formRef.current;
+                      if (form) {
+                        const processNumberField = form.querySelector('input[name="processNumber"]') as HTMLInputElement;
+                        if (processNumberField) {
+                          processNumberField.value = processo.number || '';
+                        }
+                      }
+                    }
+                  }}
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">-- Selecione um processo de prestação de contas --</option>
+                  {processosPrestacao.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.number} - {p.subject}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">Selecione um processo marcado como "Prestação de Contas"</p>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">
