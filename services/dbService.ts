@@ -488,49 +488,33 @@ export const DbService = {
   // --- PRESTAÇÕES DE CONTAS ---
   getPrestacoes: async (params: any): Promise<{ data: any[], count: number }> => {
     try {
-      console.log('🔍 [1] Iniciando getPrestacoes');
-      
-      // DEBUG: Contar todos os registros na tabela
-      const { count: totalCount } = await supabase
-        .from('prestacoes_contas')
-        .select('*', { count: 'exact', head: true });
-      console.log('🔍 [DEBUG] Total de registros na tabela prestacoes_contas:', totalCount);
-      
       let query = supabase.from('prestacoes_contas').select('*', { count: 'exact' });
-      console.log('🔍 [2] Query criada');
-      console.log('🔍 [3] Params:', params);
 
       // Filtro por número do processo
       if (params.filters?.processNumber) {
-        console.log('🔍 [4a] Aplicando filtro processNumber');
         query = query.ilike('process_number', `%${params.filters.processNumber}%`);
       }
 
       // Filtro por status
       if (params.filters?.status) {
-        console.log('🔍 [4b] Aplicando filtro status');
         query = query.eq('status', params.filters.status);
       }
 
       // Filtro por período
       if (params.filters?.monthStart) {
-        console.log('🔍 [4c] Aplicando filtro monthStart');
         query = query.gte('month', params.filters.monthStart);
       }
       if (params.filters?.monthEnd) {
-        console.log('🔍 [4d] Aplicando filtro monthEnd');
         query = query.lte('month', params.filters.monthEnd);
       }
 
       // Busca por texto
       if (params.searchTerm) {
-        console.log('🔍 [4e] Aplicando filtro searchTerm');
         query = query.or(`process_number.ilike.%${params.searchTerm}%,motivo.ilike.%${params.searchTerm}%`);
       }
 
       // Ordenação - Mapear camelCase para snake_case
       if (params.sortBy?.field) {
-        console.log('🔍 [5a] Aplicando ordenação');
         const order = params.sortBy.order === 'asc' ? { ascending: true } : { ascending: false };
         let orderField = params.sortBy.field;
         
@@ -541,25 +525,19 @@ export const DbService = {
         
         query = query.order(orderField, order);
       } else {
-        console.log('🔍 [5b] Ordenação padrão (updated_at desc)');
         query = query.order('updated_at', { ascending: false });
       }
 
       // Paginação
-      console.log('🔍 [6] Aplicando paginação');
       const offset = ((params.page || 1) - 1) * (params.itemsPerPage || 20);
       query = query.range(offset, offset + (params.itemsPerPage || 20) - 1);
 
-      console.log('🔍 [7] Executando query...');
       const { data, count, error } = await query;
-      console.log('🔍 [8] Query executada');
 
       if (error) {
-        console.error('❌ [ERROR] Erro na query de prestações:', error);
+        console.error('Erro ao buscar prestações:', error);
         throw error;
       }
-      
-      console.log('✅ Prestações encontradas:', data?.length || 0, 'Total:', count);
 
       return { 
         data: (data || []).map((item: any) => ({
@@ -621,18 +599,14 @@ export const DbService = {
         created_at: prestacao.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-      console.log('📝 [DEBUG-SAVE-1] Salvando prestação:', payload);
 
       if (isNew) {
-        console.log('📝 [DEBUG-SAVE-2] Executando INSERT...');
-        const { data, error } = await supabase.from('prestacoes_contas').insert(payload);
-        console.log('📝 [DEBUG-SAVE-3] INSERT retornou:', { data, error });
+        const { error } = await supabase.from('prestacoes_contas').insert(payload);
         
         if (error) {
-          console.error('❌ [ERROR-INSERT] Erro ao inserir prestação:', error);
+          console.error('Erro ao inserir prestação:', error);
           throw new Error(`Insert failed: ${error.message}`);
         }
-        console.log('✅ Prestação inserida com sucesso');
 
         // Registrar entrada inicial no histórico
         await DbService.saveHistoricoPrestacao({
@@ -647,15 +621,12 @@ export const DbService = {
           nomeUsuario: user.name
         });
       } else {
-        console.log('📝 [DEBUG-SAVE-2] Executando UPDATE com id:', prestacao.id);
-        const { data, error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
-        console.log('📝 [DEBUG-SAVE-3] UPDATE retornou:', { data, error });
+        const { error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
         
         if (error) {
-          console.error('❌ [ERROR-UPDATE] Erro ao atualizar prestação:', error);
+          console.error('Erro ao atualizar prestação:', error);
           throw new Error(`Update failed: ${error.message}`);
         }
-        console.log('✅ Prestação atualizada com sucesso');
 
         // Se status mudou, registrar no histórico
         if (dadosAntigos && (dadosAntigos.status !== prestacao.status || dadosAntigos.motivo !== (prestacao.status === 'IRREGULAR' ? prestacao.motivo : null))) {
@@ -676,7 +647,7 @@ export const DbService = {
 
       await DbService.logAction('CREATE', `Prestação de contas ${isNew ? 'criada' : 'atualizada'}: ${prestacao.processNumber} - ${prestacao.month}`, user, id);
     } catch (err: any) {
-      console.error('❌ [CATCH-SAVE] Erro em savePrestacao:', err);
+      console.error('Erro em savePrestacao:', err);
       throw err;
     }
   },
