@@ -64,11 +64,15 @@ const cleanDate = (date: string | null | undefined): string | null => {
 
 // Função para mapear process_link (snake_case) para processLink (camelCase)
 const mapProcessFromDB = (dbProcess: any): Process => {
-  return {
+  const mapped: Process = {
     ...dbProcess,
     processLink: dbProcess.process_link || undefined,
-    isPrestacaoConta: dbProcess.is_prestacao_conta || false
+    isPrestacaoConta: dbProcess.is_prestacao_conta === true || false
   };
+  if (mapped.isPrestacaoConta) {
+    console.log('✅ Process mapeado com isPrestacaoConta=true:', dbProcess.number);
+  }
+  return mapped;
 };
 
 export const DbService = {

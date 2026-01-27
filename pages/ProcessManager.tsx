@@ -535,7 +535,11 @@ export const ProcessManager = () => {
   const handleOpenModal = async (process?: Process) => {
     setLoadingEdit(true);
     setIsModalOpen(true);
-    console.log('Abrindo para edição:', process?.isPrestacaoConta, 'Process:', process);
+    console.log('Abrindo para edição:', {
+      numero: process?.number,
+      isPrestacaoConta: process?.isPrestacaoConta,
+      is_prestacao_conta_db: (process as any)?.is_prestacao_conta
+    });
     setEditingProcess(process || null);
     if (process) {
       setOriginalEntryDate(toServerDateOnly(process.entryDate));
