@@ -66,7 +66,8 @@ const cleanDate = (date: string | null | undefined): string | null => {
 const mapProcessFromDB = (dbProcess: any): Process => {
   return {
     ...dbProcess,
-    processLink: dbProcess.process_link || undefined
+    processLink: dbProcess.process_link || undefined,
+    isPrestacaoConta: dbProcess.is_prestacao_conta || false
   };
 };
 
@@ -323,13 +324,14 @@ export const DbService = {
 
   importProcesses: async (processes: Process[], performedBy: User): Promise<void> => {
     const normalized = processes.map(p => {
-      const { processLink, ...processData } = p;
+      const { processLink, isPrestacaoConta, ...processData } = p;
       return {
         ...processData,
         CGOF: normalizeCGOF(p.CGOF),
         processDate: cleanDate(p.processDate),
         deadline: cleanDate(p.deadline),
-        process_link: processLink || null
+        process_link: processLink || null,
+        is_prestacao_conta: isPrestacaoConta || false
       };
     });
     
@@ -430,7 +432,7 @@ export const DbService = {
     const { data, error } = await supabase
       .from('processes')
       .select('*')
-      .eq('isPrestacaoConta', true)
+      .eq('is_prestacao_conta', true)
       .order('number', { ascending: true });
     
     if (error) {
