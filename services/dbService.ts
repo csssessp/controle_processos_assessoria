@@ -489,6 +489,7 @@ export const DbService = {
   getPrestacoes: async (params: any): Promise<{ data: any[], count: number }> => {
     try {
       let query = supabase.from('prestacoes_contas').select('*', { count: 'exact' });
+      console.log('🔍 Buscando prestações com params:', params);
 
       // Filtro por número do processo
       if (params.filters?.processNumber) {
@@ -556,7 +557,7 @@ export const DbService = {
         count: count || 0
       };
     } catch (err) {
-      console.error('Erro ao buscar prestações de contas:', err);
+      console.error('❌ Erro ao buscar prestações de contas:', err);
       return { data: [], count: 0 };
     }
   },
@@ -581,13 +582,22 @@ export const DbService = {
       created_at: prestacao.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+    console.log('📝 Salvando prestação:', payload);
 
     if (isNew) {
       const { error } = await supabase.from('prestacoes_contas').insert(payload);
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao inserir prestação:', error);
+        throw error;
+      }
+      console.log('✅ Prestação inserida com sucesso');
     } else {
       const { error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao atualizar prestação:', error);
+        throw error;
+      }
+      console.log('✅ Prestação atualizada com sucesso');
     }
 
     await DbService.logAction('CREATE', `Prestação de contas ${isNew ? 'criada' : 'atualizada'}: ${prestacao.processNumber} - ${prestacao.month}`, user, id);
