@@ -4,7 +4,7 @@ import { PrestacaoContaQueryParams, UserRole } from '../types';
 import { 
   Search, Plus, Edit, Trash2, AlertTriangle, 
   X, CheckSquare, Square, Filter, ChevronLeft, ChevronRight, 
-  Loader2, Lock, AlertCircle
+  Loader2, Lock, AlertCircle, ExternalLink
 } from 'lucide-react';
 import { DbService } from '../services/dbService';
 
@@ -142,8 +142,11 @@ export const PrestacaoContas = () => {
     const status = formData.get('status') as string;
     const motivo = formData.get('motivo') as string;
     const observations = formData.get('observations') as string;
+    const entryDate = formData.get('entryDate') as string;
+    const exitDate = formData.get('exitDate') as string;
+    const link = formData.get('link') as string;
 
-    if (!processNumber || !month || !status) {
+    if (!processNumber || !month || !status || !entryDate) {
       alert('Preencha todos os campos obrigatórios');
       setSaving(false);
       return;
@@ -163,6 +166,9 @@ export const PrestacaoContas = () => {
       status,
       motivo: status === 'IRREGULAR' ? motivo : undefined,
       observations,
+      entryDate,
+      exitDate: exitDate || null,
+      link: link || null,
       createdBy: editingPrestacao?.createdBy || currentUser.id,
       createdAt: editingPrestacao?.createdAt || now,
       updatedBy: currentUser.id,
@@ -215,6 +221,12 @@ export const PrestacaoContas = () => {
     const [year, monthNum] = month.split('-');
     const monthNames = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     return `${monthNames[parseInt(monthNum)]}/${year}`;
+  };
+
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return '-';
+    const [year, month, day] = date.split('-');
+    return `${day}/${month}/${year}`;
   };
 
   return (
@@ -301,12 +313,15 @@ export const PrestacaoContas = () => {
                     {selectedIds.size > 0 && selectedIds.size === prestacoes.length ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
                 </th>
-                <th className="px-3 py-3">Número do Processo</th>
+                <th className="px-3 py-3">Data Entrada</th>
+                <th className="px-3 py-3">Número</th>
                 <th className="px-3 py-3">Mês</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Motivo da Irregularidade</th>
                 <th className="px-3 py-3">Observações</th>
-                <th className="px-4 py-3 text-right">Ações</th>
+                <th className="px-3 py-3">Ações</th>
+                <th className="px-3 py-3">Data Saída</th>
+                <th className="px-3 py-3">Link</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -326,8 +341,11 @@ export const PrestacaoContas = () => {
                           setSelectedIds(s); 
                         }}
                       >
-                        {selectedIds.has(prestacao.id) ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} />}
+                      {selectedIds.has(prestacao.id) ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} />}
                       </button>
+                    </td>
+                    <td className="px-3 py-2 text-slate-600 font-medium whitespace-nowrap">
+                      {formatDate(prestacao.entryDate)}
                     </td>
                     <td className="px-3 py-2 font-mono font-bold text-slate-900 whitespace-nowrap">
                       {prestacao.processNumber}
@@ -357,8 +375,8 @@ export const PrestacaoContas = () => {
                     <td className="px-3 py-2 text-slate-600 max-w-xs truncate" title={prestacao.observations}>
                       {prestacao.observations || <span className="text-slate-300 italic">-</span>}
                     </td>
-                    <td className="px-4 py-2 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
                         <button 
                           onClick={() => handleOpenModal(prestacao)} 
                           className="p-1 text-slate-600 hover:text-blue-600 rounded transition-colors"
@@ -379,6 +397,25 @@ export const PrestacaoContas = () => {
                           <Trash2 size={16} />
                         </button>
                       </div>
+                    </td>
+                    <td className="px-3 py-2 text-slate-600 font-medium whitespace-nowrap">
+                      {formatDate(prestacao.exitDate)}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {prestacao.link ? (
+                        <a 
+                          href={prestacao.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition-colors border border-blue-200"
+                          title="Abrir link"
+                        >
+                          <ExternalLink size={14} />
+                          <span className="text-[10px] font-medium">Link</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-300 text-[10px] italic">-</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -563,6 +600,41 @@ export const PrestacaoContas = () => {
                   defaultValue={editingPrestacao?.observations || ''} 
                   className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" 
                   placeholder="Informações adicionais..." 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-slate-700">
+                    Data de Entrada <span className="text-red-600">*</span>
+                  </label>
+                  <input 
+                    required 
+                    name="entryDate" 
+                    type="date" 
+                    defaultValue={editingPrestacao?.entryDate || ''} 
+                    className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-slate-700">Data de Saída</label>
+                  <input 
+                    name="exitDate" 
+                    type="date" 
+                    defaultValue={editingPrestacao?.exitDate || ''} 
+                    className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold mb-1 text-slate-700">Link</label>
+                <input 
+                  name="link" 
+                  type="url" 
+                  defaultValue={editingPrestacao?.link || ''} 
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" 
+                  placeholder="https://exemplo.com" 
                 />
               </div>
 

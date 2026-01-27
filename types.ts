@@ -93,6 +93,9 @@ export interface PrestacaoConta {
   status: 'REGULAR' | 'IRREGULAR'; // Status da prestação
   motivo?: string; // Motivo da irregularidade (se irregular)
   observations?: string; // Observações adicionais
+  entryDate: string; // Data de entrada (YYYY-MM-DD)
+  exitDate?: string | null; // Data de saída (YYYY-MM-DD)
+  link?: string; // Link do documento/processo
   
   createdBy: string; // User ID
   updatedBy: string;
