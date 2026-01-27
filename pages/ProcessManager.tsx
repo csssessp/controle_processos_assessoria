@@ -160,6 +160,121 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
   );
 };
 
+// --- Internal Component: FilterCombobox (para uso em linhas de filtros) ---
+interface FilterComboboxProps {
+  name: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  onLoadOptions?: () => Promise<string[]>;
+}
+
+const FilterCombobox = ({ name, options, value, onChange, placeholder = '', onLoadOptions }: FilterComboboxProps) => {
+  const [inputValue, setInputValue] = useState(value || '');
+  const [filteredOptions, setFilteredOptions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { 
+    setInputValue(value || ''); 
+  }, [value]);
+
+  useEffect(() => {
+    const lower = inputValue.toLowerCase().trim();
+    if (lower) {
+      const filtered = options.filter(opt => opt && opt.toLowerCase().includes(lower));
+      setFilteredOptions(filtered.slice(0, 15));
+    } else {
+      setFilteredOptions(options.slice(0, 15));
+    }
+  }, [inputValue, options]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  const handleSelectOption = (opt: string) => {
+    setInputValue(opt);
+    onChange(opt);
+    setShowSuggestions(false);
+  };
+
+  const handleInputChange = (val: string) => {
+    setInputValue(val);
+    onChange(val);
+    setShowSuggestions(true);
+  };
+
+  const handleFocus = async () => {
+    setShowSuggestions(true);
+    if (onLoadOptions && options.length === 0) {
+      setLoadingOptions(true);
+      try {
+        const loadedOptions = await onLoadOptions();
+        setFilteredOptions(loadedOptions.slice(0, 15));
+      } catch (err) {
+        console.error('Error loading options:', err);
+      } finally {
+        setLoadingOptions(false);
+      }
+    }
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+        <input 
+          type="text" 
+          name={name} 
+          value={inputValue}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={handleFocus}
+          className="w-full pl-8 pr-8 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          {loadingOptions ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+        </div>
+      </div>
+      {showSuggestions && (loadingOptions ? (
+        <div className="absolute z-[100] w-full bg-white border border-slate-200 rounded shadow-xl mt-1 p-3 text-center text-slate-500 text-sm left-0">
+          Carregando opções...
+        </div>
+      ) : filteredOptions.length > 0 ? (
+        <ul className="absolute z-[100] w-full bg-white border border-slate-200 rounded shadow-xl mt-1 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-150 left-0">
+          {filteredOptions.map((opt, idx) => (
+            <li 
+              key={`${name}-opt-${idx}`} 
+              className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer text-slate-700 flex items-center justify-between border-b border-slate-50 last:border-0"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelectOption(opt);
+              }}
+            >
+              {opt}
+              {inputValue === opt && <Check size={14} className="text-blue-500"/>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="absolute z-[100] w-full bg-white border border-slate-200 rounded shadow-xl mt-1 p-3 text-center text-slate-400 text-sm left-0">
+          Nenhuma opção encontrada
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const STORAGE_KEY_FILTERS = 'process_manager_filters';
 const getInitialState = <T,>(key: string, defaultValue: T): T => {
   try {
@@ -204,6 +319,7 @@ export const ProcessManager = () => {
   const [sectorOptions, setSectorOptions] = useState<string[]>([]);
   const [interestedOptions, setInterestedOptions] = useState<string[]>([]);
   const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
+  const [filterSectorOptions, setFilterSectorOptions] = useState<string[]>([]);
 
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -269,6 +385,18 @@ export const ProcessManager = () => {
   }, [getCurrentParams, fetchProcesses]);
 
   useEffect(() => { refreshCurrentList(); }, [refreshCurrentList]);
+
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      try {
+        const sectors = await DbService.getUniqueValues('sector');
+        setFilterSectorOptions(sectors);
+      } catch (error) {
+        console.error('Erro ao carregar opções de localização:', error);
+      }
+    };
+    loadFilterOptions();
+  }, []);
 
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
       setter(value);
@@ -748,8 +876,18 @@ export const ProcessManager = () => {
             </select>
         </div>
          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-            <input type="text" value={filterSector} onChange={(e) => handleFilterChange(setFilterSector, e.target.value)} placeholder="Filtrar Localização..." className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded text-sm outline-none" />
+            <FilterCombobox 
+              name="filterSector" 
+              options={filterSectorOptions}
+              value={filterSector}
+              onChange={(val) => handleFilterChange(setFilterSector, val)}
+              placeholder="Filtrar Localização..."
+              onLoadOptions={async () => {
+                const sectors = await DbService.getUniqueValues('sector');
+                setFilterSectorOptions(sectors);
+                return sectors;
+              }}
+            />
         </div>
         <div className="relative flex items-center gap-2 bg-white border border-slate-300 rounded px-2 py-1.5">
             <Calendar className="text-slate-400" size={14} />
