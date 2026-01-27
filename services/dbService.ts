@@ -287,16 +287,27 @@ export const DbService = {
   },
 
   saveProcess: async (process: Process, performedBy: User): Promise<void> => {
-    const { processLink, ...processData } = process;
+    const { processLink, isPrestacaoConta, ...processData } = process;
     const payload = {
       ...processData,
       CGOF: normalizeCGOF(process.CGOF),
       processDate: cleanDate(process.processDate),
       deadline: cleanDate(process.deadline),
-      process_link: processLink || null
+      process_link: processLink || null,
+      is_prestacao_conta: isPrestacaoConta || false
     };
     const { error } = await supabase.from('processes').upsert(payload);
-    if (error) throw error;
+    if (error) {
+      // Se o erro for sobre coluna não encontrada, tente sem o campo is_prestacao_conta
+      if (error.message?.includes('isPrestacaoConta') || error.message?.includes('is_prestacao_conta')) {
+        const payloadWithoutField = { ...payload };
+        delete payloadWithoutField.is_prestacao_conta;
+        const { error: retryError } = await supabase.from('processes').upsert(payloadWithoutField);
+        if (retryError) throw retryError;
+      } else {
+        throw error;
+      }
+    }
     await DbService.logAction(process.id ? 'UPDATE' : 'CREATE', `Processo salvo: ${process.number}`, performedBy, process.id);
   },
 
