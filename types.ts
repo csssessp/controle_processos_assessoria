@@ -91,6 +91,7 @@ export interface PrestacaoConta {
   id: string;
   processId?: string | null; // ID do processo relacionado
   processNumber: string; // Número do processo (ex: 001/2024)
+  interested?: string; // Interessado/Órgão
   month: string; // Mês da prestação (YYYY-MM)
   status: 'REGULAR' | 'IRREGULAR'; // Status da prestação
   motivo?: string; // Motivo da irregularidade (se irregular)

@@ -126,14 +126,27 @@ export const PrestacaoContas = () => {
     if (processo && formRef.current) {
       const form = formRef.current;
       const processNumberField = form.querySelector('input[name="processNumber"]') as HTMLInputElement;
+      const interestedField = form.querySelector('input[name="interested"]') as HTMLInputElement;
       const entryDateField = form.querySelector('input[name="entryDate"]') as HTMLInputElement;
+      const exitDateField = form.querySelector('input[name="exitDate"]') as HTMLInputElement;
       
       if (processNumberField) {
         processNumberField.value = processo.number || '';
       }
       
+      if (interestedField) {
+        interestedField.value = processo.interested || '';
+      }
+      
       if (entryDateField && processo.entryDate) {
         entryDateField.value = processo.entryDate.slice(0, 10);
+      }
+
+      if (exitDateField) {
+        // Se houver processDate, usar como exitDate padrão
+        if (processo.processDate) {
+          exitDateField.value = processo.processDate.slice(0, 10);
+        }
       }
     }
   };
@@ -184,6 +197,38 @@ export const PrestacaoContas = () => {
     setHistoricoData([]);
   };
 
+  // Agrupar prestações por número - mostrar apenas a mais recente de cada grupo
+  const groupedPrestacoes = useMemo(() => {
+    const grouped: { [key: string]: any[] } = {};
+    
+    (prestacoes || []).forEach(prestacao => {
+      if (!grouped[prestacao.processNumber]) {
+        grouped[prestacao.processNumber] = [];
+      }
+      grouped[prestacao.processNumber].push(prestacao);
+    });
+
+    // Para cada grupo, manter apenas a mais recente (ordenada por month DESC)
+    return Object.values(grouped).map(group => {
+      return group.sort((a, b) => {
+        const monthA = new Date(a.month + '-01');
+        const monthB = new Date(b.month + '-01');
+        return monthB.getTime() - monthA.getTime();
+      })[0];
+    });
+  }, [prestacoes]);
+
+  const handleNumberClick = (processNumber: string) => {
+    // Mostrar todas as prestações com esse número no histórico
+    const allWithNumber = prestacoes.filter(p => p.processNumber === processNumber);
+    setHistoricoData(allWithNumber.sort((a, b) => {
+      const monthA = new Date(a.month + '-01');
+      const monthB = new Date(b.month + '-01');
+      return monthB.getTime() - monthA.getTime();
+    }));
+    setIsHistoricoModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formRef.current || !currentUser) return;
@@ -192,6 +237,7 @@ export const PrestacaoContas = () => {
     const formData = new FormData(formRef.current);
     const processoSelecionado = formData.get('processoSelecionado') as string;
     const processNumber = formData.get('processNumber') as string;
+    const interested = formData.get('interested') as string;
     const month = formData.get('month') as string;
     const status = formData.get('status') as string;
     const motivo = formData.get('motivo') as string;
@@ -215,6 +261,7 @@ export const PrestacaoContas = () => {
     const now = new Date().toISOString();
     const newPrestacao: any = {
       processNumber,
+      interested,
       month,
       status,
       motivo: status === 'IRREGULAR' ? motivo : undefined,
@@ -388,7 +435,7 @@ export const PrestacaoContas = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {prestacoes.map(prestacao => {
+              {groupedPrestacoes.map(prestacao => {
                 const isIrregular = prestacao.status === 'IRREGULAR';
                 return (
                   <tr 
@@ -410,8 +457,11 @@ export const PrestacaoContas = () => {
                     <td className="px-3 py-2 text-slate-600 font-medium whitespace-nowrap">
                       {formatDate(prestacao.entryDate)}
                     </td>
-                    <td className="px-3 py-2 font-mono font-bold text-slate-900 whitespace-nowrap">
+                    <td className="px-3 py-2 font-mono font-bold text-blue-600 whitespace-nowrap cursor-pointer hover:underline" onClick={() => handleNumberClick(prestacao.processNumber)}>
                       {prestacao.processNumber}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {prestacao.interested || <span className="text-slate-300 italic">-</span>}
                     </td>
                     <td className="px-3 py-2 text-slate-600 font-medium whitespace-nowrap">
                       {formatMonth(prestacao.month)}
@@ -440,13 +490,6 @@ export const PrestacaoContas = () => {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
-                        <button 
-                          onClick={() => handleOpenHistorico(prestacao.id)} 
-                          className="p-1 text-slate-600 hover:text-purple-600 rounded transition-colors"
-                          title="Ver fluxo/histórico"
-                        >
-                          <History size={16} />
-                        </button>
                         <button 
                           onClick={() => handleOpenModal(prestacao)} 
                           className="p-1 text-slate-600 hover:text-blue-600 rounded transition-colors"
@@ -636,6 +679,18 @@ export const PrestacaoContas = () => {
                     defaultValue={editingPrestacao?.processNumber || ''} 
                     className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm font-mono focus:ring-2 focus:ring-blue-100" 
                     placeholder="Ex: 001/2024" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-slate-700">
+                    Interessado
+                  </label>
+                  <input 
+                    name="interested" 
+                    type="text" 
+                    defaultValue={editingPrestacao?.interested || ''} 
+                    className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" 
+                    placeholder="Ex: Órgão/Empresa" 
                   />
                 </div>
                 <div>

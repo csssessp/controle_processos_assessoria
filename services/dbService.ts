@@ -544,6 +544,7 @@ export const DbService = {
           ...item,
           processId: item.process_id,
           processNumber: item.process_number,
+          interested: item.interested,
           month: item.month,
           status: item.status,
           motivo: item.motivo,
@@ -559,7 +560,7 @@ export const DbService = {
         count: count || 0
       };
     } catch (err) {
-      console.error('❌ [CATCH] Erro ao buscar prestações de contas:', err);
+      console.error('Erro ao buscar prestações de contas:', err);
       return { data: [], count: 0 };
     }
   },
@@ -586,6 +587,7 @@ export const DbService = {
         id,
         process_id: prestacao.processId || null,
         process_number: prestacao.processNumber,
+        interested: prestacao.interested || null,
         month: prestacao.month,
         status: prestacao.status,
         motivo: prestacao.status === 'IRREGULAR' ? prestacao.motivo : null,
@@ -670,6 +672,7 @@ export const DbService = {
       ...item,
       processId: item.process_id,
       processNumber: item.process_number,
+      interested: item.interested,
       entryDate: item.entry_date,
       exitDate: item.exit_date,
       link: item.link,
