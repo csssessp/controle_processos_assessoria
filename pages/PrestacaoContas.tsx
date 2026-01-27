@@ -117,6 +117,23 @@ export const PrestacaoContas = () => {
     setCurrentPage(1);
   };
 
+  const handleSelectProcesso = (processoId: string) => {
+    const processo = processosPrestacao.find(p => p.id === processoId);
+    if (processo && formRef.current) {
+      const form = formRef.current;
+      const processNumberField = form.querySelector('input[name="processNumber"]') as HTMLInputElement;
+      const entryDateField = form.querySelector('input[name="entryDate"]') as HTMLInputElement;
+      
+      if (processNumberField) {
+        processNumberField.value = processo.number || '';
+      }
+      
+      if (entryDateField && processo.entryDate) {
+        entryDateField.value = processo.entryDate.slice(0, 10);
+      }
+    }
+  };
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   const getPageNumbers = () => {
@@ -554,18 +571,7 @@ export const PrestacaoContas = () => {
                 </label>
                 <select 
                   name="processoSelecionado"
-                  onChange={(e) => {
-                    const processo = processosPrestacao.find(p => p.id === e.target.value);
-                    if (processo) {
-                      const form = formRef.current;
-                      if (form) {
-                        const processNumberField = form.querySelector('input[name="processNumber"]') as HTMLInputElement;
-                        if (processNumberField) {
-                          processNumberField.value = processo.number || '';
-                        }
-                      }
-                    }
-                  }}
+                  onChange={(e) => handleSelectProcesso(e.target.value)}
                   className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="">-- Selecione um processo de prestação de contas --</option>
