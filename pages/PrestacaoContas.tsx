@@ -167,6 +167,7 @@ export const PrestacaoContas = () => {
 
     setSaving(true);
     const formData = new FormData(formRef.current);
+    const processoSelecionado = formData.get('processoSelecionado') as string;
     const processNumber = formData.get('processNumber') as string;
     const month = formData.get('month') as string;
     const status = formData.get('status') as string;
@@ -199,6 +200,7 @@ export const PrestacaoContas = () => {
       entryDate,
       exitDate: exitDate || null,
       link: link || null,
+      processId: processoSelecionado || undefined,
       createdBy: editingPrestacao?.createdBy || currentUser.id,
       createdAt: editingPrestacao?.createdAt || now,
       updatedBy: currentUser.id,

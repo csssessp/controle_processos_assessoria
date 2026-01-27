@@ -526,6 +526,7 @@ export const DbService = {
       return { 
         data: (data || []).map((item: any) => ({
           ...item,
+          processId: item.process_id,
           processNumber: item.process_number,
           month: item.month,
           status: item.status,
@@ -553,6 +554,7 @@ export const DbService = {
 
     const payload: any = {
       id,
+      process_id: prestacao.processId || null,
       process_number: prestacao.processNumber,
       month: prestacao.month,
       status: prestacao.status,
@@ -594,6 +596,7 @@ export const DbService = {
     if (error) throw error;
     return (data || []).map((item: any) => ({
       ...item,
+      processId: item.process_id,
       processNumber: item.process_number,
       entryDate: item.entry_date,
       exitDate: item.exit_date,

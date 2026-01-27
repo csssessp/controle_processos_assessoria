@@ -89,6 +89,7 @@ export interface ProcessQueryParams {
 }
 export interface PrestacaoConta {
   id: string;
+  processId?: string | null; // ID do processo relacionado
   processNumber: string; // Número do processo (ex: 001/2024)
   month: string; // Mês da prestação (YYYY-MM)
   status: 'REGULAR' | 'IRREGULAR'; // Status da prestação
