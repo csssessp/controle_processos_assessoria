@@ -488,34 +488,42 @@ export const DbService = {
   // --- PRESTAÇÕES DE CONTAS ---
   getPrestacoes: async (params: any): Promise<{ data: any[], count: number }> => {
     try {
+      console.log('🔍 [1] Iniciando getPrestacoes');
       let query = supabase.from('prestacoes_contas').select('*', { count: 'exact' });
-      console.log('🔍 Buscando prestações com params:', params);
+      console.log('🔍 [2] Query criada');
+      console.log('🔍 [3] Params:', params);
 
       // Filtro por número do processo
       if (params.filters?.processNumber) {
+        console.log('🔍 [4a] Aplicando filtro processNumber');
         query = query.ilike('process_number', `%${params.filters.processNumber}%`);
       }
 
       // Filtro por status
       if (params.filters?.status) {
+        console.log('🔍 [4b] Aplicando filtro status');
         query = query.eq('status', params.filters.status);
       }
 
       // Filtro por período
       if (params.filters?.monthStart) {
+        console.log('🔍 [4c] Aplicando filtro monthStart');
         query = query.gte('month', params.filters.monthStart);
       }
       if (params.filters?.monthEnd) {
+        console.log('🔍 [4d] Aplicando filtro monthEnd');
         query = query.lte('month', params.filters.monthEnd);
       }
 
       // Busca por texto
       if (params.searchTerm) {
+        console.log('🔍 [4e] Aplicando filtro searchTerm');
         query = query.or(`process_number.ilike.%${params.searchTerm}%,motivo.ilike.%${params.searchTerm}%`);
       }
 
       // Ordenação - Mapear camelCase para snake_case
       if (params.sortBy?.field) {
+        console.log('🔍 [5a] Aplicando ordenação');
         const order = params.sortBy.order === 'asc' ? { ascending: true } : { ascending: false };
         let orderField = params.sortBy.field;
         
@@ -526,17 +534,21 @@ export const DbService = {
         
         query = query.order(orderField, order);
       } else {
+        console.log('🔍 [5b] Ordenação padrão (updated_at desc)');
         query = query.order('updated_at', { ascending: false });
       }
 
       // Paginação
+      console.log('🔍 [6] Aplicando paginação');
       const offset = ((params.page || 1) - 1) * (params.itemsPerPage || 20);
       query = query.range(offset, offset + (params.itemsPerPage || 20) - 1);
 
+      console.log('🔍 [7] Executando query...');
       const { data, count, error } = await query;
+      console.log('🔍 [8] Query executada');
 
       if (error) {
-        console.error('❌ Erro na query de prestações:', error);
+        console.error('❌ [ERROR] Erro na query de prestações:', error);
         throw error;
       }
       
@@ -562,7 +574,7 @@ export const DbService = {
         count: count || 0
       };
     } catch (err) {
-      console.error('❌ Erro ao buscar prestações de contas:', err);
+      console.error('❌ [CATCH] Erro ao buscar prestações de contas:', err);
       return { data: [], count: 0 };
     }
   },
