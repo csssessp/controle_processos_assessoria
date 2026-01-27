@@ -429,6 +429,7 @@ export const PrestacaoContas = () => {
                 </th>
                 <th className="px-3 py-3">Data Entrada</th>
                 <th className="px-3 py-3">Número</th>
+                <th className="px-3 py-3">Interessado</th>
                 <th className="px-3 py-3">Mês</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Motivo da Irregularidade</th>
