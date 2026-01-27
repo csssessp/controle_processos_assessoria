@@ -42,6 +42,18 @@ export const PrestacaoContas = () => {
   const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
   const [historicoData, setHistoricoData] = useState<any[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
+  const [currentProcessNumberForFluxo, setCurrentProcessNumberForFluxo] = useState<string | null>(null);
+  
+  const [isNovoFluxoModalOpen, setIsNovoFluxoModalOpen] = useState(false);
+  const [novoFluxoData, setNovoFluxoData] = useState({
+    month: '',
+    status: 'REGULAR',
+    motivo: '',
+    observations: '',
+    entryDate: '',
+    exitDate: ''
+  });
+  const [novoFluxoSaving, setNovoFluxoSaving] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState(() => getInitialState('searchTerm', ''));
   const [filterStatus, setFilterStatus] = useState(() => getInitialState('filterStatus', ''));
@@ -224,12 +236,77 @@ export const PrestacaoContas = () => {
     try {
       const historico = await DbService.getHistoricoByProcessNumber(processNumber);
       setHistoricoData(historico);
+      setCurrentProcessNumberForFluxo(processNumber);
       setIsHistoricoModalOpen(true);
     } catch (error) {
       console.error('Erro ao buscar histórico:', error);
       alert('Erro ao carregar histórico do processo');
     } finally {
       setHistoricoLoading(false);
+    }
+  };
+
+  const handleOpenNovoFluxoModal = () => {
+    setIsNovoFluxoModalOpen(true);
+  };
+
+  const handleCloseNovoFluxoModal = () => {
+    setIsNovoFluxoModalOpen(false);
+    setNovoFluxoData({
+      month: '',
+      status: 'REGULAR',
+      motivo: '',
+      observations: '',
+      entryDate: '',
+      exitDate: ''
+    });
+  };
+
+  const handleSaveNovoFluxo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentProcessNumberForFluxo || !currentUser) return;
+
+    if (!novoFluxoData.month || !novoFluxoData.entryDate) {
+      alert('Preencha mês e data de entrada');
+      return;
+    }
+
+    if (novoFluxoData.status === 'IRREGULAR' && !novoFluxoData.motivo) {
+      alert('Informe o motivo da irregularidade');
+      return;
+    }
+
+    setNovoFluxoSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const newPrestacao: any = {
+        processNumber: currentProcessNumberForFluxo,
+        month: novoFluxoData.month,
+        status: novoFluxoData.status,
+        motivo: novoFluxoData.status === 'IRREGULAR' ? novoFluxoData.motivo : undefined,
+        observations: novoFluxoData.observations,
+        entryDate: novoFluxoData.entryDate,
+        exitDate: novoFluxoData.exitDate || null,
+        createdBy: currentUser.id,
+        createdAt: now,
+        updatedBy: currentUser.id,
+        updatedAt: now
+      };
+
+      await DbService.savePrestacao(newPrestacao, currentUser);
+      alert('Novo fluxo adicionado com sucesso!');
+      handleCloseNovoFluxoModal();
+      
+      // Recarregar histórico
+      const historico = await DbService.getHistoricoByProcessNumber(currentProcessNumberForFluxo);
+      setHistoricoData(historico);
+      
+      // Recarregar lista de prestações
+      fetchPrestacoes();
+    } catch (error: any) {
+      alert('Erro ao salvar: ' + (error?.message || 'Tente novamente'));
+    } finally {
+      setNovoFluxoSaving(false);
     }
   };
 
@@ -918,7 +995,13 @@ export const PrestacaoContas = () => {
               )}
             </div>
 
-            <div className="border-t border-slate-200 p-4 bg-slate-50">
+            <div className="border-t border-slate-200 p-4 bg-slate-50 space-y-2">
+              <button 
+                onClick={handleOpenNovoFluxoModal}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors"
+              >
+                + Novo Fluxo
+              </button>
               <button 
                 onClick={handleCloseHistorico}
                 className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
@@ -926,6 +1009,125 @@ export const PrestacaoContas = () => {
                 Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isNovoFluxoModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Novo Fluxo de Prestação</h2>
+              <button 
+                onClick={handleCloseNovoFluxoModal}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNovoFluxo} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Mês *
+                  </label>
+                  <input 
+                    type="month" 
+                    required
+                    value={novoFluxoData.month}
+                    onChange={(e) => setNovoFluxoData({...novoFluxoData, month: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Status *
+                  </label>
+                  <select 
+                    required
+                    value={novoFluxoData.status}
+                    onChange={(e) => setNovoFluxoData({...novoFluxoData, status: e.target.value as 'REGULAR' | 'IRREGULAR'})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  >
+                    <option value="REGULAR">Regular</option>
+                    <option value="IRREGULAR">Irregular</option>
+                  </select>
+                </div>
+              </div>
+
+              {novoFluxoData.status === 'IRREGULAR' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Motivo da Irregularidade *
+                  </label>
+                  <textarea 
+                    required
+                    value={novoFluxoData.motivo}
+                    onChange={(e) => setNovoFluxoData({...novoFluxoData, motivo: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm min-h-[100px]"
+                    placeholder="Descreva o motivo da irregularidade"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Observações
+                </label>
+                <textarea 
+                  value={novoFluxoData.observations}
+                  onChange={(e) => setNovoFluxoData({...novoFluxoData, observations: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm min-h-[80px]"
+                  placeholder="Observações adicionais"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Data de Entrada *
+                  </label>
+                  <input 
+                    type="date" 
+                    required
+                    value={novoFluxoData.entryDate}
+                    onChange={(e) => setNovoFluxoData({...novoFluxoData, entryDate: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Data de Saída
+                  </label>
+                  <input 
+                    type="date" 
+                    value={novoFluxoData.exitDate}
+                    onChange={(e) => setNovoFluxoData({...novoFluxoData, exitDate: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-4 space-y-2">
+                <button 
+                  type="submit"
+                  disabled={novoFluxoSaving}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-400 transition-colors"
+                >
+                  {novoFluxoSaving ? 'Salvando...' : 'Salvar Novo Fluxo'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleCloseNovoFluxoModal}
+                  className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}    </div>
