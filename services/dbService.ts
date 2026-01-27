@@ -591,6 +591,19 @@ export const DbService = {
       const isNew = !prestacao.id;
       const id = prestacao.id || crypto.randomUUID();
 
+      // Buscar dados antigos se for UPDATE para registrar no histórico
+      let dadosAntigos: any = null;
+      if (!isNew) {
+        const { data } = await supabase
+          .from('prestacoes_contas')
+          .select('*')
+          .eq('id', id)
+          .single();
+        dadosAntigos = data;
+      }
+
+      const versionNumber = (prestacao.versionNumber || 0) + 1;
+
       const payload: any = {
         id,
         process_id: prestacao.processId || null,
@@ -602,6 +615,7 @@ export const DbService = {
         entry_date: prestacao.entryDate || null,
         exit_date: prestacao.exitDate || null,
         link: prestacao.link || null,
+        version_number: versionNumber,
         created_by: prestacao.createdBy || user.id,
         updated_by: user.id,
         created_at: prestacao.createdAt || new Date().toISOString(),
@@ -619,6 +633,19 @@ export const DbService = {
           throw new Error(`Insert failed: ${error.message}`);
         }
         console.log('✅ Prestação inserida com sucesso');
+
+        // Registrar entrada inicial no histórico
+        await DbService.saveHistoricoPrestacao({
+          prestacaoId: id,
+          versionNumber: 1,
+          statusAnterior: null,
+          statusNovo: prestacao.status,
+          motivoAnterior: null,
+          motivoNovo: prestacao.status === 'IRREGULAR' ? prestacao.motivo : null,
+          descricao: `Prestação criada com status ${prestacao.status}`,
+          alteradoPor: user.id,
+          nomeUsuario: user.name
+        });
       } else {
         console.log('📝 [DEBUG-SAVE-2] Executando UPDATE com id:', prestacao.id);
         const { data, error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
@@ -629,6 +656,22 @@ export const DbService = {
           throw new Error(`Update failed: ${error.message}`);
         }
         console.log('✅ Prestação atualizada com sucesso');
+
+        // Se status mudou, registrar no histórico
+        if (dadosAntigos && (dadosAntigos.status !== prestacao.status || dadosAntigos.motivo !== (prestacao.status === 'IRREGULAR' ? prestacao.motivo : null))) {
+          await DbService.saveHistoricoPrestacao({
+            prestacaoId: id,
+            versionNumber,
+            statusAnterior: dadosAntigos.status,
+            statusNovo: prestacao.status,
+            motivoAnterior: dadosAntigos.motivo,
+            motivoNovo: prestacao.status === 'IRREGULAR' ? prestacao.motivo : null,
+            observacoes: prestacao.observations,
+            descricao: `Status alterado de ${dadosAntigos.status} para ${prestacao.status}`,
+            alteradoPor: user.id,
+            nomeUsuario: user.name
+          });
+        }
       }
 
       await DbService.logAction('CREATE', `Prestação de contas ${isNew ? 'criada' : 'atualizada'}: ${prestacao.processNumber} - ${prestacao.month}`, user, id);
@@ -664,5 +707,47 @@ export const DbService = {
       createdAt: item.created_at,
       updatedAt: item.updated_at
     }));
-  }
+  },
+
+  // --- HISTÓRICO DE PRESTAÇÕES ---
+  getHistoricoPrestacao: async (prestacaoId: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('prestacoes_contas_historico')
+      .select('*')
+      .eq('prestacao_id', prestacaoId)
+      .order('data_alteracao', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((item: any) => ({
+      ...item,
+      prestacaoId: item.prestacao_id,
+      versionNumber: item.version_number,
+      statusAnterior: item.status_anterior,
+      statusNovo: item.status_novo,
+      motivoAnterior: item.motivo_anterior,
+      motivoNovo: item.motivo_novo,
+      alteradoPor: item.alterado_por,
+      nomeUsuario: item.nome_usuario,
+      dataAlteracao: item.data_alteracao
+    }));
+  },
+
+  saveHistoricoPrestacao: async (entrada: any): Promise<void> => {
+    const payload = {
+      id: crypto.randomUUID(),
+      prestacao_id: entrada.prestacaoId,
+      version_number: entrada.versionNumber,
+      status_anterior: entrada.statusAnterior || null,
+      status_novo: entrada.statusNovo,
+      motivo_anterior: entrada.motivoAnterior || null,
+      motivo_novo: entrada.motivoNovo || null,
+      observacoes: entrada.observacoes || null,
+      descricao: entrada.descricao,
+      alterado_por: entrada.alteradoPor,
+      nome_usuario: entrada.nomeUsuario,
+      data_alteracao: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('prestacoes_contas_historico').insert(payload);
+    if (error) throw error;  }
 };

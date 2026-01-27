@@ -4,7 +4,7 @@ import { PrestacaoContaQueryParams, UserRole } from '../types';
 import { 
   Search, Plus, Edit, Trash2, AlertTriangle, 
   X, CheckSquare, Square, Filter, ChevronLeft, ChevronRight, 
-  Loader2, Lock, AlertCircle, ExternalLink
+  Loader2, Lock, AlertCircle, ExternalLink, History
 } from 'lucide-react';
 import { DbService } from '../services/dbService';
 
@@ -38,6 +38,10 @@ export const PrestacaoContas = () => {
   const [passwordError, setPasswordError] = useState('');
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
   const [selectedIdToDelete, setSelectedIdToDelete] = useState<string | null>(null);
+  
+  const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
+  const [historicoData, setHistoricoData] = useState<any[]>([]);
+  const [historicoLoading, setHistoricoLoading] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState(() => getInitialState('searchTerm', ''));
   const [filterStatus, setFilterStatus] = useState(() => getInitialState('filterStatus', ''));
@@ -159,6 +163,25 @@ export const PrestacaoContas = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingPrestacao(null);
+  };
+
+  const handleOpenHistorico = async (prestacaoId: string) => {
+    setIsHistoricoModalOpen(true);
+    setHistoricoLoading(true);
+    try {
+      const historico = await DbService.getHistoricoPrestacao(prestacaoId);
+      setHistoricoData(historico);
+    } catch (error) {
+      console.error('Erro ao buscar histórico:', error);
+      alert('Erro ao carregar histórico');
+    } finally {
+      setHistoricoLoading(false);
+    }
+  };
+
+  const handleCloseHistorico = () => {
+    setIsHistoricoModalOpen(false);
+    setHistoricoData([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -417,6 +440,13 @@ export const PrestacaoContas = () => {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => handleOpenHistorico(prestacao.id)} 
+                          className="p-1 text-slate-600 hover:text-purple-600 rounded transition-colors"
+                          title="Ver fluxo/histórico"
+                        >
+                          <History size={16} />
+                        </button>
                         <button 
                           onClick={() => handleOpenModal(prestacao)} 
                           className="p-1 text-slate-600 hover:text-blue-600 rounded transition-colors"
@@ -718,6 +748,126 @@ export const PrestacaoContas = () => {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Modal de Histórico/Fluxo */}
+      {isHistoricoModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <History size={24} className="text-purple-600" />
+                <h2 className="text-xl font-bold text-slate-900">Fluxo de Status</h2>
+              </div>
+              <button 
+                onClick={handleCloseHistorico}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {historicoLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={24} className="animate-spin text-slate-400" />
+                </div>
+              ) : historicoData.length === 0 ? (
+                <div className="py-8 text-center text-slate-400">
+                  <AlertCircle size={32} className="mx-auto mb-2 opacity-50" />
+                  <p>Nenhum histórico encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {historicoData.map((entrada, index) => (
+                    <div key={entrada.id} className="relative">
+                      {/* Linha vertical conectando entradas */}
+                      {index < historicoData.length - 1 && (
+                        <div className="absolute left-6 top-16 w-0.5 h-8 bg-slate-200" />
+                      )}
+
+                      <div className="flex gap-4">
+                        {/* Indicador circular */}
+                        <div className="flex flex-col items-center pt-1">
+                          <div className={`w-4 h-4 rounded-full border-4 ${
+                            entrada.statusNovo === 'REGULAR' 
+                              ? 'bg-green-100 border-green-500' 
+                              : 'bg-yellow-100 border-yellow-500'
+                          }`} />
+                        </div>
+
+                        {/* Conteúdo da entrada */}
+                        <div className="flex-1 bg-slate-50 rounded-lg p-4 border border-slate-200">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="font-bold text-slate-900">
+                                {entrada.statusAnterior ? (
+                                  <>
+                                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold mr-2 ${
+                                      entrada.statusAnterior === 'REGULAR' 
+                                        ? 'bg-green-100 text-green-800' 
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {entrada.statusAnterior}
+                                    </span>
+                                    <span className="text-slate-400">→</span>
+                                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold ml-2 ${
+                                      entrada.statusNovo === 'REGULAR' 
+                                        ? 'bg-green-100 text-green-800' 
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {entrada.statusNovo}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                                    entrada.statusNovo === 'REGULAR' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {entrada.statusNovo}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-slate-700 text-sm mt-1">{entrada.descricao}</p>
+                              
+                              {entrada.motivoNovo && (
+                                <div className="mt-2 p-2 bg-white rounded border-l-2 border-orange-300">
+                                  <p className="text-xs text-slate-500 font-bold">Motivo:</p>
+                                  <p className="text-xs text-slate-700 mt-1">{entrada.motivoNovo}</p>
+                                </div>
+                              )}
+
+                              {entrada.observacoes && (
+                                <div className="mt-2 p-2 bg-white rounded border-l-2 border-blue-300">
+                                  <p className="text-xs text-slate-500 font-bold">Observações:</p>
+                                  <p className="text-xs text-slate-700 mt-1">{entrada.observacoes}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                            <span>Por: <strong>{entrada.nomeUsuario}</strong></span>
+                            <span>{new Date(entrada.dataAlteracao).toLocaleString('pt-BR')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 p-4 bg-slate-50">
+              <button 
+                onClick={handleCloseHistorico}
+                className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}    </div>
   );
 };

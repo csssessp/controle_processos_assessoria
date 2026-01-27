@@ -98,11 +98,28 @@ export interface PrestacaoConta {
   entryDate: string; // Data de entrada (YYYY-MM-DD)
   exitDate?: string | null; // Data de saída (YYYY-MM-DD)
   link?: string; // Link do documento/processo
+  versionNumber: number; // Versão da prestação (incrementa a cada alteração)
   
   createdBy: string; // User ID
   updatedBy: string;
   createdAt: string; // ISO Timestamp
   updatedAt: string; // ISO Timestamp
+}
+
+export interface PrestacaoContaHistorico {
+  id: string;
+  prestacaoId: string; // ID da prestação
+  versionNumber: number; // Versão desta entrada
+  statusAnterior?: 'REGULAR' | 'IRREGULAR' | null; // Status antes da mudança
+  statusNovo: 'REGULAR' | 'IRREGULAR'; // Status novo
+  motivoAnterior?: string | null; // Motivo anterior
+  motivoNovo?: string | null; // Motivo novo
+  observacoes?: string; // Observações sobre a mudança
+  descricao: string; // Descrição da mudança (ex: "Alterado de IRREGULAR para REGULAR")
+  
+  alteradoPor: string; // User ID
+  nomeUsuario: string; // Nome do usuário
+  dataAlteracao: string; // ISO Timestamp
 }
 
 export interface PrestacaoContaFilters {
