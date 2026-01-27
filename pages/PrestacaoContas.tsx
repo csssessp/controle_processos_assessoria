@@ -190,8 +190,7 @@ export const PrestacaoContas = () => {
     }
 
     const now = new Date().toISOString();
-    const newPrestacao = {
-      id: editingPrestacao?.id || crypto.randomUUID(),
+    const newPrestacao: any = {
       processNumber,
       month,
       status,
@@ -201,11 +200,20 @@ export const PrestacaoContas = () => {
       exitDate: exitDate || null,
       link: link || null,
       processId: processoSelecionado || undefined,
-      createdBy: editingPrestacao?.createdBy || currentUser.id,
-      createdAt: editingPrestacao?.createdAt || now,
       updatedBy: currentUser.id,
       updatedAt: now
     };
+
+    // Se estiver editando, incluir id, createdBy e createdAt
+    if (editingPrestacao) {
+      newPrestacao.id = editingPrestacao.id;
+      newPrestacao.createdBy = editingPrestacao.createdBy;
+      newPrestacao.createdAt = editingPrestacao.createdAt;
+    } else {
+      // Se for novo, NÃO incluir id - deixar savePrestacao gerar
+      newPrestacao.createdBy = currentUser.id;
+      newPrestacao.createdAt = now;
+    }
 
     try {
       await DbService.savePrestacao(newPrestacao, currentUser);
