@@ -489,6 +489,13 @@ export const DbService = {
   getPrestacoes: async (params: any): Promise<{ data: any[], count: number }> => {
     try {
       console.log('🔍 [1] Iniciando getPrestacoes');
+      
+      // DEBUG: Contar todos os registros na tabela
+      const { count: totalCount } = await supabase
+        .from('prestacoes_contas')
+        .select('*', { count: 'exact', head: true });
+      console.log('🔍 [DEBUG] Total de registros na tabela prestacoes_contas:', totalCount);
+      
       let query = supabase.from('prestacoes_contas').select('*', { count: 'exact' });
       console.log('🔍 [2] Query criada');
       console.log('🔍 [3] Params:', params);
