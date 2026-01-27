@@ -1,16 +1,20 @@
 -- =====================================================
--- SETUP COMPLETO: Coluna Interested + Histórico
+-- ⚠️  SETUP OBRIGATÓRIO - Execute no Supabase SQL Editor
 -- =====================================================
--- Execute isso no Supabase SQL Editor
+-- Esta script adiciona as colunas e tabelas necessárias
+-- para o sistema de Prestações de Contas funcionar corretamente
 
--- 1. Adicionar coluna 'interested' na tabela prestacoes_contas
+-- PASSO 1: Adicionar coluna 'interested' na tabela prestacoes_contas
 ALTER TABLE public.prestacoes_contas 
 ADD COLUMN IF NOT EXISTS interested VARCHAR(255);
 
--- 2. Drop da tabela histórico antiga (se existir)
+-- PASSO 2: Adicionar coluna de versão na tabela de prestações (se não existir)
+ALTER TABLE public.prestacoes_contas 
+ADD COLUMN IF NOT EXISTS version_number INTEGER DEFAULT 1;
+
+-- PASSO 3: Recriar tabela de histórico
 DROP TABLE IF EXISTS public.prestacoes_contas_historico CASCADE;
 
--- 3. Criar tabela de histórico
 CREATE TABLE public.prestacoes_contas_historico (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   prestacao_id UUID NOT NULL REFERENCES prestacoes_contas(id) ON DELETE CASCADE,
@@ -26,7 +30,7 @@ CREATE TABLE public.prestacoes_contas_historico (
   data_alteracao TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Criar índices
+-- PASSO 4: Criar índices para performance
 CREATE INDEX idx_prestacoes_historico_prestacao_id 
 ON public.prestacoes_contas_historico(prestacao_id);
 
@@ -36,27 +40,36 @@ ON public.prestacoes_contas_historico(data_alteracao DESC);
 CREATE INDEX idx_prestacoes_historico_version 
 ON public.prestacoes_contas_historico(prestacao_id, version_number DESC);
 
--- 5. Habilitar RLS
+-- PASSO 5: Habilitar Row Level Security (RLS)
 ALTER TABLE public.prestacoes_contas_historico ENABLE ROW LEVEL SECURITY;
 
--- 6. Criar políticas permissivas
+-- PASSO 6: Criar política permissiva (permite todos os usuários autenticados)
+DROP POLICY IF EXISTS "Allow all" ON public.prestacoes_contas_historico;
+
 CREATE POLICY "Allow all" 
 ON public.prestacoes_contas_historico 
 FOR ALL 
 USING (true)
 WITH CHECK (true);
 
--- 7. Adicionar versão na tabela de prestações (se não existir)
-ALTER TABLE public.prestacoes_contas 
-ADD COLUMN IF NOT EXISTS version_number INTEGER DEFAULT 1;
+-- =====================================================
+-- ✅ VERIFICAÇÃO - Execute para confirmar setup
+-- =====================================================
 
--- 8. Verificar
 SELECT 
-  'Setup Completo' as status,
-  COUNT(*) as total_historico
-FROM public.prestacoes_contas_historico;
+  'Historico' as tabela,
+  COUNT(*) as total_registros
+FROM public.prestacoes_contas_historico
 
-SELECT column_name 
+UNION ALL
+
+SELECT 
+  'Colunas adicionadas' as tabela,
+  COUNT(*) as total_registros
 FROM information_schema.columns 
 WHERE table_name = 'prestacoes_contas' 
-AND (column_name = 'interested' OR column_name = 'version_number');
+AND column_name IN ('interested', 'version_number');
+
+-- Se tudo funcionar, você verá:
+-- Historico | 0 (tabela criada vazia)
+-- Colunas adicionadas | 2 (as duas colunas foram criadas)
