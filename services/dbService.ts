@@ -449,5 +449,122 @@ export const DbService = {
       }));
       await DbService.importProcesses(initialData as Process[], user);
     }
+  },
+
+  // --- PRESTAÇÕES DE CONTAS ---
+  getPrestacoes: async (params: any): Promise<{ data: any[], count: number }> => {
+    try {
+      let query = supabase.from('prestacoes_contas').select('*', { count: 'exact' });
+
+      // Filtro por número do processo
+      if (params.filters?.processNumber) {
+        query = query.ilike('process_number', `%${params.filters.processNumber}%`);
+      }
+
+      // Filtro por status
+      if (params.filters?.status) {
+        query = query.eq('status', params.filters.status);
+      }
+
+      // Filtro por período
+      if (params.filters?.monthStart) {
+        query = query.gte('month', params.filters.monthStart);
+      }
+      if (params.filters?.monthEnd) {
+        query = query.lte('month', params.filters.monthEnd);
+      }
+
+      // Busca por texto
+      if (params.searchTerm) {
+        query = query.or(`process_number.ilike.%${params.searchTerm}%,motivo.ilike.%${params.searchTerm}%`);
+      }
+
+      // Ordenação
+      if (params.sortBy?.field) {
+        const order = params.sortBy.order === 'asc' ? { ascending: true } : { ascending: false };
+        query = query.order(params.sortBy.field === 'processNumber' ? 'process_number' : params.sortBy.field, order);
+      } else {
+        query = query.order('updated_at', { ascending: false });
+      }
+
+      // Paginação
+      const offset = ((params.page || 1) - 1) * (params.itemsPerPage || 20);
+      query = query.range(offset, offset + (params.itemsPerPage || 20) - 1);
+
+      const { data, count, error } = await query;
+
+      if (error) throw error;
+
+      return { 
+        data: (data || []).map((item: any) => ({
+          ...item,
+          processNumber: item.process_number,
+          month: item.month,
+          status: item.status,
+          motivo: item.motivo,
+          observations: item.observations,
+          createdBy: item.created_by,
+          updatedBy: item.updated_by,
+          createdAt: item.created_at,
+          updatedAt: item.updated_at
+        })),
+        count: count || 0
+      };
+    } catch (err) {
+      console.error('Erro ao buscar prestações de contas:', err);
+      return { data: [], count: 0 };
+    }
+  },
+
+  savePrestacao: async (prestacao: any, user: User): Promise<void> => {
+    const isNew = !prestacao.id;
+    const id = prestacao.id || crypto.randomUUID();
+
+    const payload: any = {
+      id,
+      process_number: prestacao.processNumber,
+      month: prestacao.month,
+      status: prestacao.status,
+      motivo: prestacao.status === 'IRREGULAR' ? prestacao.motivo : null,
+      observations: prestacao.observations || null,
+      created_by: prestacao.createdBy || user.id,
+      updated_by: user.id,
+      created_at: prestacao.createdAt || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (isNew) {
+      const { error } = await supabase.from('prestacoes_contas').insert(payload);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('prestacoes_contas').update(payload).eq('id', prestacao.id);
+      if (error) throw error;
+    }
+
+    await DbService.logAction('CREATE', `Prestação de contas ${isNew ? 'criada' : 'atualizada'}: ${prestacao.processNumber} - ${prestacao.month}`, user, id);
+  },
+
+  deletePrestacao: async (id: string, user: User): Promise<void> => {
+    const { error } = await supabase.from('prestacoes_contas').delete().eq('id', id);
+    if (error) throw error;
+    await DbService.logAction('DELETE', `Prestação de contas excluída (ID: ${id})`, user, id);
+  },
+
+  getPrestacoesByProcessNumber: async (processNumber: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('prestacoes_contas')
+      .select('*')
+      .eq('process_number', processNumber)
+      .order('month', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((item: any) => ({
+      ...item,
+      processNumber: item.process_number,
+      createdBy: item.created_by,
+      updatedBy: item.updated_by,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at
+    }));
   }
 };

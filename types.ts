@@ -86,3 +86,36 @@ export interface ProcessQueryParams {
   filters?: ProcessFilters;
   sortBy?: ProcessSort;
 }
+export interface PrestacaoConta {
+  id: string;
+  processNumber: string; // Número do processo (ex: 001/2024)
+  month: string; // Mês da prestação (YYYY-MM)
+  status: 'REGULAR' | 'IRREGULAR'; // Status da prestação
+  motivo?: string; // Motivo da irregularidade (se irregular)
+  observations?: string; // Observações adicionais
+  
+  createdBy: string; // User ID
+  updatedBy: string;
+  createdAt: string; // ISO Timestamp
+  updatedAt: string; // ISO Timestamp
+}
+
+export interface PrestacaoContaFilters {
+  processNumber?: string;
+  monthStart?: string;
+  monthEnd?: string;
+  status?: 'REGULAR' | 'IRREGULAR';
+}
+
+export interface PrestacaoContaSort {
+  field: 'processNumber' | 'month' | 'status' | 'updatedAt';
+  order: 'asc' | 'desc';
+}
+
+export interface PrestacaoContaQueryParams {
+  page: number;
+  itemsPerPage: number;
+  searchTerm?: string;
+  filters?: PrestacaoContaFilters;
+  sortBy?: PrestacaoContaSort;
+}

@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/Layout';
 import { ProcessManager } from './pages/ProcessManager';
+import { PrestacaoContas } from './pages/PrestacaoContas';
 import { UserManagement } from './pages/UserManagement';
 import { Logs } from './pages/Logs';
 import { Login } from './pages/Login';
@@ -40,6 +41,12 @@ const AppRoutes = () => {
       <Route path="/processos" element={
         <ProtectedRoute>
           <ProcessManager />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/prestacoes" element={
+        <ProtectedRoute>
+          <PrestacaoContas />
         </ProtectedRoute>
       } />
 

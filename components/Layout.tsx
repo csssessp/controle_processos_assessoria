@@ -9,7 +9,8 @@ import {
   LogOut, 
   Menu,
   X,
-  User as UserIcon
+  User as UserIcon,
+  Receipt
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -63,6 +64,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
               <div className="hidden md:block border-l border-slate-700 pl-6">
                 <div className="flex items-baseline space-x-2">
                   <NavItem to="/processos" icon={Files} label="Processos" />
+                  <NavItem to="/prestacoes" icon={Receipt} label="Prestações" />
                   {currentUser?.role === UserRole.ADMIN && (
                     <>
                       <NavItem to="/usuarios" icon={Users} label="Usuários" />
@@ -117,6 +119,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
           <div className="md:hidden bg-slate-900 border-t border-slate-700 pb-4 shadow-xl">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               <NavItem to="/processos" icon={Files} label="Gestão de Processos" />
+              <NavItem to="/prestacoes" icon={Receipt} label="Prestações de Contas" />
               <NavItem to="/perfil" icon={UserIcon} label="Meu Perfil / Trocar Senha" />
               {currentUser?.role === UserRole.ADMIN && (
                 <>
