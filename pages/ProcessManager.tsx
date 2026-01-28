@@ -299,6 +299,7 @@ export const ProcessManager = () => {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
+  const [isPrestacaoChecked, setIsPrestacaoChecked] = useState(false);
   
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -344,17 +345,6 @@ export const ProcessManager = () => {
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // Estados para lançamento de prestação de contas
-  const [isLancamentoPrestacaoOpen, setIsLancamentoPrestacaoOpen] = useState(false);
-  const [selectedProcessForPrestacao, setSelectedProcessForPrestacao] = useState<Process | null>(null);
-  const [lancamentoPrestacaoData, setLancamentoPrestacaoData] = useState({
-    mes: '',
-    status: 'REGULAR',
-    motivo: '',
-    observacoes: ''
-  });
-  const [savingLancamento, setSavingLancamento] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -546,6 +536,7 @@ export const ProcessManager = () => {
   const handleOpenModal = async (process?: Process) => {
     setLoadingEdit(true);
     setIsModalOpen(true);
+    setIsPrestacaoChecked(process?.isPrestacaoConta || false);
     console.log('Abrindo para edição:', {
       numero: process?.number,
       isPrestacaoConta: process?.isPrestacaoConta,
@@ -581,88 +572,14 @@ export const ProcessManager = () => {
 
   const handleCloseModal = () => { 
     setIsModalOpen(false); 
-    setEditingProcess(null); 
+    setEditingProcess(null);
+    setIsPrestacaoChecked(false);
     setNewEntryDate('');
     setOriginalEntryDate('');
     setIsEntryDatePasswordModalOpen(false);
     setEntryDatePassword('');
     setEntryDatePasswordError('');
     setPendingProcessToSave(null);
-  };
-
-  const handleOpenLancamentoPrestacao = (process: Process) => {
-    setSelectedProcessForPrestacao(process);
-    setIsLancamentoPrestacaoOpen(true);
-  };
-
-  const handleCloseLancamentoPrestacao = () => {
-    setIsLancamentoPrestacaoOpen(false);
-    setSelectedProcessForPrestacao(null);
-    setLancamentoPrestacaoData({
-      mes: '',
-      status: 'REGULAR',
-      motivo: '',
-      observacoes: ''
-    });
-  };
-
-  // Função para salvar lançamento de prestação
-  const handleSaveLancamentoPrestacao = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProcessForPrestacao || !currentUser) return;
-
-    if (!lancamentoPrestacaoData.mes) {
-      alert('Informe o mês da prestação');
-      return;
-    }
-
-    if (lancamentoPrestacaoData.status === 'IRREGULAR' && !lancamentoPrestacaoData.motivo) {
-      alert('Informe o motivo da irregularidade');
-      return;
-    }
-
-    setSavingLancamento(true);
-    try {
-      const now = new Date().toISOString();
-      const newPrestacao: any = {
-        processNumber: selectedProcessForPrestacao.number,
-        interested: selectedProcessForPrestacao.interested,
-        month: lancamentoPrestacaoData.mes,
-        status: lancamentoPrestacaoData.status,
-        motivo: lancamentoPrestacaoData.status === 'IRREGULAR' ? lancamentoPrestacaoData.motivo : undefined,
-        observations: lancamentoPrestacaoData.observacoes,
-        entryDate: selectedProcessForPrestacao.entryDate,
-        exitDate: selectedProcessForPrestacao.processDate || null,
-        link: selectedProcessForPrestacao.processLink || null,
-        processId: selectedProcessForPrestacao.id,
-        createdBy: currentUser.id,
-        createdAt: now,
-        updatedBy: currentUser.id,
-        updatedAt: now
-      };
-
-      await DbService.savePrestacao(newPrestacao, currentUser);
-      
-      // Navegar para PrestacaoContas com dados pré-preenchidos
-      const urlParams = new URLSearchParams({
-        processNumber: selectedProcessForPrestacao.number,
-        interested: selectedProcessForPrestacao.interested || '',
-        month: lancamentoPrestacaoData.mes,
-        status: lancamentoPrestacaoData.status,
-        motivo: lancamentoPrestacaoData.motivo,
-        observacoes: lancamentoPrestacaoData.observacoes,
-        entryDate: selectedProcessForPrestacao.entryDate || '',
-        exitDate: selectedProcessForPrestacao.processDate || '',
-        link: selectedProcessForPrestacao.processLink || ''
-      });
-
-      handleCloseLancamentoPrestacao();
-      window.location.href = `/prestacoes?${urlParams.toString()}`;
-    } catch (error: any) {
-      alert('Erro ao salvar: ' + (error?.message || 'Tente novamente'));
-    } finally {
-      setSavingLancamento(false);
-    }
   };
 
   // Função para determinar qual é a Localização Atual baseada nas datas mais recentes
@@ -742,6 +659,29 @@ export const ProcessManager = () => {
 
     try {
         await saveProcess(newProcess);
+        
+        // Se é prestação de contas, salvar dados de prestação
+        if (newProcess.isPrestacaoConta && currentUser) {
+          const prestacaoMes = formData.get('prestacaoMes') as string;
+          const prestacaoStatus = formData.get('prestacaoStatus') as string;
+          const prestacaoMotivo = formData.get('prestacaoMotivo') as string;
+          const prestacaoObservacoes = formData.get('prestacaoObservacoes') as string;
+
+          if (prestacaoMes) {
+            await DbService.savePrestacao({
+              processNumber: newProcess.number,
+              month: prestacaoMes,
+              status: prestacaoStatus || 'REGULAR',
+              motivo: prestacaoStatus === 'IRREGULAR' ? prestacaoMotivo : null,
+              observations: prestacaoObservacoes,
+              interested: newProcess.interested,
+              entryDate: newProcess.entryDate,
+              exitDate: null,
+              link: newProcess.processLink || null
+            }, currentUser);
+          }
+        }
+        
         alert(editingProcess ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
         handleCloseModal();
         refreshCurrentList();
@@ -1153,9 +1093,6 @@ export const ProcessManager = () => {
                     <td className="px-4 py-2 text-right whitespace-nowrap align-top">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => handleOpenHistory(process)} className="p-1 text-slate-600 hover:text-blue-600 rounded" title="Ver Histórico"><Activity size={16} /></button>
-                        {process.isPrestacaoConta && (
-                          <button onClick={() => handleOpenLancamentoPrestacao(process)} className="p-1 text-slate-600 hover:text-green-600 rounded" title="Lançar/Editar Prestação"><FileText size={16} /></button>
-                        )}
                         <button onClick={() => handleOpenModal(process)} className="p-1 text-slate-600 hover:text-blue-600 rounded" title="Editar"><Edit size={16} /></button>
                       </div>
                     </td>
@@ -1501,11 +1438,69 @@ export const ProcessManager = () => {
                 <textarea name="observations" rows={3} defaultValue={editingProcess?.observations} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" placeholder="Informações adicionais..."></textarea>
               </div>
               <div className="flex items-center gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100 w-fit">
-                <input name="isPrestacaoConta" type="checkbox" id="prestacao-check" defaultChecked={editingProcess?.isPrestacaoConta} className="w-4 h-4 text-blue-600 focus:ring-blue-200" />
+                <input 
+                  name="isPrestacaoConta" 
+                  type="checkbox" 
+                  id="prestacao-check" 
+                  checked={isPrestacaoChecked}
+                  onChange={(e) => setIsPrestacaoChecked(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-200" 
+                />
                 <label htmlFor="prestacao-check" className="text-sm font-bold text-blue-700 cursor-pointer">
                   🧾 Este processo é uma Prestação de Contas
                 </label>
               </div>
+
+              {/* Campos de Prestação de Contas - Aparecem apenas quando checkbox marcado */}
+              {isPrestacaoChecked ? (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-4">
+                  <h4 className="font-bold text-slate-900 mb-3">Informações da Prestação de Contas</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">Mês da Prestação *</label>
+                      <input 
+                        type="month" 
+                        name="prestacaoMes" 
+                        className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">Status *</label>
+                      <select 
+                        name="prestacaoStatus" 
+                        defaultValue="REGULAR"
+                        className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
+                      >
+                        <option value="REGULAR">Regular</option>
+                        <option value="IRREGULAR">Irregular</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-1 text-slate-700">Motivo da Irregularidade</label>
+                    <textarea 
+                      name="prestacaoMotivo" 
+                      rows={3}
+                      className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
+                      placeholder="Motivo da irregularidade (se aplicável)"
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-1 text-slate-700">Observações</label>
+                    <textarea 
+                      name="prestacaoObservacoes" 
+                      rows={2}
+                      className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
+                      placeholder="Observações adicionais sobre a prestação"
+                    ></textarea>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
                 <button type="button" onClick={handleCloseModal} className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold transition-colors">Cancelar</button>
                 <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold flex items-center gap-2 text-sm shadow-md hover:bg-blue-700 transition-colors">{saving && <Loader2 size={16} className="animate-spin" />}Gravar</button>
@@ -1513,102 +1508,6 @@ export const ProcessManager = () => {
             </form>
             </>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Lançamento de Prestação de Contas */}
-      {isLancamentoPrestacaoOpen && selectedProcessForPrestacao && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Lançar Prestação de Contas</h2>
-                <p className="text-sm text-slate-500 mt-1">Processo: {selectedProcessForPrestacao.number} - {selectedProcessForPrestacao.interested}</p>
-              </div>
-              <button 
-                onClick={handleCloseLancamentoPrestacao}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveLancamentoPrestacao} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Mês da Prestação *
-                  </label>
-                  <input 
-                    type="month" 
-                    required
-                    value={lancamentoPrestacaoData.mes}
-                    onChange={(e) => setLancamentoPrestacaoData({...lancamentoPrestacaoData, mes: e.target.value})}
-                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Status *
-                  </label>
-                  <select 
-                    required
-                    value={lancamentoPrestacaoData.status}
-                    onChange={(e) => setLancamentoPrestacaoData({...lancamentoPrestacaoData, status: e.target.value as 'REGULAR' | 'IRREGULAR'})}
-                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                  >
-                    <option value="REGULAR">Regular</option>
-                    <option value="IRREGULAR">Irregular</option>
-                  </select>
-                </div>
-              </div>
-
-              {lancamentoPrestacaoData.status === 'IRREGULAR' && (
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Motivo da Irregularidade *
-                  </label>
-                  <textarea 
-                    required
-                    value={lancamentoPrestacaoData.motivo}
-                    onChange={(e) => setLancamentoPrestacaoData({...lancamentoPrestacaoData, motivo: e.target.value})}
-                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm min-h-[100px]"
-                    placeholder="Descreva o motivo da irregularidade"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Observações
-                </label>
-                <textarea 
-                  value={lancamentoPrestacaoData.observacoes}
-                  onChange={(e) => setLancamentoPrestacaoData({...lancamentoPrestacaoData, observacoes: e.target.value})}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm min-h-[80px]"
-                  placeholder="Observações adicionais"
-                />
-              </div>
-
-              <div className="border-t border-slate-200 pt-4 space-y-2">
-                <button 
-                  type="submit"
-                  disabled={savingLancamento}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-400 transition-colors"
-                >
-                  {savingLancamento ? 'Salvando...' : 'Lançar Prestação'}
-                </button>
-                <button 
-                  type="button"
-                  onClick={handleCloseLancamentoPrestacao}
-                  className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
