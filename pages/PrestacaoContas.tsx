@@ -59,7 +59,7 @@ export const PrestacaoContas = () => {
   const [filterStatus, setFilterStatus] = useState(() => getInitialState('filterStatus', ''));
   const [filterMonthStart, setFilterMonthStart] = useState(() => getInitialState('filterMonthStart', ''));
   const [filterMonthEnd, setFilterMonthEnd] = useState(() => getInitialState('filterMonthEnd', ''));
-  const [sortBy, setSortBy] = useState<'processNumber' | 'month' | 'status' | 'updatedAt'>(() => getInitialState('sortBy', 'updatedAt'));
+  const [sortBy, setSortBy] = useState<'processNumber' | 'month' | 'status' | 'updatedAt' | 'entryDate' | 'interested'>(() => getInitialState('sortBy', 'updatedAt'));
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => getInitialState('sortOrder', 'desc'));
   const [itemsPerPage, setItemsPerPage] = useState(() => getInitialState('itemsPerPage', 20));
   const [currentPage, setCurrentPage] = useState(() => getInitialState('currentPage', 1));
@@ -131,6 +131,21 @@ export const PrestacaoContas = () => {
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
     setter(value);
     setCurrentPage(1);
+  };
+
+  const handleSort = (field: 'entryDate' | 'processNumber' | 'interested' | 'month' | 'status') => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const getSortIndicator = (field: 'entryDate' | 'processNumber' | 'interested' | 'month' | 'status') => {
+    if (sortBy !== field) return null;
+    return sortOrder === 'asc' ? ' ↑' : ' ↓';
   };
 
   const handleSelectProcesso = (processoId: string) => {
@@ -504,11 +519,46 @@ export const PrestacaoContas = () => {
                     {selectedIds.size > 0 && selectedIds.size === prestacoes.length ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
                 </th>
-                <th className="px-3 py-3">Data Entrada</th>
-                <th className="px-3 py-3">Número</th>
-                <th className="px-3 py-3">Interessado</th>
-                <th className="px-3 py-3">Mês</th>
-                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">
+                  <button 
+                    onClick={() => handleSort('entryDate')}
+                    className="font-bold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    Data Entrada{getSortIndicator('entryDate')}
+                  </button>
+                </th>
+                <th className="px-3 py-3">
+                  <button 
+                    onClick={() => handleSort('processNumber')}
+                    className="font-bold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    Número{getSortIndicator('processNumber')}
+                  </button>
+                </th>
+                <th className="px-3 py-3">
+                  <button 
+                    onClick={() => handleSort('interested')}
+                    className="font-bold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    Interessado{getSortIndicator('interested')}
+                  </button>
+                </th>
+                <th className="px-3 py-3">
+                  <button 
+                    onClick={() => handleSort('month')}
+                    className="font-bold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    Mês{getSortIndicator('month')}
+                  </button>
+                </th>
+                <th className="px-3 py-3">
+                  <button 
+                    onClick={() => handleSort('status')}
+                    className="font-bold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    Status{getSortIndicator('status')}
+                  </button>
+                </th>
                 <th className="px-3 py-3">Motivo da Irregularidade</th>
                 <th className="px-3 py-3">Observações</th>
                 <th className="px-3 py-3">Ações</th>
