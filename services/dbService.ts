@@ -584,9 +584,11 @@ export const DbService = {
       let offset = 0;
       const pageSize = 1000;
       let hasMore = true;
+      let batchCount = 0;
 
       // Buscar em lotes de 1000 registros até trazer tudo
       while (hasMore) {
+        batchCount++;
         const { data, error, count } = await supabase
           .from('prestacoes_contas')
           .select('*', { count: 'exact' })
@@ -599,6 +601,7 @@ export const DbService = {
         }
 
         if (data && data.length > 0) {
+          console.log(`Batch ${batchCount}: Retornou ${data.length} registros (offset: ${offset}), Total até agora: ${allData.length + data.length}`);
           allData = allData.concat(data);
           offset += pageSize;
           
@@ -607,9 +610,12 @@ export const DbService = {
             hasMore = false;
           }
         } else {
+          console.log(`Batch ${batchCount}: Nenhum dado retornado, saindo do loop`);
           hasMore = false;
         }
       }
+
+      console.log(`getAllPrestacoes completado. Total de registros: ${allData.length}`);
 
       return allData.map((item: any) => ({
         id: item.id,
