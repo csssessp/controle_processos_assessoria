@@ -580,17 +580,38 @@ export const DbService = {
 
   getAllPrestacoes: async (): Promise<any[]> => {
     try {
-      const { data, error } = await supabase
-        .from('prestacoes_contas')
-        .select('*')
-        .order('month', { ascending: false });
+      let allData: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Erro ao buscar todas as prestações:', error.message);
-        return [];
+      // Buscar em lotes de 1000 registros até trazer tudo
+      while (hasMore) {
+        const { data, error, count } = await supabase
+          .from('prestacoes_contas')
+          .select('*', { count: 'exact' })
+          .order('month', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) {
+          console.error('Erro ao buscar prestações (offset ' + offset + '):', error.message);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          offset += pageSize;
+          
+          // Se retornou menos que pageSize, significa que chegou ao fim
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
       }
 
-      return (data || []).map((item: any) => ({
+      return allData.map((item: any) => ({
         id: item.id,
         processId: item.process_id,
         processNumber: item.process_number,
