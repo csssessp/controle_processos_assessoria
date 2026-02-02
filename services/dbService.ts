@@ -269,15 +269,15 @@ export const DbService = {
         query = query.is('processDate', null);
       }
 
+      // Buscar sem paginação no servidor para manter ordem correta no cliente
+      // A paginação será feita no componente React após ordenação de urgentes/vencidos
       if (params.sortBy) {
         query = query.order(params.sortBy.field, { ascending: params.sortBy.order === 'asc' });
       } else {
+        // Ordena por urgente DESC, depois por entryDate DESC
+        query = query.order('urgent', { ascending: false });
         query = query.order('entryDate', { ascending: false });
       }
-
-      const from = (params.page - 1) * params.itemsPerPage;
-      const to = from + params.itemsPerPage - 1;
-      query = query.range(from, to);
     } else {
       query = query.order('entryDate', { ascending: false });
     }
@@ -973,9 +973,17 @@ export const DbService = {
         prestacaoPorInteressado[interessado][mes] = (prestacaoPorInteressado[interessado][mes] || 0) + 1;
       });
 
-      // 9. Prestações regulares vs irregulares
-      const prestacaoRegulares = allPrestacoes.filter(p => p.status === 'REGULAR').length;
-      const prestacaoIrregulares = allPrestacoes.filter(p => p.status === 'IRREGULAR').length;
+      // 9. Prestações regulares vs irregulares (removendo duplicatas por processNumber + month)
+      const prestacaoMap = new Map<string, any>();
+      allPrestacoes.forEach(p => {
+        const key = `${p.processNumber}__${p.month}`;
+        if (!prestacaoMap.has(key)) {
+          prestacaoMap.set(key, p);
+        }
+      });
+      const uniquePrestacoes = Array.from(prestacaoMap.values());
+      const prestacaoRegulares = uniquePrestacoes.filter(p => p.status === 'REGULAR').length;
+      const prestacaoIrregulares = uniquePrestacoes.filter(p => p.status === 'IRREGULAR').length;
 
       return {
         processosPorOrigem,
