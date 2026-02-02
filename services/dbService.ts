@@ -565,7 +565,7 @@ export const DbService = {
     // Remover duplicatas, incluindo nulls como 'Sem interessado', e ordenar alfabeticamente
     const unique = Array.from(new Set(
       (data as any[])
-        .map(item => item.interested || 'Sem interessado')
+        .map(item => (item.interested && item.interested.trim()) ? item.interested.trim() : 'Sem interessado')
         .filter((val: string) => val && val.trim() !== '')
         .map((val: string) => val.trim())
     )).sort((a, b) => {
@@ -576,6 +576,56 @@ export const DbService = {
     });
 
     return unique as string[];
+  },
+
+  // Helper: Buscar prestações sem limite (para estatísticas da dashboard)
+  getAllPrestacoesSemLimite: async (): Promise<any[]> => {
+    try {
+      let allData: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      // Buscar em lotes de 1000 registros até trazer tudo
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('prestacoes_contas')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) {
+          console.error('Erro ao buscar prestações para estatísticas:', error.message);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          offset += pageSize;
+          
+          // Se retornou menos que pageSize, significa que chegou ao fim
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      return allData.map((item: any) => ({
+        id: item.id,
+        processNumber: item.process_number,
+        interested: item.interested,
+        month: item.month,
+        status: item.status,
+        entryDate: item.entry_date,
+        exitDate: item.exit_date,
+        motivo: item.motivo
+      }));
+    } catch (err) {
+      console.error('Erro ao buscar todas as prestações:', err);
+      return [];
+    }
   },
 
   // --- LOGS ---
@@ -964,7 +1014,7 @@ export const DbService = {
   getStatistics: async (): Promise<any> => {
     try {
       const allProcesses = await DbService.getAllProcesses();
-      const allPrestacoes = await DbService.getAllPrestacoes();
+      const allPrestacoes = await DbService.getAllPrestacoesSemLimite();
 
       // 1. Processos por origem (CGOF) - contagem única
       const processosPorOrigem = Array.from(
@@ -1058,7 +1108,8 @@ export const DbService = {
       const prestacaoPorInteressado: { [key: string]: { [key: string]: number } } = {};
       
       uniquePrestacoes.forEach(p => {
-        const interessado = p.interested || 'Sem interessado';
+        // Normalizar interessado: remover espaços extras e tratar null/vazio
+        const interessado = (p.interested && p.interested.trim()) ? p.interested.trim() : 'Sem interessado';
         const mes = p.month || 'Sem data';
         
         if (!prestacaoPorInteressado[interessado]) {
