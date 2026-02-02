@@ -75,7 +75,36 @@ const mapProcessFromDB = (dbProcess: any): Process => {
   return mapped;
 };
 
-export const DbService = {
+  // Função de diagnóstico
+  diagnosticTables: async () => {
+    try {
+      // Contar processos
+      const { count: processCount, error: processError } = await supabase
+        .from('processes')
+        .select('*', { count: 'exact', head: true });
+
+      // Contar prestações
+      const { count: prestacaoCount, error: prestacaoError } = await supabase
+        .from('prestacoes_contas')
+        .select('*', { count: 'exact', head: true });
+
+      console.log(`
+=== DIAGNÓSTICO ===
+Processos: ${processCount} registros (erro: ${processError?.message || 'nenhum'})
+Prestações: ${prestacaoCount} registros (erro: ${prestacaoError?.message || 'nenhum'})
+==================`);
+
+      return {
+        processes: processCount,
+        prestacoes: prestacaoCount
+      };
+    } catch (err) {
+      console.error('Erro no diagnóstico:', err);
+      return null;
+    }
+  },
+
+
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase.from('users').select('*').order('name');
@@ -292,10 +321,12 @@ export const DbService = {
   },
 
   getAllProcesses: async (): Promise<Process[]> => {
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('processes')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('entryDate', { ascending: false });
+
+    console.log(`[getAllProcesses] Total de Processos no banco: ${count}`);
 
     if (error) {
       console.error('Error fetching all processes:', error.message);

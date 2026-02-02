@@ -820,6 +820,9 @@ export const ProcessManager = () => {
     try {
       console.log('Iniciando export Excel...');
       
+      // Diagnóstico das tabelas
+      await DbService.diagnosticTables();
+      
       // Buscar TODOS os processos
       const allProcesses = await DbService.getAllProcesses();
       console.log(`Export: Total de Processos: ${allProcesses.length}`);
