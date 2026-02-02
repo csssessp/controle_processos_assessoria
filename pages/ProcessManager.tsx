@@ -818,14 +818,8 @@ export const ProcessManager = () => {
 
   const exportExcel = async () => {
     try {
-      console.log('Iniciando export Excel...');
-      
-      // Diagnóstico das tabelas
-      await DbService.diagnosticTables();
-      
       // Buscar TODOS os processos
       const allProcesses = await DbService.getAllProcesses();
-      console.log(`Export: Total de Processos: ${allProcesses.length}`);
       
       // Aba 1: Processos
       const processesSheet = XLSX.utils.json_to_sheet(allProcesses.map(p => ({
@@ -844,8 +838,6 @@ export const ProcessManager = () => {
       
       // Aba 2: Prestações de Contas - buscar TODAS (sem paginação)
       const allPrestacoes = await DbService.getAllPrestacoes();
-      console.log(`Export: Total de Prestações: ${allPrestacoes.length}`);
-      
       const prestacaoesSheet = XLSX.utils.json_to_sheet((allPrestacoes || []).map(p => ({
         'Processo': p.processNumber,
         'Mês': p.month ? new Date(p.month + '-01').toLocaleString('pt-BR', {month: 'long', year: 'numeric'}) : '',
@@ -861,7 +853,6 @@ export const ProcessManager = () => {
       XLSX.utils.book_append_sheet(workbook, processesSheet, "Processos");
       XLSX.utils.book_append_sheet(workbook, prestacaoesSheet, "Prestações");
       XLSX.writeFile(workbook, `Relatorio_Processos_Prestacoes_${new Date().toISOString().split('T')[0]}.xlsx`);
-      console.log('Export Excel completo!');
     } catch (error: any) {
       console.error('Erro ao exportar Excel:', error);
       alert('Erro ao exportar: ' + (error?.message || 'Tente novamente'));

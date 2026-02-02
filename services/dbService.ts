@@ -292,45 +292,46 @@ export const DbService = {
   },
 
   getAllProcesses: async (): Promise<Process[]> => {
-    const { data, error, count } = await supabase
-      .from('processes')
-      .select('*', { count: 'exact' })
-      .order('entryDate', { ascending: false });
-
-    console.log(`[getAllProcesses] Total de Processos no banco: ${count}`);
-
-    if (error) {
-      console.error('Error fetching all processes:', error.message);
-      return [];
-    }
-    return (data || []).map(mapProcessFromDB) as Process[];
-  },
-
-  diagnosticTables: async () => {
     try {
-      // Contar processos
-      const { count: processCount, error: processError } = await supabase
-        .from('processes')
-        .select('*', { count: 'exact', head: true });
+      let allData: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      let batchCount = 0;
 
-      // Contar prestações
-      const { count: prestacaoCount, error: prestacaoError } = await supabase
-        .from('prestacoes_contas')
-        .select('*', { count: 'exact', head: true });
+      // Buscar em lotes de 1000 registros até trazer tudo
+      while (hasMore) {
+        batchCount++;
+        const { data, error } = await supabase
+          .from('processes')
+          .select('*')
+          .order('entryDate', { ascending: false })
+          .range(offset, offset + pageSize - 1);
 
-      console.log(`
-=== DIAGNÓSTICO ===
-Processos: ${processCount} registros (erro: ${processError?.message || 'nenhum'})
-Prestações: ${prestacaoCount} registros (erro: ${prestacaoError?.message || 'nenhum'})
-==================`);
+        if (error) {
+          console.error(`[getAllProcesses] Erro na batch ${batchCount}:`, error);
+          break;
+        }
 
-      return {
-        processes: processCount,
-        prestacoes: prestacaoCount
-      };
+        if (data && data.length > 0) {
+          console.log(`[getAllProcesses] Batch ${batchCount}: Retornou ${data.length} registros`);
+          allData = allData.concat(data);
+          offset += pageSize;
+          
+          // Se retornou menos que pageSize, significa que chegou ao fim
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`[getAllProcesses] Completado. Total: ${allData.length} registros`);
+      return allData.map(mapProcessFromDB) as Process[];
     } catch (err) {
-      console.error('Erro no diagnóstico:', err);
-      return null;
+      console.error('Erro ao buscar todos os processos:', err);
+      return [];
     }
   },
 
@@ -614,45 +615,32 @@ Prestações: ${prestacaoCount} registros (erro: ${prestacaoError?.message || 'n
       let offset = 0;
       const pageSize = 1000;
       let hasMore = true;
-      let batchCount = 0;
 
       // Buscar em lotes de 1000 registros até trazer tudo
       while (hasMore) {
-        batchCount++;
-        const query = supabase
+        const { data, error } = await supabase
           .from('prestacoes_contas')
-          .select('*', { count: 'exact' })
+          .select('*')
           .order('month', { ascending: false })
           .range(offset, offset + pageSize - 1);
 
-        console.log(`[getAllPrestacoes] Batch ${batchCount}: Range ${offset}-${offset + pageSize - 1}`);
-        
-        const { data, error, count } = await query;
-
         if (error) {
-          console.error(`[getAllPrestacoes] Erro na batch ${batchCount}:`, error);
+          console.error('Erro ao buscar prestações:', error.message);
           break;
         }
 
-        console.log(`[getAllPrestacoes] Batch ${batchCount}: data.length=${data?.length}, count=${count}`);
-
         if (data && data.length > 0) {
-          console.log(`Batch ${batchCount}: Retornou ${data.length} registros (offset: ${offset}), Total até agora: ${allData.length + data.length}`);
           allData = allData.concat(data);
           offset += pageSize;
           
           // Se retornou menos que pageSize, significa que chegou ao fim
           if (data.length < pageSize) {
-            console.log(`[getAllPrestacoes] Batch ${batchCount}: Retornou ${data.length} < ${pageSize}, parando`);
             hasMore = false;
           }
         } else {
-          console.log(`[getAllPrestacoes] Batch ${batchCount}: data é null ou vazio, parando`);
           hasMore = false;
         }
       }
-
-      console.log(`getAllPrestacoes completado. Total de registros: ${allData.length}`);
 
       return allData.map((item: any) => ({
         id: item.id,
