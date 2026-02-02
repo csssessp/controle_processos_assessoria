@@ -1125,10 +1125,8 @@ export const DbService = {
           const key = p.number || '';
           if (!key) return;
           const existing = mapPage.get(key);
-          const pUpdatedRaw = p.updatedAt || p.updated_at;
-          const eUpdatedRaw = existing && (existing.updatedAt || existing.updated_at);
-          const pUpdated = pUpdatedRaw ? new Date(pUpdatedRaw).getTime() : 0;
-          const eUpdated = eUpdatedRaw ? new Date(eUpdatedRaw).getTime() : 0;
+          const pUpdated = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+          const eUpdated = existing && existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
           if (!existing || pUpdated > eUpdated) mapPage.set(key, p);
         });
         const uniqueFromPage = Array.from(mapPage.values());
@@ -1136,7 +1134,7 @@ export const DbService = {
         processosUrgentes = urgentList.length;
 
         console.log('[getStatistics] processosUrgentes(from page) (count):', processosUrgentes);
-        console.log('[getStatistics] urgent process numbers (from page):', urgentList.map(p => ({ number: p.number, updatedAt: p.updatedAt || p.updated_at })));
+        console.log('[getStatistics] urgent process numbers (from page):', urgentList.map(p => ({ number: p.number, updatedAt: p.updatedAt })));
       } catch (e) {
         console.error('Erro ao calcular processos urgentes a partir da página:', e);
         // Fallback: contar urgentes únicos em allProcesses (anterior comportamento)
@@ -1145,10 +1143,8 @@ export const DbService = {
           const key = p.number || '';
           if (!key) return;
           const existing = latestByNumber.get(key);
-          const pUpdatedRaw = p.updatedAt || p.updated_at;
-          const eUpdatedRaw = existing && (existing.updatedAt || existing.updated_at);
-          const pUpdated = pUpdatedRaw ? new Date(pUpdatedRaw).getTime() : 0;
-          const eUpdated = eUpdatedRaw ? new Date(eUpdatedRaw).getTime() : 0;
+          const pUpdated = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+          const eUpdated = existing && existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
           if (!existing || pUpdated > eUpdated) latestByNumber.set(key, p);
         });
         processosUrgentes = Array.from(latestByNumber.values()).filter(p => p.urgent === true).length;
