@@ -75,36 +75,7 @@ const mapProcessFromDB = (dbProcess: any): Process => {
   return mapped;
 };
 
-  // Função de diagnóstico
-  diagnosticTables: async () => {
-    try {
-      // Contar processos
-      const { count: processCount, error: processError } = await supabase
-        .from('processes')
-        .select('*', { count: 'exact', head: true });
-
-      // Contar prestações
-      const { count: prestacaoCount, error: prestacaoError } = await supabase
-        .from('prestacoes_contas')
-        .select('*', { count: 'exact', head: true });
-
-      console.log(`
-=== DIAGNÓSTICO ===
-Processos: ${processCount} registros (erro: ${processError?.message || 'nenhum'})
-Prestações: ${prestacaoCount} registros (erro: ${prestacaoError?.message || 'nenhum'})
-==================`);
-
-      return {
-        processes: processCount,
-        prestacoes: prestacaoCount
-      };
-    } catch (err) {
-      console.error('Erro no diagnóstico:', err);
-      return null;
-    }
-  },
-
-
+export const DbService = {
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase.from('users').select('*').order('name');
@@ -333,6 +304,34 @@ Prestações: ${prestacaoCount} registros (erro: ${prestacaoError?.message || 'n
       return [];
     }
     return (data || []).map(mapProcessFromDB) as Process[];
+  },
+
+  diagnosticTables: async () => {
+    try {
+      // Contar processos
+      const { count: processCount, error: processError } = await supabase
+        .from('processes')
+        .select('*', { count: 'exact', head: true });
+
+      // Contar prestações
+      const { count: prestacaoCount, error: prestacaoError } = await supabase
+        .from('prestacoes_contas')
+        .select('*', { count: 'exact', head: true });
+
+      console.log(`
+=== DIAGNÓSTICO ===
+Processos: ${processCount} registros (erro: ${processError?.message || 'nenhum'})
+Prestações: ${prestacaoCount} registros (erro: ${prestacaoError?.message || 'nenhum'})
+==================`);
+
+      return {
+        processes: processCount,
+        prestacoes: prestacaoCount
+      };
+    } catch (err) {
+      console.error('Erro no diagnóstico:', err);
+      return null;
+    }
   },
 
   saveProcess: async (process: Process, performedBy: User): Promise<void> => {
