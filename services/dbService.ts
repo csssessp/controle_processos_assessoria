@@ -578,11 +578,11 @@ export const DbService = {
     return unique as string[];
   },
 
-  // Helper: Buscar prestações sem limite (para estatísticas da dashboard)
+  // Helper: Buscar prestações sem limite (para estatísticas da dashboard) - mesma query que getPrestacoes
   getAllPrestacoesSemLimite: async (): Promise<any[]> => {
     try {
-      // Usar a mesma lógica de busca que getPrestacoes, mas sem paginação
-      // Buscar com ordenação por updated_at (registros mais recentes)
+      // Usar a MESMA query que getPrestacoes(), mas sem paginação e sem searchTerm/filters
+      // Apenas ordenação: updated_at DESC
       let allData: any[] = [];
       let offset = 0;
       const pageSize = 1000;
@@ -613,18 +613,14 @@ export const DbService = {
       }
 
       return allData.map((item: any) => ({
-        id: item.id,
         processNumber: item.process_number,
         interested: item.interested,
         month: item.month,
         status: item.status,
-        entryDate: item.entry_date,
-        exitDate: item.exit_date,
-        motivo: item.motivo,
         updatedAt: item.updated_at
       }));
     } catch (err) {
-      console.error('Erro ao buscar todas as prestações:', err);
+      console.error('Erro ao buscar prestações sem limite:', err);
       return [];
     }
   },
@@ -1119,8 +1115,8 @@ export const DbService = {
       const prestacaoPorInteressado: { [key: string]: { [key: string]: number } } = {};
       
       uniquePrestacoes.forEach(p => {
-        // Normalizar interessado: remover espaços extras e tratar null/vazio
-        // Apenas incluir se tiver um nome válido (não vazio/null)
+        // APENAS incluir se tiver um nome válido (não vazio/null)
+        // NÃO incluir "Sem interessado"
         if (p.interested && p.interested.trim()) {
           const interessado = p.interested.trim();
           const mes = p.month || 'Sem data';
@@ -1129,16 +1125,8 @@ export const DbService = {
             prestacaoPorInteressado[interessado] = {};
           }
           prestacaoPorInteressado[interessado][mes] = (prestacaoPorInteressado[interessado][mes] || 0) + 1;
-        } else {
-          // Apenas incluir "Sem interessado" se realmente não tiver valor
-          const mes = p.month || 'Sem data';
-          const keyNoInteressado = 'Sem interessado';
-          
-          if (!prestacaoPorInteressado[keyNoInteressado]) {
-            prestacaoPorInteressado[keyNoInteressado] = {};
-          }
-          prestacaoPorInteressado[keyNoInteressado][mes] = (prestacaoPorInteressado[keyNoInteressado][mes] || 0) + 1;
         }
+        // Se interested for null ou vazio, simplesmente ignora (não cria "Sem interessado")
       });
 
       // 9. Prestações regulares vs irregulares (usando prestações únicas)
