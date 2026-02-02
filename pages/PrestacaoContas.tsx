@@ -410,11 +410,11 @@ export const PrestacaoContas = () => {
     }
   };
 
-  const handleDeleteFluxo = async (fluxoId: string) => {
+  const handleDeleteFluxo = async (historicoId: string) => {
     if (!currentUser) return;
 
     try {
-      await DbService.deletePrestacao(fluxoId, currentUser);
+      await DbService.deleteHistoricoEntry(historicoId, currentUser);
       alert('Fluxo excluído com sucesso!');
       
       // Recarregar histórico
@@ -1133,13 +1133,13 @@ export const PrestacaoContas = () => {
                                 {entrada.dataEntrada && (
                                   <div className="text-xs">
                                     <span className="text-slate-500 font-bold">Entrada:</span>
-                                    <span className="text-slate-700 ml-2">{new Date(entrada.dataEntrada).toLocaleDateString('pt-BR')}</span>
+                                    <span className="text-slate-700 ml-2">{entrada.dataEntrada.split('T')[0].split('-').reverse().join('/')}</span>
                                   </div>
                                 )}
                                 {entrada.dataSaida && (
                                   <div className="text-xs">
                                     <span className="text-slate-500 font-bold">Saída:</span>
-                                    <span className="text-slate-700 ml-2">{new Date(entrada.dataSaida).toLocaleDateString('pt-BR')}</span>
+                                    <span className="text-slate-700 ml-2">{entrada.dataSaida.split('T')[0].split('-').reverse().join('/')}</span>
                                   </div>
                                 )}
                               </div>
@@ -1174,7 +1174,7 @@ export const PrestacaoContas = () => {
                               <button
                                 onClick={() => {
                                   if (confirm('Tem certeza que deseja excluir este fluxo?')) {
-                                    handleDeleteFluxo(entrada.prestacaoId);
+                                    handleDeleteFluxo(entrada.id);
                                   }
                                 }}
                                 className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"

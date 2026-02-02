@@ -765,5 +765,12 @@ export const DbService = {
     };
 
     const { error } = await supabase.from('prestacoes_contas_historico').insert(payload);
-    if (error) throw error;  }
+    if (error) throw error;
+  },
+
+  deleteHistoricoEntry: async (historicoId: string, user: User): Promise<void> => {
+    const { error } = await supabase.from('prestacoes_contas_historico').delete().eq('id', historicoId);
+    if (error) throw error;
+    await DbService.logAction('DELETE', `Entrada de histórico excluída (ID: ${historicoId})`, user, historicoId);
+  }
 };
