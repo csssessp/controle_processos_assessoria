@@ -442,33 +442,11 @@ export const ProcessManager = () => {
         }
     });
     
-    // Classificação conforme solicitado:
+    // Processos já vêm do servidor classificados:
     // 1 - Urgentes
     // 2 - Vencidos
     // 3 - Data de entrada do mais novo para o mais antigo
-    return Array.from(map.values()).sort((a, b) => {
-      const today = new Date(); 
-      today.setHours(0, 0, 0, 0);
-      
-      const aIsUrgent = a.urgent;
-      const bIsUrgent = b.urgent;
-      
-      const aIsOverdue = a.deadline ? new Date(a.deadline) < today : false;
-      const bIsOverdue = b.deadline ? new Date(b.deadline) < today : false;
-      
-      // 1. Urgentes vêm primeiro
-      if (aIsUrgent && !bIsUrgent) return -1;
-      if (!aIsUrgent && bIsUrgent) return 1;
-      
-      // 2. Depois vencidos (mas não urgentes, pois urgentes já foram filtrados)
-      if (aIsOverdue && !bIsOverdue) return -1;
-      if (!aIsOverdue && bIsOverdue) return 1;
-      
-      // 3. Resto: data de entrada do mais novo para o mais antigo
-      const aDate = new Date(a.entryDate);
-      const bDate = new Date(b.entryDate);
-      return bDate.getTime() - aDate.getTime(); // Decrescente (mais novo primeiro)
-    });
+    return Array.from(map.values());
   }, [processes]);
 
   const availableCgofs = useMemo(() => {
@@ -477,14 +455,7 @@ export const ProcessManager = () => {
     return Array.from(currentOptions).sort();
   }, [processes]);
 
-  // Aplicar paginação após ordenação de urgentes/vencidos
-  const paginatedProcesses = useMemo(() => {
-    const from = (currentPage - 1) * itemsPerPage;
-    const to = from + itemsPerPage;
-    return uniqueProcesses.slice(from, to);
-  }, [uniqueProcesses, currentPage, itemsPerPage]);
-
-  const totalPages = Math.ceil(uniqueProcesses.length / itemsPerPage);
+  const totalPages = Math.ceil(totalProcessesCount / itemsPerPage);
 
   const getPageNumbers = () => {
     const pageNumbers = [];
@@ -1023,8 +994,8 @@ export const ProcessManager = () => {
             <thead className="text-[11px] text-slate-500 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10 font-bold">
               <tr>
                 <th className="px-4 py-3 w-10">
-                  <button onClick={() => { if (selectedIds.size === paginatedProcesses.length) setSelectedIds(new Set()); else setSelectedIds(new Set(paginatedProcesses.map(p => p.id))); }}>
-                    {selectedIds.size > 0 && selectedIds.size === paginatedProcesses.length ? <CheckSquare size={16} /> : <Square size={16} />}
+                  <button onClick={() => { if (selectedIds.size === uniqueProcesses.length) setSelectedIds(new Set()); else setSelectedIds(new Set(uniqueProcesses.map(p => p.id))); }}>
+                    {selectedIds.size > 0 && selectedIds.size === uniqueProcesses.length ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
                 </th>
                 <th className="px-2 py-3 cursor-pointer hover:bg-slate-200 transition-colors select-none" onClick={() => handleColumnSort('number')}>
@@ -1080,7 +1051,7 @@ export const ProcessManager = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedProcesses.map(process => {
+              {uniqueProcesses.map(process => {
                 const status = getDeadlineStatus(process.deadline);
                 const dynamicRowStyle = { fontSize: `${tableFontSize}px` };
                 
@@ -1175,7 +1146,7 @@ export const ProcessManager = () => {
               })}
             </tbody>
           </table>
-          {!loading && paginatedProcesses.length === 0 && (
+          {!loading && uniqueProcesses.length === 0 && (
              <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
                <Search size={48} className="mb-3 opacity-10" />
                <p>Nenhum processo encontrado.</p>
@@ -1185,7 +1156,7 @@ export const ProcessManager = () => {
       </div>
       
       <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm gap-4 mt-auto">
-        <div className="text-xs text-slate-500">Página {currentPage} de {totalPages} ({uniqueProcesses.length} registros)</div>
+        <div className="text-xs text-slate-500">Página {currentPage} de {totalPages} ({totalProcessesCount} registros)</div>
         <div className="flex items-center gap-3">
           <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} className="border border-slate-300 rounded px-2 py-1 text-xs outline-none">
                {[10, 20, 50, 100, 500].map(v => <option key={v} value={v}>{v}</option>)}

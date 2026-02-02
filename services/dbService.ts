@@ -246,65 +246,88 @@ export const DbService = {
   // --- PROCESSES ---
   getProcesses: async (params?: ProcessQueryParams): Promise<{ data: Process[], count: number }> => {
     try {
-      let allData: any[] = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      // Estratégia: buscar urgentes SEM limite, depois completar com não-urgentes paginados
+      const itemsPerPage = params?.itemsPerPage || 20;
+      const page = params?.page || 1;
+      const offset = (page - 1) * itemsPerPage;
 
-      // Buscar em lotes de 1000 registros até trazer tudo
-      while (hasMore) {
-        let query = supabase.from('processes').select('*');
+      // 1. Buscar TODOS os processos urgentes (sem paginação)
+      let urgentQuery = supabase.from('processes').select('*');
+      if (params) {
+        if (params.searchTerm) {
+          const term = `%${params.searchTerm}%`;
+          urgentQuery = urgentQuery.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
+        }
+        if (params.filters?.CGOF) urgentQuery = urgentQuery.eq('CGOF', params.filters.CGOF);
+        if (params.filters?.sector) urgentQuery = urgentQuery.ilike('sector', `%${params.filters.sector}%`);
+        if (params.filters?.entryDateStart) urgentQuery = urgentQuery.gte('entryDate', params.filters.entryDateStart);
+        if (params.filters?.entryDateEnd) urgentQuery = urgentQuery.lte('entryDate', params.filters.entryDateEnd);
+        if (params.filters?.emptyExitDate) urgentQuery = urgentQuery.is('processDate', null);
+        if (params.filters?.emptySector) urgentQuery = urgentQuery.or('sector.is.null,sector.eq.""');
+      }
+      
+      // Sempre busca urgentes primeiro
+      urgentQuery = urgentQuery.eq('urgent', true);
+      urgentQuery = urgentQuery.order('entryDate', { ascending: false });
 
+      const { data: urgentData, error: urgentError } = await urgentQuery;
+      if (urgentError) {
+        console.error('Erro ao buscar processos urgentes:', urgentError.message);
+        return { data: [], count: 0 };
+      }
+
+      const urgentProcesses = (urgentData || []).map(mapProcessFromDB);
+
+      // 2. Se há espaço na página, buscar não-urgentes
+      let nonUrgentProcesses: Process[] = [];
+      let totalCount = urgentProcesses.length;
+
+      if (urgentProcesses.length < (offset + itemsPerPage)) {
+        // Calcular quantos não-urgentes precisamos
+        const neededNonUrgent = offset + itemsPerPage - urgentProcesses.length;
+        const nonUrgentOffset = Math.max(0, offset - urgentProcesses.length);
+
+        let nonUrgentQuery = supabase.from('processes').select('*');
         if (params) {
           if (params.searchTerm) {
             const term = `%${params.searchTerm}%`;
-            query = query.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
+            nonUrgentQuery = nonUrgentQuery.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
           }
-          if (params.filters?.CGOF) query = query.eq('CGOF', params.filters.CGOF);
-          if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
-          if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
-          if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
-          if (params.filters?.urgent) query = query.eq('urgent', true);
-          if (params.filters?.overdue) {
-            const today = new Date().toISOString().split('T')[0];
-            query = query.lt('deadline', today);
-          }
-          if (params.filters?.emptySector) {
-            query = query.or('sector.is.null,sector.eq.""');
-          }
-          if (params.filters?.emptyExitDate) {
-            query = query.is('processDate', null);
-          }
+          if (params.filters?.CGOF) nonUrgentQuery = nonUrgentQuery.eq('CGOF', params.filters.CGOF);
+          if (params.filters?.sector) nonUrgentQuery = nonUrgentQuery.ilike('sector', `%${params.filters.sector}%`);
+          if (params.filters?.entryDateStart) nonUrgentQuery = nonUrgentQuery.gte('entryDate', params.filters.entryDateStart);
+          if (params.filters?.entryDateEnd) nonUrgentQuery = nonUrgentQuery.lte('entryDate', params.filters.entryDateEnd);
+          if (params.filters?.emptyExitDate) nonUrgentQuery = nonUrgentQuery.is('processDate', null);
+          if (params.filters?.emptySector) nonUrgentQuery = nonUrgentQuery.or('sector.is.null,sector.eq.""');
         }
-
-        // Sempre ordena por urgente DESC, depois por entryDate DESC (no cliente fará a classificação final)
-        query = query.order('urgent', { ascending: false });
-        query = query.order('entryDate', { ascending: false });
         
-        // Aplicar paginação no lote
-        query = query.range(offset, offset + pageSize - 1);
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.error('Erro ao buscar processos:', error.message);
-          break;
+        // Buscar não-urgentes
+        nonUrgentQuery = nonUrgentQuery.eq('urgent', false);
+        nonUrgentQuery = nonUrgentQuery.order('entryDate', { ascending: false });
+        
+        // Contar total e paginar
+        const { data: allNonUrgent, error: nonUrgentError, count } = await nonUrgentQuery.select('*', { count: 'exact' });
+        
+        if (!nonUrgentError && allNonUrgent) {
+          nonUrgentProcesses = allNonUrgent.slice(nonUrgentOffset, nonUrgentOffset + neededNonUrgent).map(mapProcessFromDB);
+          totalCount = urgentProcesses.length + (count || 0);
         }
-
-        if (data && data.length > 0) {
-          allData = allData.concat(data);
-          offset += pageSize;
-          
-          if (data.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
+      } else {
+        // Contar total de não-urgentes para estatística
+        const { count } = await supabase
+          .from('processes')
+          .select('*', { count: 'exact', head: true })
+          .eq('urgent', false);
+        totalCount = urgentProcesses.length + (count || 0);
       }
 
-      const mappedData = allData.map(mapProcessFromDB);
-      return { data: mappedData as Process[], count: mappedData.length };
+      // 3. Combinar: urgentes + não-urgentes
+      const pageData = [
+        ...urgentProcesses.slice(offset, offset + itemsPerPage),
+        ...nonUrgentProcesses
+      ].slice(0, itemsPerPage);
+
+      return { data: pageData, count: totalCount };
     } catch (err) {
       console.error('Error fetching processes:', err);
       return { data: [], count: 0 };
