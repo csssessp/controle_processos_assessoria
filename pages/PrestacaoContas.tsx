@@ -338,7 +338,7 @@ export const PrestacaoContas = () => {
   };
 
   const handleOpenEditFluxoModal = (fluxo: any) => {
-    setEditingFluxoId(fluxo.id);
+    setEditingFluxoId(fluxo.prestacaoId);
     setEditFluxoData({
       month: fluxo.mes || '',
       status: fluxo.statusNovo || 'REGULAR',
@@ -1174,7 +1174,7 @@ export const PrestacaoContas = () => {
                               <button
                                 onClick={() => {
                                   if (confirm('Tem certeza que deseja excluir este fluxo?')) {
-                                    handleDeleteFluxo(entrada.id);
+                                    handleDeleteFluxo(entrada.prestacaoId);
                                   }
                                 }}
                                 className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
