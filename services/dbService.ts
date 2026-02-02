@@ -589,16 +589,22 @@ export const DbService = {
       // Buscar em lotes de 1000 registros até trazer tudo
       while (hasMore) {
         batchCount++;
-        const { data, error, count } = await supabase
+        const query = supabase
           .from('prestacoes_contas')
           .select('*', { count: 'exact' })
           .order('month', { ascending: false })
           .range(offset, offset + pageSize - 1);
 
+        console.log(`[getAllPrestacoes] Batch ${batchCount}: Range ${offset}-${offset + pageSize - 1}`);
+        
+        const { data, error, count } = await query;
+
         if (error) {
-          console.error('Erro ao buscar prestações (offset ' + offset + '):', error.message);
+          console.error(`[getAllPrestacoes] Erro na batch ${batchCount}:`, error);
           break;
         }
+
+        console.log(`[getAllPrestacoes] Batch ${batchCount}: data.length=${data?.length}, count=${count}`);
 
         if (data && data.length > 0) {
           console.log(`Batch ${batchCount}: Retornou ${data.length} registros (offset: ${offset}), Total até agora: ${allData.length + data.length}`);
@@ -607,10 +613,11 @@ export const DbService = {
           
           // Se retornou menos que pageSize, significa que chegou ao fim
           if (data.length < pageSize) {
+            console.log(`[getAllPrestacoes] Batch ${batchCount}: Retornou ${data.length} < ${pageSize}, parando`);
             hasMore = false;
           }
         } else {
-          console.log(`Batch ${batchCount}: Nenhum dado retornado, saindo do loop`);
+          console.log(`[getAllPrestacoes] Batch ${batchCount}: data é null ou vazio, parando`);
           hasMore = false;
         }
       }
