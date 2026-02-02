@@ -193,7 +193,7 @@ export const DashboardAnalytics = () => {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b">
                   <tr>
-                    <th className="px-4 py-2 text-left font-semibold text-slate-900">Interessado</th>
+                    <th className="px-4 py-2 text-left font-semibold text-slate-900 sticky left-0 bg-slate-50">Interessado</th>
                     {Array.from(
                       new Set(
                         Object.values(stats.prestacaoPorInteressado)
@@ -202,30 +202,50 @@ export const DashboardAnalytics = () => {
                     )
                       .sort()
                       .map(mes => (
-                        <th key={mes} className="px-4 py-2 text-center font-semibold text-slate-900">
+                        <th key={mes} className="px-4 py-2 text-center font-semibold text-slate-900 whitespace-nowrap">
                           {mes}
                         </th>
                       ))}
+                    <th className="px-4 py-2 text-center font-semibold text-slate-900 bg-blue-50 border-l">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(stats.prestacaoPorInteressado).map(([interessado, months]) => (
-                    <tr key={interessado} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-2 font-medium text-slate-900">{interessado}</td>
-                      {Array.from(
-                        new Set(
-                          Object.values(stats.prestacaoPorInteressado)
-                            .flatMap(m => Object.keys(m))
-                        )
-                      )
-                        .sort()
-                        .map(mes => (
-                          <td key={`${interessado}-${mes}`} className="px-4 py-2 text-center">
-                            {months[mes] || 0}
+                  {Object.entries(stats.prestacaoPorInteressado)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([interessado, months]) => {
+                      const total = Object.values(months).reduce((sum, val) => sum + (val || 0), 0);
+                      return (
+                        <tr key={interessado} className="border-b hover:bg-slate-50">
+                          <td className="px-4 py-2 font-medium text-slate-900 sticky left-0 bg-white hover:bg-slate-50">{interessado}</td>
+                          {Array.from(
+                            new Set(
+                              Object.values(stats.prestacaoPorInteressado)
+                                .flatMap(m => Object.keys(m))
+                            )
+                          )
+                            .sort()
+                            .map(mes => {
+                              const value = months[mes] || 0;
+                              const hasData = value > 0;
+                              return (
+                                <td 
+                                  key={`${interessado}-${mes}`} 
+                                  className={`px-4 py-2 text-center font-medium whitespace-nowrap ${
+                                    hasData 
+                                      ? 'bg-green-100 text-green-800 border border-green-200' 
+                                      : 'bg-gray-50 text-gray-400'
+                                  }`}
+                                >
+                                  {hasData ? value : '-'}
+                                </td>
+                              );
+                            })}
+                          <td className="px-4 py-2 text-center font-bold text-slate-900 bg-blue-50 border-l border-blue-200">
+                            {total}
                           </td>
-                        ))}
-                    </tr>
-                  ))}
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

@@ -1005,10 +1005,19 @@ export const DbService = {
       // 7. Processos sem localização
       const processosSemLocalizacao = allProcesses.filter(p => !p.sector).length;
 
-      // 8. Prestações por interessado por mês
+      // 8. Prestações por interessado por mês - usar apenas prestações únicas
+      const prestacaoMap = new Map<string, any>();
+      allPrestacoes.forEach(p => {
+        const key = `${p.processNumber}__${p.month}`;
+        if (!prestacaoMap.has(key)) {
+          prestacaoMap.set(key, p);
+        }
+      });
+      const uniquePrestacoes = Array.from(prestacaoMap.values());
+
       const prestacaoPorInteressado: { [key: string]: { [key: string]: number } } = {};
       
-      allPrestacoes.forEach(p => {
+      uniquePrestacoes.forEach(p => {
         const interessado = p.interested || 'Sem interessado';
         const mes = p.month || 'Sem data';
         
@@ -1018,15 +1027,7 @@ export const DbService = {
         prestacaoPorInteressado[interessado][mes] = (prestacaoPorInteressado[interessado][mes] || 0) + 1;
       });
 
-      // 9. Prestações regulares vs irregulares (removendo duplicatas por processNumber + month)
-      const prestacaoMap = new Map<string, any>();
-      allPrestacoes.forEach(p => {
-        const key = `${p.processNumber}__${p.month}`;
-        if (!prestacaoMap.has(key)) {
-          prestacaoMap.set(key, p);
-        }
-      });
-      const uniquePrestacoes = Array.from(prestacaoMap.values());
+      // 9. Prestações regulares vs irregulares (usando prestações únicas)
       const prestacaoRegulares = uniquePrestacoes.filter(p => p.status === 'REGULAR').length;
       const prestacaoIrregulares = uniquePrestacoes.filter(p => p.status === 'IRREGULAR').length;
 
