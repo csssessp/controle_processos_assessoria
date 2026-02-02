@@ -816,43 +816,97 @@ export const ProcessManager = () => {
     reader.readAsBinaryString(file);
   };
 
-  const exportExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(uniqueProcesses.map(p => ({
-      'Origem (CGOF)': p.CGOF, 
-      'Entrada': toDisplayDate(p.entryDate), 
-      'Número': p.number,
-      'Interessada': p.interested, 
-      'Assunto': p.subject, 
-      'Localização': p.sector,
-      'saida': toDisplayDate(p.processDate), 
-      'Urgente': p.urgent ? 'Sim' : 'Não',
-      'Retorno': toDisplayDate(p.deadline), 
-      'Status': getDeadlineStatus(p.deadline).label,
-      'Link': p.processLink || ''
-    })));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Processos");
-    XLSX.writeFile(workbook, `Fluxo_Processos_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const exportExcel = async () => {
+    try {
+      // Aba 1: Processos
+      const processesSheet = XLSX.utils.json_to_sheet(uniqueProcesses.map(p => ({
+        'Origem (CGOF)': p.CGOF, 
+        'Entrada': toDisplayDate(p.entryDate), 
+        'Número': p.number,
+        'Interessada': p.interested, 
+        'Assunto': p.subject, 
+        'Localização': p.sector,
+        'Saída': toDisplayDate(p.processDate), 
+        'Urgente': p.urgent ? 'Sim' : 'Não',
+        'Retorno': toDisplayDate(p.deadline), 
+        'Status': getDeadlineStatus(p.deadline).label,
+        'Link': p.processLink || ''
+      })));
+      
+      // Aba 2: Prestações de Contas
+      const prestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 999 });
+      const prestacaoesSheet = XLSX.utils.json_to_sheet((prestacoes.data || []).map(p => ({
+        'Processo': p.processNumber,
+        'Mês': p.month ? new Date(p.month + '-01').toLocaleString('pt-BR', {month: 'long', year: 'numeric'}) : '',
+        'Status': p.status,
+        'Motivo': p.motivo || '',
+        'Observações': p.observations || '',
+        'Data Entrada': p.entryDate ? p.entryDate.split('T')[0].split('-').reverse().join('/') : '',
+        'Data Saída': p.exitDate ? p.exitDate.split('T')[0].split('-').reverse().join('/') : '',
+        'Link': p.link || ''
+      })));
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, processesSheet, "Processos");
+      XLSX.utils.book_append_sheet(workbook, prestacaoesSheet, "Prestações");
+      XLSX.writeFile(workbook, `Relatorio_Processos_Prestacoes_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error: any) {
+      console.error('Erro ao exportar Excel:', error);
+      alert('Erro ao exportar: ' + (error?.message || 'Tente novamente'));
+    }
   };
 
-  const exportPDF = () => {
-    const doc = new jsPDF(); doc.text(`Fluxo de Processos - Relatório Geral`, 14, 15);
-    autoTable(doc, {
-      startY: 20,
-      head: [['Origem', 'Entrada', 'Número', 'Interessada', 'Localização', 'Saída', 'Retorno']],
-      body: uniqueProcesses.map(p => [
-        p.CGOF || '-', 
-        toDisplayDate(p.entryDate), 
-        p.number, 
-        p.interested, 
-        p.sector, 
-        toDisplayDate(p.processDate),
-        toDisplayDate(p.deadline)
-      ]),
-      styles: { fontSize: 6.5 }, 
-      columnStyles: { 3: { cellWidth: 35 }, 4: { cellWidth: 25 } } 
-    });
-    doc.save(`Relatorio_Processos_Fluxo.pdf`);
+  const exportPDF = async () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Título geral
+      doc.text(`Relatório Geral - Processos e Prestações de Contas`, 14, 15);
+      
+      // Tabela 1: Processos
+      autoTable(doc, {
+        startY: 20,
+        head: [['Origem', 'Entrada', 'Número', 'Interessada', 'Localização', 'Saída', 'Retorno']],
+        body: uniqueProcesses.map(p => [
+          p.CGOF || '-', 
+          toDisplayDate(p.entryDate), 
+          p.number, 
+          p.interested, 
+          p.sector, 
+          toDisplayDate(p.processDate),
+          toDisplayDate(p.deadline)
+        ]),
+        styles: { fontSize: 6.5 }, 
+        columnStyles: { 3: { cellWidth: 35 }, 4: { cellWidth: 25 } } 
+      });
+      
+      // Buscar prestações
+      const prestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 999 });
+      const finalY = (doc as any).lastAutoTable?.finalY || 100;
+      
+      // Título prestações
+      doc.text(`Prestações de Contas`, 14, finalY + 10);
+      
+      // Tabela 2: Prestações de Contas
+      autoTable(doc, {
+        startY: finalY + 15,
+        head: [['Processo', 'Mês', 'Status', 'Data Entrada', 'Data Saída']],
+        body: (prestacoes.data || []).map(p => [
+          p.processNumber,
+          p.month ? new Date(p.month + '-01').toLocaleString('pt-BR', {month: 'short', year: 'numeric'}) : '',
+          p.status,
+          p.entryDate ? p.entryDate.split('T')[0] : '',
+          p.exitDate ? p.exitDate.split('T')[0] : ''
+        ]),
+        styles: { fontSize: 6.5 }, 
+        columnStyles: { 2: { cellWidth: 25 } }
+      });
+      
+      doc.save(`Relatorio_Processos_Prestacoes_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error: any) {
+      console.error('Erro ao exportar PDF:', error);
+      alert('Erro ao exportar: ' + (error?.message || 'Tente novamente'));
+    }
   };
 
   const isAdmin = currentUser?.role === UserRole.ADMIN;
