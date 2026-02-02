@@ -578,6 +578,41 @@ export const DbService = {
     }
   },
 
+  getAllPrestacoes: async (): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('prestacoes_contas')
+        .select('*')
+        .order('month', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar todas as prestações:', error.message);
+        return [];
+      }
+
+      return (data || []).map((item: any) => ({
+        id: item.id,
+        processId: item.process_id,
+        processNumber: item.process_number,
+        interested: item.interested,
+        month: item.month,
+        status: item.status,
+        motivo: item.motivo,
+        observations: item.observations,
+        entryDate: item.entry_date,
+        exitDate: item.exit_date,
+        link: item.link,
+        createdBy: item.created_by,
+        updatedBy: item.updated_by,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+    } catch (err) {
+      console.error('Erro ao buscar todas as prestações:', err);
+      return [];
+    }
+  },
+
   savePrestacao: async (prestacao: any, user: User): Promise<void> => {
     try {
       const isNew = !prestacao.id;

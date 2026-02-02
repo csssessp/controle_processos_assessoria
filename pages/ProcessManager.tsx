@@ -836,9 +836,9 @@ export const ProcessManager = () => {
         'Link': p.processLink || ''
       })));
       
-      // Aba 2: Prestações de Contas - buscar TODAS
-      const allPrestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 99999 });
-      const prestacaoesSheet = XLSX.utils.json_to_sheet((allPrestacoes.data || []).map(p => ({
+      // Aba 2: Prestações de Contas - buscar TODAS (sem paginação)
+      const allPrestacoes = await DbService.getAllPrestacoes();
+      const prestacaoesSheet = XLSX.utils.json_to_sheet((allPrestacoes || []).map(p => ({
         'Processo': p.processNumber,
         'Mês': p.month ? new Date(p.month + '-01').toLocaleString('pt-BR', {month: 'long', year: 'numeric'}) : '',
         'Status': p.status,
