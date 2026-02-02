@@ -252,7 +252,7 @@ export const DbService = {
       const offset = (page - 1) * itemsPerPage;
 
       // 1. Buscar TODOS os processos urgentes (sem paginação)
-      let urgentQuery = supabase.from('processes').select('*');
+      let urgentQuery = supabase.from('processes').select('*', { count: 'exact' });
       if (params) {
         if (params.searchTerm) {
           const term = `%${params.searchTerm}%`;
@@ -270,7 +270,7 @@ export const DbService = {
       urgentQuery = urgentQuery.eq('urgent', true);
       urgentQuery = urgentQuery.order('entryDate', { ascending: false });
 
-      const { data: urgentData, error: urgentError } = await urgentQuery;
+      const { data: urgentData, error: urgentError, count: urgentCount } = await urgentQuery;
       if (urgentError) {
         console.error('Erro ao buscar processos urgentes:', urgentError.message);
         return { data: [], count: 0 };
@@ -287,7 +287,7 @@ export const DbService = {
         const neededNonUrgent = offset + itemsPerPage - urgentProcesses.length;
         const nonUrgentOffset = Math.max(0, offset - urgentProcesses.length);
 
-        let nonUrgentQuery = supabase.from('processes').select('*');
+        let nonUrgentQuery = supabase.from('processes').select('*', { count: 'exact' });
         if (params) {
           if (params.searchTerm) {
             const term = `%${params.searchTerm}%`;
@@ -305,12 +305,13 @@ export const DbService = {
         nonUrgentQuery = nonUrgentQuery.eq('urgent', false);
         nonUrgentQuery = nonUrgentQuery.order('entryDate', { ascending: false });
         
-        // Contar total e paginar
-        const { data: allNonUrgent, error: nonUrgentError, count } = await nonUrgentQuery
-          .select('*', { count: 'exact' });
+        // Aplicar paginação
+        nonUrgentQuery = nonUrgentQuery.range(nonUrgentOffset, nonUrgentOffset + neededNonUrgent - 1);
+        
+        const { data: allNonUrgent, error: nonUrgentError, count } = await nonUrgentQuery;
         
         if (!nonUrgentError && allNonUrgent) {
-          nonUrgentProcesses = allNonUrgent.slice(nonUrgentOffset, nonUrgentOffset + neededNonUrgent).map(mapProcessFromDB);
+          nonUrgentProcesses = allNonUrgent.map(mapProcessFromDB);
           totalCount = urgentProcesses.length + (count || 0);
         }
       } else {
