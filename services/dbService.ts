@@ -306,7 +306,8 @@ export const DbService = {
         nonUrgentQuery = nonUrgentQuery.order('entryDate', { ascending: false });
         
         // Contar total e paginar
-        const { data: allNonUrgent, error: nonUrgentError, count } = await nonUrgentQuery.select('*', { count: 'exact' });
+        const { data: allNonUrgent, error: nonUrgentError, count } = await nonUrgentQuery
+          .select('*', { count: 'exact' });
         
         if (!nonUrgentError && allNonUrgent) {
           nonUrgentProcesses = allNonUrgent.slice(nonUrgentOffset, nonUrgentOffset + neededNonUrgent).map(mapProcessFromDB);
