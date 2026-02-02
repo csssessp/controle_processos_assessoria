@@ -55,6 +55,18 @@ export const PrestacaoContas = () => {
   });
   const [novoFluxoSaving, setNovoFluxoSaving] = useState(false);
   
+  const [editingFluxoId, setEditingFluxoId] = useState<string | null>(null);
+  const [isEditFluxoModalOpen, setIsEditFluxoModalOpen] = useState(false);
+  const [editFluxoData, setEditFluxoData] = useState({
+    month: '',
+    status: 'REGULAR',
+    motivo: '',
+    observations: '',
+    entryDate: '',
+    exitDate: ''
+  });
+  const [editFluxoSaving, setEditFluxoSaving] = useState(false);
+  
   const [searchTerm, setSearchTerm] = useState(() => getInitialState('searchTerm', ''));
   const [filterStatus, setFilterStatus] = useState(() => getInitialState('filterStatus', ''));
   const [filterMonthStart, setFilterMonthStart] = useState(() => getInitialState('filterMonthStart', ''));
@@ -322,6 +334,99 @@ export const PrestacaoContas = () => {
       alert('Erro ao salvar: ' + (error?.message || 'Tente novamente'));
     } finally {
       setNovoFluxoSaving(false);
+    }
+  };
+
+  const handleOpenEditFluxoModal = (fluxo: any) => {
+    setEditingFluxoId(fluxo.id);
+    setEditFluxoData({
+      month: fluxo.mes || '',
+      status: fluxo.statusNovo || 'REGULAR',
+      motivo: fluxo.motivoNovo || '',
+      observations: fluxo.observacoes || '',
+      entryDate: fluxo.dataEntrada ? fluxo.dataEntrada.split('T')[0] : '',
+      exitDate: fluxo.dataSaida ? fluxo.dataSaida.split('T')[0] : ''
+    });
+    setIsEditFluxoModalOpen(true);
+  };
+
+  const handleCloseEditFluxoModal = () => {
+    setIsEditFluxoModalOpen(false);
+    setEditingFluxoId(null);
+    setEditFluxoData({
+      month: '',
+      status: 'REGULAR',
+      motivo: '',
+      observations: '',
+      entryDate: '',
+      exitDate: ''
+    });
+  };
+
+  const handleSaveEditFluxo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFluxoId || !currentProcessNumberForFluxo || !currentUser) return;
+
+    if (!editFluxoData.month || !editFluxoData.entryDate) {
+      alert('Preencha mês e data de entrada');
+      return;
+    }
+
+    if (editFluxoData.status === 'IRREGULAR' && !editFluxoData.motivo) {
+      alert('Informe o motivo da irregularidade');
+      return;
+    }
+
+    setEditFluxoSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const updatedPrestacao: any = {
+        id: editingFluxoId,
+        processNumber: currentProcessNumberForFluxo,
+        month: editFluxoData.month,
+        status: editFluxoData.status,
+        motivo: editFluxoData.status === 'IRREGULAR' ? editFluxoData.motivo : undefined,
+        observations: editFluxoData.observations,
+        entryDate: editFluxoData.entryDate,
+        exitDate: editFluxoData.exitDate || null,
+        updatedBy: currentUser.id,
+        updatedAt: now
+      };
+
+      await DbService.savePrestacao(updatedPrestacao, currentUser);
+      alert('Fluxo atualizado com sucesso!');
+      handleCloseEditFluxoModal();
+      
+      // Recarregar histórico
+      const historico = await DbService.getHistoricoByProcessNumber(currentProcessNumberForFluxo);
+      setHistoricoData(historico);
+      
+      // Recarregar lista de prestações
+      fetchPrestacoes();
+    } catch (error: any) {
+      alert('Erro ao atualizar: ' + (error?.message || 'Tente novamente'));
+    } finally {
+      setEditFluxoSaving(false);
+    }
+  };
+
+  const handleDeleteFluxo = async (fluxoId: string) => {
+    if (!currentUser) return;
+
+    try {
+      await DbService.deletePrestacao(fluxoId, currentUser);
+      alert('Fluxo excluído com sucesso!');
+      
+      // Recarregar histórico
+      if (currentProcessNumberForFluxo) {
+        const historico = await DbService.getHistoricoByProcessNumber(currentProcessNumberForFluxo);
+        setHistoricoData(historico);
+      }
+      
+      // Recarregar lista de prestações
+      fetchPrestacoes();
+    } catch (error: any) {
+      alert('Erro ao excluir: ' + (error?.message || 'Tente novamente'));
     }
   };
 
@@ -1057,7 +1162,27 @@ export const PrestacaoContas = () => {
 
                           <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                             <span>Por: <strong>{entrada.nomeUsuario}</strong></span>
-                            <span>{new Date(entrada.dataAlteracao).toLocaleString('pt-BR')}</span>
+                            <div className="flex items-center gap-2">
+                              <span>{new Date(entrada.dataAlteracao).toLocaleString('pt-BR')}</span>
+                              <button
+                                onClick={() => handleOpenEditFluxoModal(entrada)}
+                                className="ml-3 p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                title="Editar fluxo"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Tem certeza que deseja excluir este fluxo?')) {
+                                    handleDeleteFluxo(entrada.id);
+                                  }
+                                }}
+                                className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
+                                title="Deletar fluxo"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1194,6 +1319,125 @@ export const PrestacaoContas = () => {
                 <button 
                   type="button"
                   onClick={handleCloseNovoFluxoModal}
+                  className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditFluxoModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Editar Fluxo de Prestação</h2>
+              <button 
+                onClick={handleCloseEditFluxoModal}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditFluxo} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Mês *
+                  </label>
+                  <input 
+                    type="month" 
+                    required
+                    value={editFluxoData.month}
+                    onChange={(e) => setEditFluxoData({...editFluxoData, month: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Status *
+                  </label>
+                  <select 
+                    required
+                    value={editFluxoData.status}
+                    onChange={(e) => setEditFluxoData({...editFluxoData, status: e.target.value as 'REGULAR' | 'IRREGULAR'})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  >
+                    <option value="REGULAR">Regular</option>
+                    <option value="IRREGULAR">Irregular</option>
+                  </select>
+                </div>
+              </div>
+
+              {editFluxoData.status === 'IRREGULAR' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Motivo da Irregularidade *
+                  </label>
+                  <textarea 
+                    required
+                    value={editFluxoData.motivo}
+                    onChange={(e) => setEditFluxoData({...editFluxoData, motivo: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm min-h-[100px]"
+                    placeholder="Descreva o motivo da irregularidade"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Observações
+                </label>
+                <textarea 
+                  value={editFluxoData.observations}
+                  onChange={(e) => setEditFluxoData({...editFluxoData, observations: e.target.value})}
+                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm min-h-[80px]"
+                  placeholder="Observações adicionais"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Data de Entrada *
+                  </label>
+                  <input 
+                    type="date" 
+                    required
+                    value={editFluxoData.entryDate}
+                    onChange={(e) => setEditFluxoData({...editFluxoData, entryDate: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Data de Saída
+                  </label>
+                  <input 
+                    type="date" 
+                    value={editFluxoData.exitDate}
+                    onChange={(e) => setEditFluxoData({...editFluxoData, exitDate: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-4 space-y-2">
+                <button 
+                  type="submit"
+                  disabled={editFluxoSaving}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-400 transition-colors"
+                >
+                  {editFluxoSaving ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleCloseEditFluxoModal}
                   className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
                 >
                   Cancelar
