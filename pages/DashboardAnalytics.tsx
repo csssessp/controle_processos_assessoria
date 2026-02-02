@@ -43,6 +43,18 @@ export const DashboardAnalytics = () => {
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#6366f1'];
 
+  const formatMonthLabel = (month: string) => {
+    if (!month || month === 'Sem data') return 'Sem data';
+    const [year, mm] = month.split('-');
+    const monthNames = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return `${monthNames[parseInt(mm, 10)]}/${year}`;
+  };
+
+  // Preparar lista de interessados e meses a partir da lista completa de prestações
+  const allPrestacoes = stats.prestacoesList || [];
+  const mesesSet = Array.from(new Set(allPrestacoes.map((p: any) => p.month || 'Sem data'))).sort();
+  const interessadosSet = Array.from(new Set(allPrestacoes.map((p: any) => p.interested || 'Sem interessado'))).sort((a: string, b: string) => a.localeCompare(b));
+
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -185,7 +197,7 @@ export const DashboardAnalytics = () => {
           </div>
         </div>
 
-        {/* Prestações por Interessado */}
+        {/* Prestações por Interessado (lista fiel a Prestação de Contas) */}
         <div className="grid grid-cols-1 gap-6">
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-4">Prestações por Interessado e Mês</h2>
@@ -194,58 +206,39 @@ export const DashboardAnalytics = () => {
                 <thead className="bg-slate-50 border-b">
                   <tr>
                     <th className="px-4 py-2 text-left font-semibold text-slate-900 sticky left-0 bg-slate-50">Interessado</th>
-                    {Array.from(
-                      new Set(
-                        Object.values(stats.prestacaoPorInteressado)
-                          .flatMap(months => Object.keys(months))
-                      )
-                    )
-                      .sort()
-                      .map(mes => (
-                        <th key={mes} className="px-4 py-2 text-center font-semibold text-slate-900 whitespace-nowrap">
-                          {mes}
-                        </th>
-                      ))}
+                    {mesesSet.map((mes: string) => (
+                      <th key={mes} className="px-4 py-2 text-center font-semibold text-slate-900 whitespace-nowrap">
+                        {formatMonthLabel(mes)}
+                      </th>
+                    ))}
                     <th className="px-4 py-2 text-center font-semibold text-slate-900 bg-blue-50 border-l">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(stats.prestacaoPorInteressado)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([interessado, months]) => {
-                      const total = Object.values(months).reduce((sum, val) => sum + (val || 0), 0);
-                      return (
-                        <tr key={interessado} className="border-b hover:bg-slate-50">
-                          <td className="px-4 py-2 font-medium text-slate-900 sticky left-0 bg-white hover:bg-slate-50">{interessado}</td>
-                          {Array.from(
-                            new Set(
-                              Object.values(stats.prestacaoPorInteressado)
-                                .flatMap(m => Object.keys(m))
-                            )
-                          )
-                            .sort()
-                            .map(mes => {
-                              const value = months[mes] || 0;
-                              const hasData = value > 0;
-                              return (
-                                <td 
-                                  key={`${interessado}-${mes}`} 
-                                  className={`px-4 py-2 text-center font-medium whitespace-nowrap ${
-                                    hasData 
-                                      ? 'bg-green-100 text-green-800 border border-green-200' 
-                                      : 'bg-gray-50 text-gray-400'
-                                  }`}
-                                >
-                                  {hasData ? value : '-'}
-                                </td>
-                              );
-                            })}
-                          <td className="px-4 py-2 text-center font-bold text-slate-900 bg-blue-50 border-l border-blue-200">
-                            {total}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  {interessadosSet.map((interessado: string) => {
+                    const rowPrestacoes = allPrestacoes.filter((p: any) => (p.interested || 'Sem interessado') === interessado);
+                    const total = rowPrestacoes.length;
+                    return (
+                      <tr key={interessado} className="border-b hover:bg-slate-50">
+                        <td className="px-4 py-2 font-medium text-slate-900 sticky left-0 bg-white hover:bg-slate-50">{interessado}</td>
+                        {mesesSet.map((mes: string) => {
+                          const items = rowPrestacoes.filter((p: any) => (p.month || 'Sem data') === mes);
+                          return (
+                            <td key={`${interessado}-${mes}`} className="px-4 py-2 align-top max-w-xs text-center">
+                              {items.length === 0 ? (
+                                <span className="text-gray-400">-</span>
+                              ) : (
+                                <div className="inline-flex items-center justify-center">
+                                  <span className="px-3 py-1 rounded-full bg-green-100 text-green-800 font-bold text-sm">{items.length}</span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-2 text-center font-bold text-slate-900 bg-blue-50 border-l border-blue-200">{total}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

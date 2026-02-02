@@ -343,6 +343,30 @@ export const DbService = {
         ...nonUrgentProcesses
       ].slice(0, itemsPerPage);
 
+      // Ensure accurate total count for the current filters by running a count-only query
+      try {
+        let countQuery = supabase.from('processes').select('*', { count: 'exact', head: true });
+        if (params) {
+          if (params.searchTerm) {
+            const term = `%${params.searchTerm}%`;
+            countQuery = countQuery.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
+          }
+          if (params.filters?.CGOF) countQuery = countQuery.eq('CGOF', params.filters.CGOF);
+          if (params.filters?.sector) countQuery = countQuery.ilike('sector', `%${params.filters.sector}%`);
+          if (params.filters?.entryDateStart) countQuery = countQuery.gte('entryDate', params.filters.entryDateStart);
+          if (params.filters?.entryDateEnd) countQuery = countQuery.lte('entryDate', params.filters.entryDateEnd);
+          if (params.filters?.emptyExitDate) countQuery = countQuery.is('processDate', null);
+          if (params.filters?.emptySector) countQuery = countQuery.or('sector.is.null,sector.eq.""');
+        }
+        const { count: accurateCount } = await countQuery;
+        if (accurateCount !== null && accurateCount !== undefined) {
+          totalCount = accurateCount;
+        }
+      } catch (err) {
+        // If count query fails, keep previously calculated totalCount
+        console.warn('Failed to get accurate total count for processes:', err?.message || err);
+      }
+
       return { data: pageData, count: totalCount };
     } catch (err) {
       console.error('Error fetching processes:', err);
@@ -1012,6 +1036,12 @@ export const DbService = {
     try {
       const allProcesses = await DbService.getAllProcesses();
       const allPrestacoes = await DbService.getAllPrestacoesSemLimite();
+      
+      // Debug
+      console.log('=== DASHBOARD DEBUG ===');
+      console.log('Total prestações trazidas:', allPrestacoes.length);
+      console.log('Interessados únicos:', Array.from(new Set(allPrestacoes.map(p => p.interested))));
+      console.log('Primeiras 5 prestações:', allPrestacoes.slice(0, 5));
 
       // 1. Processos por origem (CGOF) - contagem única
       const processosPorOrigem = Array.from(
@@ -1084,7 +1114,45 @@ export const DbService = {
         .slice(0, 10);
 
       // 5. Processos urgentes
-      const processosUrgentes = allProcesses.filter(p => p.urgent === true).length;
+      // Para garantir que o Dashboard mostre exatamente o que a tela de Processos mostra,
+      // buscamos a mesma página usada pela UI (page=1, itemsPerPage=20) e aplicamos a
+      // lógica de uniqueProcesses usada em `ProcessManager` (manter registro com maior updatedAt).
+      let processosUrgentes = 0;
+      try {
+        const { data: pageProcesses } = await DbService.getProcesses({ page: 1, itemsPerPage: 20 });
+        const mapPage = new Map<string, any>();
+        (pageProcesses || []).forEach(p => {
+          const key = p.number || '';
+          if (!key) return;
+          const existing = mapPage.get(key);
+          const pUpdatedRaw = p.updatedAt || p.updated_at;
+          const eUpdatedRaw = existing && (existing.updatedAt || existing.updated_at);
+          const pUpdated = pUpdatedRaw ? new Date(pUpdatedRaw).getTime() : 0;
+          const eUpdated = eUpdatedRaw ? new Date(eUpdatedRaw).getTime() : 0;
+          if (!existing || pUpdated > eUpdated) mapPage.set(key, p);
+        });
+        const uniqueFromPage = Array.from(mapPage.values());
+        const urgentList = uniqueFromPage.filter(p => p.urgent === true);
+        processosUrgentes = urgentList.length;
+
+        console.log('[getStatistics] processosUrgentes(from page) (count):', processosUrgentes);
+        console.log('[getStatistics] urgent process numbers (from page):', urgentList.map(p => ({ number: p.number, updatedAt: p.updatedAt || p.updated_at })));
+      } catch (e) {
+        console.error('Erro ao calcular processos urgentes a partir da página:', e);
+        // Fallback: contar urgentes únicos em allProcesses (anterior comportamento)
+        const latestByNumber = new Map<string, any>();
+        allProcesses.forEach(p => {
+          const key = p.number || '';
+          if (!key) return;
+          const existing = latestByNumber.get(key);
+          const pUpdatedRaw = p.updatedAt || p.updated_at;
+          const eUpdatedRaw = existing && (existing.updatedAt || existing.updated_at);
+          const pUpdated = pUpdatedRaw ? new Date(pUpdatedRaw).getTime() : 0;
+          const eUpdated = eUpdatedRaw ? new Date(eUpdatedRaw).getTime() : 0;
+          if (!existing || pUpdated > eUpdated) latestByNumber.set(key, p);
+        });
+        processosUrgentes = Array.from(latestByNumber.values()).filter(p => p.urgent === true).length;
+      }
 
       // 6. Processos sem data de saída
       const processosSemdataSaida = allProcesses.filter(p => !p.processDate).length;
@@ -1115,6 +1183,18 @@ export const DbService = {
       const prestacaoRegulares = allPrestacoes.filter(p => p.status === 'REGULAR').length;
       const prestacaoIrregulares = allPrestacoes.filter(p => p.status === 'IRREGULAR').length;
 
+      const prestacoesList = allPrestacoes.map(p => ({
+        id: p.id,
+        processNumber: p.processNumber,
+        interested: (p.interested && p.interested.trim()) ? p.interested.trim() : 'Sem interessado',
+        month: p.month || 'Sem data',
+        status: p.status,
+        entryDate: p.entryDate,
+        exitDate: p.exitDate,
+        observations: p.observations,
+        link: p.link
+      }));
+
       return {
         processosPorOrigem,
         entradaChart,
@@ -1127,7 +1207,8 @@ export const DbService = {
         prestacaoRegulares,
         prestacaoIrregulares,
         totalProcessos: allProcesses.length,
-        totalPrestacoes: allPrestacoes.length
+        totalPrestacoes: allPrestacoes.length,
+        prestacoesList
       };
     } catch (err) {
       console.error('Erro ao buscar estatísticas:', err);

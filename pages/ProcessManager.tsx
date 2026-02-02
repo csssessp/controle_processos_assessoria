@@ -450,6 +450,14 @@ export const ProcessManager = () => {
     return Array.from(map.values());
   }, [processes]);
 
+  // Log de depuração: lista de números de processo considerados 'únicos' e urgentes na tela
+  try {
+    const uniqueUrgents = uniqueProcesses.filter(p => p.urgent).map(p => ({ number: p.number, updatedAt: p.updatedAt }));
+    console.log('[ProcessManager] unique urgent count:', uniqueUrgents.length, uniqueUrgents);
+  } catch (e) {
+    // ignore
+  }
+
   const availableCgofs = useMemo(() => {
     const currentOptions = new Set(CGOF_OPTIONS);
     processes.forEach(p => { if(p.CGOF) currentOptions.add(p.CGOF as any) });
@@ -976,8 +984,8 @@ export const ProcessManager = () => {
             </div>
         </div>
         <div className="flex gap-1.5 w-full lg:col-span-1 justify-end">
-          <button onClick={() => handleFilterChange(setFilterUrgent, !filterUrgent)} className={`px-2 py-2 rounded border transition-colors ${filterUrgent ? 'bg-red-50 border-red-200 text-red-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Urgentes"><Flag size={14} /></button>
-          <button onClick={() => handleFilterChange(setFilterOverdue, !filterOverdue)} className={`px-2 py-2 rounded border transition-colors ${filterOverdue ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Vencidos"><AlertTriangle size={14} /></button>
+          <button disabled className={`px-2 py-2 rounded border transition-colors opacity-50 cursor-not-allowed bg-white border-slate-200 text-slate-400`} title="Filtro de urgentes desativado"><Flag size={14} /></button>
+          <button disabled className={`px-2 py-2 rounded border transition-colors opacity-50 cursor-not-allowed bg-white border-slate-200 text-slate-400`} title="Filtro de vencidos desativado"><AlertTriangle size={14} /></button>
           <button onClick={() => handleFilterChange(setFilterEmptySector, !filterEmptySector)} className={`px-2 py-2 rounded border transition-colors ${filterEmptySector ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Sem Localização"><MapPinOff size={14} /></button>
           <button onClick={() => handleFilterChange(setFilterEmptyExitDate, !filterEmptyExitDate)} className={`px-2 py-2 rounded border transition-colors ${filterEmptyExitDate ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Sem Saída"><CalendarOff size={14} /></button>
           <button onClick={() => { setSearchTerm(''); setFilterCgof(''); setFilterSector(''); setFilterEntryDateStart(''); setFilterEntryDateEnd(''); setFilterUrgent(false); setFilterOverdue(false); setFilterEmptySector(false); setFilterEmptyExitDate(false); setCurrentPage(1); }} className="px-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-tighter">Limpar</button>
