@@ -435,11 +435,17 @@ export const ProcessManager = () => {
         if (!map.has(p.number)) map.set(p.number, p);
         else {
             const existing = map.get(p.number)!;
-            if (new Date(p.entryDate) > new Date(existing.entryDate)) map.set(p.number, p);
+            // Manter o registro mais recente (pela data de atualização)
+            if (new Date(p.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+              map.set(p.number, p);
+            }
         }
     });
     
-    // Ordenar: Urgentes e Vencidos no topo, depois o resto
+    // Classificação conforme solicitado:
+    // 1 - Urgentes
+    // 2 - Vencidos
+    // 3 - Data de entrada do mais novo para o mais antigo
     return Array.from(map.values()).sort((a, b) => {
       const today = new Date(); 
       today.setHours(0, 0, 0, 0);
@@ -450,16 +456,18 @@ export const ProcessManager = () => {
       const aIsOverdue = a.deadline ? new Date(a.deadline) < today : false;
       const bIsOverdue = b.deadline ? new Date(b.deadline) < today : false;
       
-      // Urgentes vêm primeiro
+      // 1. Urgentes vêm primeiro
       if (aIsUrgent && !bIsUrgent) return -1;
       if (!aIsUrgent && bIsUrgent) return 1;
       
-      // Depois vencidos
+      // 2. Depois vencidos (mas não urgentes, pois urgentes já foram filtrados)
       if (aIsOverdue && !bIsOverdue) return -1;
       if (!aIsOverdue && bIsOverdue) return 1;
       
-      // Resto mantém a ordem por updatedAt (mais recentes primeiro)
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      // 3. Resto: data de entrada do mais novo para o mais antigo
+      const aDate = new Date(a.entryDate);
+      const bDate = new Date(b.entryDate);
+      return bDate.getTime() - aDate.getTime(); // Decrescente (mais novo primeiro)
     });
   }, [processes]);
 
@@ -644,7 +652,7 @@ export const ProcessManager = () => {
     };
 
     // Se estamos editando e a data de entrada foi alterada, pedir senha
-    if (editingProcess) {
+    if (editingProcess && editingProcess.id) {
       const currentEntryDateFormatted = toServerDateOnly(formData.get('entryDate') as string);
       const originalDate = originalEntryDate || toServerDateOnly(editingProcess.entryDate);
       const isEntryDateAltered = currentEntryDateFormatted !== originalDate;
@@ -682,7 +690,7 @@ export const ProcessManager = () => {
           }
         }
         
-        alert(editingProcess ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
+        alert(editingProcess?.id ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
         handleCloseModal();
         refreshCurrentList();
         
@@ -1307,14 +1315,20 @@ export const ProcessManager = () => {
                   onClick={() => {
                     const processToEdit = selectedProcessHistory.length > 0 ? selectedProcessHistory[0] : null;
                     if (processToEdit) {
-                      handleOpenModal({
+                      // Criar um novo registro com ID vazio para forçar a criação
+                      const newEntry = {
                         ...processToEdit,
-                        id: '',
-                        number: processToEdit.number,
-                        entryDate: new Date().toISOString().split('T')[0],
+                        id: crypto.randomUUID(), // Novo ID para criar novo registro
+                        entryDate: new Date().toISOString(),
+                        processDate: null,
+                        deadline: null,
+                        sector: '', // Limpar localização
+                        processLink: processToEdit.processLink,
+                        observations: '',
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()
-                      });
+                      };
+                      handleOpenModal(newEntry);
                     }
                     setIsHistoryModalOpen(false);
                   }} 
