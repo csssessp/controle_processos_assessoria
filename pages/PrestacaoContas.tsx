@@ -4,7 +4,7 @@ import { PrestacaoContaQueryParams, UserRole } from '../types';
 import { 
   Search, Plus, Edit, Trash2, AlertTriangle, 
   X, CheckSquare, Square, Filter, ChevronLeft, ChevronRight, 
-  Loader2, Lock, AlertCircle, ExternalLink, History
+  Loader2, Lock, AlertCircle, ExternalLink, History, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { DbService } from '../services/dbService';
 
@@ -71,8 +71,9 @@ export const PrestacaoContas = () => {
   const [filterStatus, setFilterStatus] = useState(() => getInitialState('filterStatus', ''));
   const [filterMonthStart, setFilterMonthStart] = useState(() => getInitialState('filterMonthStart', ''));
   const [filterMonthEnd, setFilterMonthEnd] = useState(() => getInitialState('filterMonthEnd', ''));
-  const [sortBy, setSortBy] = useState<'processNumber' | 'month' | 'status' | 'updatedAt' | 'entryDate' | 'interested'>(() => getInitialState('sortBy', 'updatedAt'));
+  const [sortBy, setSortBy] = useState<'processNumber' | 'month' | 'status' | 'updatedAt' | 'entryDate' | 'interested'>(() => getInitialState('sortBy', 'month'));
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => getInitialState('sortOrder', 'desc'));
+  const [tableFontSize, setTableFontSize] = useState(() => getInitialState('tableFontSize', 14));
   const [itemsPerPage, setItemsPerPage] = useState(() => getInitialState('itemsPerPage', 20));
   const [currentPage, setCurrentPage] = useState(() => getInitialState('currentPage', 1));
   
@@ -84,10 +85,10 @@ export const PrestacaoContas = () => {
 
   useEffect(() => {
     const stateToSave = {
-      searchTerm, filterStatus, filterMonthStart, filterMonthEnd, sortBy, sortOrder, itemsPerPage, currentPage
+      searchTerm, filterStatus, filterMonthStart, filterMonthEnd, sortBy, sortOrder, itemsPerPage, currentPage, tableFontSize
     };
     localStorage.setItem(STORAGE_KEY_FILTERS, JSON.stringify(stateToSave));
-  }, [searchTerm, filterStatus, filterMonthStart, filterMonthEnd, sortBy, sortOrder, itemsPerPage, currentPage]);
+  }, [searchTerm, filterStatus, filterMonthStart, filterMonthEnd, sortBy, sortOrder, itemsPerPage, currentPage, tableFontSize]);
 
   useEffect(() => {
     const handler = setTimeout(() => { setDebouncedSearchTerm(searchTerm); }, 500);
@@ -143,6 +144,10 @@ export const PrestacaoContas = () => {
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
     setter(value);
     setCurrentPage(1);
+  };
+
+  const changeFontSize = (delta: number) => {
+    setTableFontSize(prev => Math.min(Math.max(prev + delta, 9), 16));
   };
 
   const handleSort = (field: 'entryDate' | 'processNumber' | 'interested' | 'month' | 'status') => {
@@ -547,12 +552,33 @@ export const PrestacaoContas = () => {
           <h2 className="text-2xl font-bold text-slate-800">Prestações de Contas</h2>
           <p className="text-slate-500 text-sm">Controle de processos de prestação de contas com status regular ou irregular</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()} 
-          className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded hover:bg-blue-600 transition ml-auto sm:ml-0 shadow-sm font-medium"
-        >
-          <Plus size={18} /> Nova Prestação
-        </button>
+        <div className="flex items-center gap-3 ml-auto sm:ml-0">
+          <div className="flex items-center gap-1 bg-white border border-slate-300 rounded p-1 shadow-sm">
+            <button 
+              onClick={() => changeFontSize(-0.5)} 
+              className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-600"
+              title="Diminuir Fonte"
+            >
+              <ZoomOut size={16}/>
+            </button>
+            <span className="text-[10px] font-bold text-slate-400 px-1 w-8 text-center">
+              {tableFontSize.toFixed(1)}
+            </span>
+            <button 
+              onClick={() => changeFontSize(0.5)} 
+              className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-600"
+              title="Aumentar Fonte"
+            >
+              <ZoomIn size={16}/>
+            </button>
+          </div>
+          <button 
+            onClick={() => handleOpenModal()} 
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded hover:bg-blue-600 transition shadow-sm font-medium"
+          >
+            <Plus size={18} /> Nova Prestação
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-center">
@@ -671,7 +697,7 @@ export const PrestacaoContas = () => {
                 <th className="px-3 py-3">Link</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100" style={{ fontSize: `${tableFontSize}px` }}>
               {groupedPrestacoes.map(prestacao => {
                 const isIrregular = prestacao.status === 'IRREGULAR';
                 return (
