@@ -10,7 +10,8 @@ import {
   Menu,
   X,
   User as UserIcon,
-  Receipt
+  Receipt,
+  BarChart3
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -65,6 +66,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
                 <div className="flex items-baseline space-x-2">
                   <NavItem to="/processos" icon={Files} label="Processos" />
                   <NavItem to="/prestacoes" icon={Receipt} label="Prestações" />
+                  <NavItem to="/dashboard" icon={BarChart3} label="Dashboard" />
                   {currentUser?.role === UserRole.ADMIN && (
                     <>
                       <NavItem to="/usuarios" icon={Users} label="Usuários" />
@@ -120,6 +122,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               <NavItem to="/processos" icon={Files} label="Gestão de Processos" />
               <NavItem to="/prestacoes" icon={Receipt} label="Prestações de Contas" />
+              <NavItem to="/dashboard" icon={BarChart3} label="Dashboard" />
               <NavItem to="/perfil" icon={UserIcon} label="Meu Perfil / Trocar Senha" />
               {currentUser?.role === UserRole.ADMIN && (
                 <>

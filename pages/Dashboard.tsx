@@ -1,11 +1,9 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { DashboardAnalytics } from './DashboardAnalytics';
 
 /**
- * Componente Dashboard desativado conforme solicitação do usuário.
- * Redireciona automaticamente para a gestão de processos.
+ * Dashboard principal - Mostra o dashboard analítico
  */
 export const Dashboard = () => {
-  return <Navigate to="/processos" replace />;
-};
+  return <DashboardAnalytics />;

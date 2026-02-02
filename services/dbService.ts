@@ -872,5 +872,129 @@ export const DbService = {
     const { error } = await supabase.from('prestacoes_contas_historico').delete().eq('id', historicoId);
     if (error) throw error;
     await DbService.logAction('DELETE', `Entrada de histórico excluída (ID: ${historicoId})`, user, historicoId);
+  },
+
+  // ============ DASHBOARD STATISTICS ============
+  
+  getStatistics: async (): Promise<any> => {
+    try {
+      const allProcesses = await DbService.getAllProcesses();
+      const allPrestacoes = await DbService.getAllPrestacoes();
+
+      // 1. Processos por origem (CGOF) - contagem única
+      const processosPorOrigem = Array.from(
+        new Map(allProcesses.map(p => [p.CGOF, { origem: p.CGOF || 'Sem origem', count: 0 }])).values()
+      ).map(item => ({
+        ...item,
+        count: allProcesses.filter(p => p.CGOF === item.origem).length
+      }));
+
+      // 2. Processos entrada últimos 7 dias
+      const hoje = new Date();
+      const processosEntrada7Dias: { [key: string]: number } = {};
+      
+      for (let i = 6; i >= 0; i--) {
+        const data = new Date(hoje);
+        data.setDate(data.getDate() - i);
+        const chave = data.toISOString().split('T')[0];
+        processosEntrada7Dias[chave] = 0;
+      }
+      
+      allProcesses.forEach(p => {
+        if (p.entryDate) {
+          const dataStr = p.entryDate.split('T')[0];
+          if (processosEntrada7Dias.hasOwnProperty(dataStr)) {
+            processosEntrada7Dias[dataStr]++;
+          }
+        }
+      });
+
+      const entradaChart = Object.entries(processosEntrada7Dias).map(([data, count]) => ({
+        data: new Date(data).toLocaleDateString('pt-BR'),
+        quantidade: count
+      }));
+
+      // 3. Processos saída últimos 7 dias
+      const processosSaida7Dias: { [key: string]: number } = {};
+      
+      for (let i = 6; i >= 0; i--) {
+        const data = new Date(hoje);
+        data.setDate(data.getDate() - i);
+        const chave = data.toISOString().split('T')[0];
+        processosSaida7Dias[chave] = 0;
+      }
+      
+      allProcesses.forEach(p => {
+        if (p.processDate) {
+          const dataStr = p.processDate.split('T')[0];
+          if (processosSaida7Dias.hasOwnProperty(dataStr)) {
+            processosSaida7Dias[dataStr]++;
+          }
+        }
+      });
+
+      const saidaChart = Object.entries(processosSaida7Dias).map(([data, count]) => ({
+        data: new Date(data).toLocaleDateString('pt-BR'),
+        quantidade: count
+      }));
+
+      // 4. Localizações mais enviadas
+      const localizacaoCounts = new Map<string, number>();
+      allProcesses.forEach(p => {
+        if (p.sector) {
+          localizacaoCounts.set(p.sector, (localizacaoCounts.get(p.sector) || 0) + 1);
+        }
+      });
+      
+      const localizacoesMaisEnviadas = Array.from(localizacaoCounts.entries())
+        .map(([localizacao, count]) => ({ localizacao, quantidade: count }))
+        .sort((a, b) => b.quantidade - a.quantidade)
+        .slice(0, 10);
+
+      // 5. Processos urgentes
+      const processosUrgentes = allProcesses.filter(p => p.urgent === true).length;
+
+      // 6. Processos sem data de saída
+      const processosSemdataSaida = allProcesses.filter(p => !p.processDate).length;
+
+      // 7. Processos sem localização
+      const processosSemLocalizacao = allProcesses.filter(p => !p.sector).length;
+
+      // 8. Prestações por interessado por mês
+      const prestacaoPorInteressado: { [key: string]: { [key: string]: number } } = {};
+      
+      allPrestacoes.forEach(p => {
+        const interessado = p.interested || 'Sem interessado';
+        const mes = p.month || 'Sem data';
+        
+        if (!prestacaoPorInteressado[interessado]) {
+          prestacaoPorInteressado[interessado] = {};
+        }
+        prestacaoPorInteressado[interessado][mes] = (prestacaoPorInteressado[interessado][mes] || 0) + 1;
+      });
+
+      // 9. Prestações regulares vs irregulares
+      const prestacaoRegulares = allPrestacoes.filter(p => p.status === 'REGULAR').length;
+      const prestacaoIrregulares = allPrestacoes.filter(p => p.status === 'IRREGULAR').length;
+
+      return {
+        processosPorOrigem,
+        entradaChart,
+        saidaChart,
+        localizacoesMaisEnviadas,
+        processosUrgentes,
+        processosSemdataSaida,
+        processosSemLocalizacao,
+        prestacaoPorInteressado,
+        prestacaoRegulares,
+        prestacaoIrregulares,
+        totalProcessos: allProcesses.length,
+        totalPrestacoes: allPrestacoes.length
+      };
+    } catch (err) {
+      console.error('Erro ao buscar estatísticas:', err);
+      return null;
+    }
   }
+};
 };

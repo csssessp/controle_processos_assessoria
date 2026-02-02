@@ -9,6 +9,7 @@ import { UserManagement } from './pages/UserManagement';
 import { Logs } from './pages/Logs';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
+import { DashboardAnalytics } from './pages/DashboardAnalytics';
 import { UserRole } from './types';
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children?: React.ReactNode, adminOnly?: boolean }) => {
@@ -47,6 +48,12 @@ const AppRoutes = () => {
       <Route path="/prestacoes" element={
         <ProtectedRoute>
           <PrestacaoContas />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <DashboardAnalytics />
         </ProtectedRoute>
       } />
 
