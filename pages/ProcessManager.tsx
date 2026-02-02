@@ -818,8 +818,11 @@ export const ProcessManager = () => {
 
   const exportExcel = async () => {
     try {
+      // Buscar TODOS os processos
+      const allProcesses = await DbService.getAllProcesses();
+      
       // Aba 1: Processos
-      const processesSheet = XLSX.utils.json_to_sheet(uniqueProcesses.map(p => ({
+      const processesSheet = XLSX.utils.json_to_sheet(allProcesses.map(p => ({
         'Origem (CGOF)': p.CGOF, 
         'Entrada': toDisplayDate(p.entryDate), 
         'Número': p.number,
@@ -833,9 +836,9 @@ export const ProcessManager = () => {
         'Link': p.processLink || ''
       })));
       
-      // Aba 2: Prestações de Contas
-      const prestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 999 });
-      const prestacaoesSheet = XLSX.utils.json_to_sheet((prestacoes.data || []).map(p => ({
+      // Aba 2: Prestações de Contas - buscar TODAS
+      const allPrestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 99999 });
+      const prestacaoesSheet = XLSX.utils.json_to_sheet((allPrestacoes.data || []).map(p => ({
         'Processo': p.processNumber,
         'Mês': p.month ? new Date(p.month + '-01').toLocaleString('pt-BR', {month: 'long', year: 'numeric'}) : '',
         'Status': p.status,
@@ -858,6 +861,8 @@ export const ProcessManager = () => {
 
   const exportPDF = async () => {
     try {
+      // Buscar TODOS os processos
+      const allProcesses = await DbService.getAllProcesses();
       const doc = new jsPDF();
       
       // Título geral
@@ -867,7 +872,7 @@ export const ProcessManager = () => {
       autoTable(doc, {
         startY: 20,
         head: [['Origem', 'Entrada', 'Número', 'Interessada', 'Localização', 'Saída', 'Retorno']],
-        body: uniqueProcesses.map(p => [
+        body: allProcesses.map(p => [
           p.CGOF || '-', 
           toDisplayDate(p.entryDate), 
           p.number, 
@@ -880,8 +885,8 @@ export const ProcessManager = () => {
         columnStyles: { 3: { cellWidth: 35 }, 4: { cellWidth: 25 } } 
       });
       
-      // Buscar prestações
-      const prestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 999 });
+      // Buscar TODAS as prestações
+      const allPrestacoes = await DbService.getPrestacoes({ page: 1, itemsPerPage: 99999 });
       const finalY = (doc as any).lastAutoTable?.finalY || 100;
       
       // Título prestações
@@ -891,7 +896,7 @@ export const ProcessManager = () => {
       autoTable(doc, {
         startY: finalY + 15,
         head: [['Processo', 'Mês', 'Status', 'Data Entrada', 'Data Saída']],
-        body: (prestacoes.data || []).map(p => [
+        body: (allPrestacoes.data || []).map(p => [
           p.processNumber,
           p.month ? new Date(p.month + '-01').toLocaleString('pt-BR', {month: 'short', year: 'numeric'}) : '',
           p.status,

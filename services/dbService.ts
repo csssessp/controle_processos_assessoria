@@ -291,6 +291,19 @@ export const DbService = {
     return { data: mappedData as Process[], count: count || 0 };
   },
 
+  getAllProcesses: async (): Promise<Process[]> => {
+    const { data, error } = await supabase
+      .from('processes')
+      .select('*')
+      .order('entryDate', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all processes:', error.message);
+      return [];
+    }
+    return (data || []).map(mapProcessFromDB) as Process[];
+  },
+
   saveProcess: async (process: Process, performedBy: User): Promise<void> => {
     const { processLink, isPrestacaoConta, ...processData } = process;
     const payload = {
