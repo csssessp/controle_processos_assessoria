@@ -581,12 +581,13 @@ export const DbService = {
   // Helper: Buscar prestações sem limite (para estatísticas da dashboard)
   getAllPrestacoesSemLimite: async (): Promise<any[]> => {
     try {
+      // Usar a mesma lógica de busca que getPrestacoes, mas sem paginação
+      // Buscar com ordenação por updated_at (registros mais recentes)
       let allData: any[] = [];
       let offset = 0;
       const pageSize = 1000;
       let hasMore = true;
 
-      // Buscar em lotes de 1000 registros até trazer tudo
       while (hasMore) {
         const { data, error } = await supabase
           .from('prestacoes_contas')
@@ -603,7 +604,6 @@ export const DbService = {
           allData = allData.concat(data);
           offset += pageSize;
           
-          // Se retornou menos que pageSize, significa que chegou ao fim
           if (data.length < pageSize) {
             hasMore = false;
           }
@@ -620,7 +620,8 @@ export const DbService = {
         status: item.status,
         entryDate: item.entry_date,
         exitDate: item.exit_date,
-        motivo: item.motivo
+        motivo: item.motivo,
+        updatedAt: item.updated_at
       }));
     } catch (err) {
       console.error('Erro ao buscar todas as prestações:', err);
@@ -1095,27 +1096,49 @@ export const DbService = {
       // 7. Processos sem localização
       const processosSemLocalizacao = allProcesses.filter(p => !p.sector).length;
 
-      // 8. Prestações por interessado por mês - usar apenas prestações únicas
+      // 8. Prestações por interessado por mês - usar apenas prestações únicas (mais recentes)
       const prestacaoMap = new Map<string, any>();
-      allPrestacoes.forEach(p => {
+      
+      // Ordenar por updatedAt DESC para garantir que pegamos o mais recente
+      const sortedPrestacoes = [...allPrestacoes].sort((a, b) => {
+        const dateA = new Date(a.updatedAt || '').getTime();
+        const dateB = new Date(b.updatedAt || '').getTime();
+        return dateB - dateA; // descendente
+      });
+      
+      sortedPrestacoes.forEach(p => {
         const key = `${p.processNumber}__${p.month}`;
+        // Apenas adiciona se não existe ainda (garante que é a mais recente)
         if (!prestacaoMap.has(key)) {
           prestacaoMap.set(key, p);
         }
       });
+      
       const uniquePrestacoes = Array.from(prestacaoMap.values());
 
       const prestacaoPorInteressado: { [key: string]: { [key: string]: number } } = {};
       
       uniquePrestacoes.forEach(p => {
         // Normalizar interessado: remover espaços extras e tratar null/vazio
-        const interessado = (p.interested && p.interested.trim()) ? p.interested.trim() : 'Sem interessado';
-        const mes = p.month || 'Sem data';
-        
-        if (!prestacaoPorInteressado[interessado]) {
-          prestacaoPorInteressado[interessado] = {};
+        // Apenas incluir se tiver um nome válido (não vazio/null)
+        if (p.interested && p.interested.trim()) {
+          const interessado = p.interested.trim();
+          const mes = p.month || 'Sem data';
+          
+          if (!prestacaoPorInteressado[interessado]) {
+            prestacaoPorInteressado[interessado] = {};
+          }
+          prestacaoPorInteressado[interessado][mes] = (prestacaoPorInteressado[interessado][mes] || 0) + 1;
+        } else {
+          // Apenas incluir "Sem interessado" se realmente não tiver valor
+          const mes = p.month || 'Sem data';
+          const keyNoInteressado = 'Sem interessado';
+          
+          if (!prestacaoPorInteressado[keyNoInteressado]) {
+            prestacaoPorInteressado[keyNoInteressado] = {};
+          }
+          prestacaoPorInteressado[keyNoInteressado][mes] = (prestacaoPorInteressado[keyNoInteressado][mes] || 0) + 1;
         }
-        prestacaoPorInteressado[interessado][mes] = (prestacaoPorInteressado[interessado][mes] || 0) + 1;
       });
 
       // 9. Prestações regulares vs irregulares (usando prestações únicas)
