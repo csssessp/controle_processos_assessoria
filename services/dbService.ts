@@ -245,50 +245,70 @@ export const DbService = {
 
   // --- PROCESSES ---
   getProcesses: async (params?: ProcessQueryParams): Promise<{ data: Process[], count: number }> => {
-    let query = supabase.from('processes').select('*', { count: 'exact' });
+    try {
+      let allData: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-    if (params) {
-      if (params.searchTerm) {
-        const term = `%${params.searchTerm}%`;
-        query = query.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
-      }
-      if (params.filters?.CGOF) query = query.eq('CGOF', params.filters.CGOF);
-      if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
-      if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
-      if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
-      if (params.filters?.urgent) query = query.eq('urgent', true);
-      if (params.filters?.overdue) {
-        const today = new Date().toISOString().split('T')[0];
-        query = query.lt('deadline', today);
-      }
-      if (params.filters?.emptySector) {
-        query = query.or('sector.is.null,sector.eq.""');
-      }
-      if (params.filters?.emptyExitDate) {
-        // Garantindo que buscamos apenas NULL para evitar erro de sintaxe em colunas de data
-        query = query.is('processDate', null);
-      }
+      // Buscar em lotes de 1000 registros até trazer tudo
+      while (hasMore) {
+        let query = supabase.from('processes').select('*');
 
-      // Buscar sem paginação no servidor para manter ordem correta no cliente
-      // A paginação será feita no componente React após ordenação de urgentes/vencidos
-      if (params.sortBy) {
-        query = query.order(params.sortBy.field, { ascending: params.sortBy.order === 'asc' });
-      } else {
-        // Ordena por urgente DESC, depois por entryDate DESC
+        if (params) {
+          if (params.searchTerm) {
+            const term = `%${params.searchTerm}%`;
+            query = query.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
+          }
+          if (params.filters?.CGOF) query = query.eq('CGOF', params.filters.CGOF);
+          if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
+          if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
+          if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
+          if (params.filters?.urgent) query = query.eq('urgent', true);
+          if (params.filters?.overdue) {
+            const today = new Date().toISOString().split('T')[0];
+            query = query.lt('deadline', today);
+          }
+          if (params.filters?.emptySector) {
+            query = query.or('sector.is.null,sector.eq.""');
+          }
+          if (params.filters?.emptyExitDate) {
+            query = query.is('processDate', null);
+          }
+        }
+
+        // Sempre ordena por urgente DESC, depois por entryDate DESC (no cliente fará a classificação final)
         query = query.order('urgent', { ascending: false });
         query = query.order('entryDate', { ascending: false });
-      }
-    } else {
-      query = query.order('entryDate', { ascending: false });
-    }
+        
+        // Aplicar paginação no lote
+        query = query.range(offset, offset + pageSize - 1);
 
-    const { data, count, error } = await query;
-    if (error) {
-      console.error('Error fetching processes:', error.message);
+        const { data, error } = await query;
+
+        if (error) {
+          console.error('Erro ao buscar processos:', error.message);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          offset += pageSize;
+          
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const mappedData = allData.map(mapProcessFromDB);
+      return { data: mappedData as Process[], count: mappedData.length };
+    } catch (err) {
+      console.error('Error fetching processes:', err);
       return { data: [], count: 0 };
     }
-    const mappedData = (data || []).map(mapProcessFromDB);
-    return { data: mappedData as Process[], count: count || 0 };
   },
 
   getAllProcesses: async (): Promise<Process[]> => {
