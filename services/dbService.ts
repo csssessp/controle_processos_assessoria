@@ -1092,29 +1092,11 @@ export const DbService = {
       // 7. Processos sem localização
       const processosSemLocalizacao = allProcesses.filter(p => !p.sector).length;
 
-      // 8. Prestações por interessado por mês - usar apenas prestações únicas (mais recentes)
-      const prestacaoMap = new Map<string, any>();
-      
-      // Ordenar por updatedAt DESC para garantir que pegamos o mais recente
-      const sortedPrestacoes = [...allPrestacoes].sort((a, b) => {
-        const dateA = new Date(a.updatedAt || '').getTime();
-        const dateB = new Date(b.updatedAt || '').getTime();
-        return dateB - dateA; // descendente
-      });
-      
-      sortedPrestacoes.forEach(p => {
-        const key = `${p.processNumber}__${p.month}`;
-        // Apenas adiciona se não existe ainda (garante que é a mais recente)
-        if (!prestacaoMap.has(key)) {
-          prestacaoMap.set(key, p);
-        }
-      });
-      
-      const uniquePrestacoes = Array.from(prestacaoMap.values());
-
+      // 8. Prestações por interessado por mês - SEM deduplicação, contar TODAS as prestações
       const prestacaoPorInteressado: { [key: string]: { [key: string]: number } } = {};
       
-      uniquePrestacoes.forEach(p => {
+      // Contar TODAS as prestações conforme estão na tabela
+      allPrestacoes.forEach(p => {
         // APENAS incluir se tiver um nome válido (não vazio/null)
         // NÃO incluir "Sem interessado"
         if (p.interested && p.interested.trim()) {
@@ -1129,9 +1111,9 @@ export const DbService = {
         // Se interested for null ou vazio, simplesmente ignora (não cria "Sem interessado")
       });
 
-      // 9. Prestações regulares vs irregulares (usando prestações únicas)
-      const prestacaoRegulares = uniquePrestacoes.filter(p => p.status === 'REGULAR').length;
-      const prestacaoIrregulares = uniquePrestacoes.filter(p => p.status === 'IRREGULAR').length;
+      // 9. Prestações regulares vs irregulares (contando TODAS as prestações)
+      const prestacaoRegulares = allPrestacoes.filter(p => p.status === 'REGULAR').length;
+      const prestacaoIrregulares = allPrestacoes.filter(p => p.status === 'IRREGULAR').length;
 
       return {
         processosPorOrigem,
