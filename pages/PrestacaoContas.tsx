@@ -74,7 +74,7 @@ export const PrestacaoContas = () => {
   const [sortBy, setSortBy] = useState<'processNumber' | 'month' | 'status' | 'updatedAt' | 'entryDate' | 'interested'>(() => getInitialState('sortBy', 'month'));
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => getInitialState('sortOrder', 'desc'));
   const [tableFontSize, setTableFontSize] = useState(() => getInitialState('tableFontSize', 14));
-  const [itemsPerPage, setItemsPerPage] = useState(() => getInitialState('itemsPerPage', 20));
+  const [itemsPerPage, setItemsPerPage] = useState(() => getInitialState('itemsPerPage', 100));
   const [currentPage, setCurrentPage] = useState(() => getInitialState('currentPage', 1));
   
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);

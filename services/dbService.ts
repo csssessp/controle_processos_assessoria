@@ -268,7 +268,14 @@ export const DbService = {
       
       // Sempre busca urgentes primeiro
       urgentQuery = urgentQuery.eq('urgent', true);
-      urgentQuery = urgentQuery.order('entryDate', { ascending: false });
+      
+      // Aplicar ordenação customizável do cliente ou padrão
+      if (params?.sortBy?.field && params.sortBy.field !== 'entryDate') {
+        urgentQuery = urgentQuery.order(params.sortBy.field, { ascending: params.sortBy.order === 'asc' });
+      } else {
+        const ascending = params?.sortBy?.order === 'asc' || false;
+        urgentQuery = urgentQuery.order('entryDate', { ascending });
+      }
 
       const { data: urgentData, error: urgentError, count: urgentCount } = await urgentQuery;
       if (urgentError) {
@@ -303,7 +310,14 @@ export const DbService = {
         
         // Buscar não-urgentes
         nonUrgentQuery = nonUrgentQuery.eq('urgent', false);
-        nonUrgentQuery = nonUrgentQuery.order('entryDate', { ascending: false });
+        
+        // Aplicar ordenação customizável do cliente ou padrão
+        if (params?.sortBy?.field && params.sortBy.field !== 'entryDate') {
+          nonUrgentQuery = nonUrgentQuery.order(params.sortBy.field, { ascending: params.sortBy.order === 'asc' });
+        } else {
+          const ascending = params?.sortBy?.order === 'asc' || false;
+          nonUrgentQuery = nonUrgentQuery.order('entryDate', { ascending });
+        }
         
         // Aplicar paginação
         nonUrgentQuery = nonUrgentQuery.range(nonUrgentOffset, nonUrgentOffset + neededNonUrgent - 1);
@@ -536,6 +550,32 @@ export const DbService = {
     
     console.log('Processos de prestação encontrados:', data?.length || 0);
     return (data || []).map(mapProcessFromDB) as Process[];
+  },
+
+  getUniquePrestacaoInteressados: async (): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('prestacoes_contas')
+      .select('interested');
+    
+    if (error) {
+      console.error('Error fetching unique prestação interessados:', error.message);
+      return [];
+    }
+
+    // Remover duplicatas, incluindo nulls como 'Sem interessado', e ordenar alfabeticamente
+    const unique = Array.from(new Set(
+      (data as any[])
+        .map(item => item.interested || 'Sem interessado')
+        .filter((val: string) => val && val.trim() !== '')
+        .map((val: string) => val.trim())
+    )).sort((a, b) => {
+      // 'Sem interessado' sempre por último
+      if (a === 'Sem interessado') return 1;
+      if (b === 'Sem interessado') return -1;
+      return a.localeCompare(b);
+    });
+
+    return unique as string[];
   },
 
   // --- LOGS ---

@@ -338,7 +338,7 @@ export const ProcessManager = () => {
   const [filterOverdue, setFilterOverdue] = useState(() => getInitialState('filterOverdue', false));
   const [filterEmptySector, setFilterEmptySector] = useState(() => getInitialState('filterEmptySector', false));
   const [filterEmptyExitDate, setFilterEmptyExitDate] = useState(() => getInitialState('filterEmptyExitDate', false));
-  const [sortBy, setSortBy] = useState<'deadline' | 'updatedAt' | 'number' | 'entryDate'>(() => getInitialState('sortBy', 'updatedAt'));
+  const [sortBy, setSortBy] = useState<'deadline' | 'updatedAt' | 'number' | 'entryDate' | 'processDate'>(() => getInitialState('sortBy', 'updatedAt'));
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => getInitialState('sortOrder', 'desc'));
   const [itemsPerPage, setItemsPerPage] = useState(() => getInitialState('itemsPerPage', 20));
   const [currentPage, setCurrentPage] = useState(() => getInitialState('currentPage', 1));
@@ -405,13 +405,14 @@ export const ProcessManager = () => {
   };
 
   const handleColumnSort = (field: 'number' | 'entryDate' | 'CGOF' | 'interested' | 'subject' | 'sector' | 'processDate' | 'deadline') => {
-    let sortField: 'deadline' | 'updatedAt' | 'number' | 'entryDate' = 'entryDate';
+    let sortField: 'deadline' | 'updatedAt' | 'number' | 'entryDate' | 'processDate' = 'entryDate';
     
     if (field === 'number') sortField = 'number';
     else if (field === 'entryDate') sortField = 'entryDate';
     else if (field === 'deadline') sortField = 'deadline';
-    else if (field === 'processDate') sortField = 'updatedAt';
+    else if (field === 'processDate') sortField = 'processDate';
     else if (field === 'CGOF' || field === 'interested' || field === 'subject' || field === 'sector') {
+      // Para campos não-ordenáveis, usar atualizacao (updatedAt)
       sortField = 'updatedAt';
     }
     
@@ -424,7 +425,7 @@ export const ProcessManager = () => {
     setCurrentPage(1);
   };
 
-  const getSortIndicator = (field: 'deadline' | 'updatedAt' | 'number' | 'entryDate') => {
+  const getSortIndicator = (field: 'deadline' | 'updatedAt' | 'number' | 'entryDate' | 'processDate') => {
     if (sortBy !== field) return null;
     return sortOrder === 'asc' ? '↑' : '↓';
   };

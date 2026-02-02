@@ -76,7 +76,7 @@ export interface ProcessFilters {
 }
 
 export interface ProcessSort {
-  field: 'deadline' | 'updatedAt' | 'number' | 'entryDate';
+  field: 'deadline' | 'updatedAt' | 'number' | 'entryDate' | 'processDate';
   order: 'asc' | 'desc';
 }
 
