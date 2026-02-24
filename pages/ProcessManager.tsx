@@ -50,6 +50,15 @@ export function toServerDateOnly(dateInput: string | Date | null | undefined): s
   return d.toLocaleDateString('fr-CA', { timeZone: 'America/Sao_Paulo' });
 }
 
+export function toDisplayDateTime(isoOrDate: string | Date | null | undefined): string {
+  if (!isoOrDate) return '-';
+  const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (isNaN(d.getTime())) return '-';
+  const date = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const time = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return `${date} às ${time}`;
+}
+
 const getTodayLocalISO = () => new Date().toLocaleDateString('fr-CA', { timeZone: 'America/Sao_Paulo' });
 
 // --- Internal Component: Combobox ---
@@ -178,6 +187,7 @@ export const ProcessManager = () => {
     saveProcess, deleteLastMovement, deleteProcess, loading, importProcesses
   } = useApp();
   
+  const [usersCache, setUsersCache] = useState<{[key: string]: string}>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingProcess, setEditingProcess] = useState<Process | null>(null);
@@ -234,10 +244,27 @@ export const ProcessManager = () => {
   useEffect(() => {
     const stateToSave = {
       searchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd,
-      filterUrgent, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder, itemsPerPage, currentPage, tableFontSize
+      filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder, itemsPerPage, currentPage, tableFontSize
     };
     localStorage.setItem(STORAGE_KEY_FILTERS, JSON.stringify(stateToSave));
-  }, [searchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd, filterUrgent, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder, itemsPerPage, currentPage, tableFontSize]);
+  }, [searchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder, itemsPerPage, currentPage, tableFontSize]);
+
+  // Carregar usuários e criar cache para exibição de nomes
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const users = await DbService.getUsers();
+        const cache: {[key: string]: string} = {};
+        users.forEach(user => {
+          cache[user.id] = user.name;
+        });
+        setUsersCache(cache);
+      } catch (error) {
+        console.error('Erro ao carregar usuários:', error);
+      }
+    };
+    loadUsers();
+  }, []);
 
   useEffect(() => {
     const handler = setTimeout(() => { setDebouncedSearchTerm(searchTerm); }, 500);
@@ -253,7 +280,6 @@ export const ProcessManager = () => {
       sector: filterSector || undefined,
       entryDateStart: filterEntryDateStart || undefined,
       entryDateEnd: filterEntryDateEnd || undefined,
-      urgent: filterUrgent ? true : undefined,
       overdue: filterOverdue ? true : undefined,
       emptySector: filterEmptySector ? true : undefined,
       emptyExitDate: filterEmptyExitDate ? true : undefined
@@ -262,7 +288,7 @@ export const ProcessManager = () => {
       field: sortBy,
       order: sortOrder
     }
-  }), [currentPage, itemsPerPage, debouncedSearchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd, filterUrgent, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder]);
+  }), [currentPage, itemsPerPage, debouncedSearchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder]);
 
   const refreshCurrentList = useCallback(() => {
     fetchProcesses(getCurrentParams());
@@ -301,38 +327,81 @@ export const ProcessManager = () => {
   };
 
   const uniqueProcesses = useMemo(() => {
-    const map = new Map<string, Process>();
+    // Map number -> { latest: Process; hadUrgent: boolean; hadDueSoonOrOverdue: boolean }
+    const map = new Map<string, { latest: Process; hadUrgent: boolean; hadDueSoonOrOverdue: boolean }>();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
     processes.forEach(p => {
-        if (!map.has(p.number)) map.set(p.number, p);
-        else {
-            const existing = map.get(p.number)!;
-            if (new Date(p.entryDate) > new Date(existing.entryDate)) map.set(p.number, p);
-        }
+      const existing = map.get(p.number);
+      const pEntryTime = p.entryDate ? new Date(p.entryDate).getTime() : 0;
+
+      let pHadOverdue = false;
+      if (p.deadline) {
+        const deadline = new Date(p.deadline);
+        deadline.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        pHadOverdue = diffDays < 0;
+      }
+
+      const pUrgent = !!p.urgent;
+
+      if (!existing) {
+        map.set(p.number, { latest: p, hadUrgent: pUrgent, hadOverdue: pHadOverdue });
+      } else {
+        // update had flags
+        existing.hadUrgent = existing.hadUrgent || pUrgent;
+        existing.hadOverdue = existing.hadOverdue || pHadOverdue;
+        // keep the latest entryDate as the primary record
+        const existingEntryTime = existing.latest.entryDate ? new Date(existing.latest.entryDate).getTime() : 0;
+        if (pEntryTime > existingEntryTime) existing.latest = p;
+      }
     });
-    
-    // Ordenar: Urgentes e Vencidos no topo, depois o resto
-    return Array.from(map.values()).sort((a, b) => {
-      const today = new Date(); 
-      today.setHours(0, 0, 0, 0);
-      
-      const aIsUrgent = a.urgent;
-      const bIsUrgent = b.urgent;
-      
-      const aIsOverdue = a.deadline ? new Date(a.deadline) < today : false;
-      const bIsOverdue = b.deadline ? new Date(b.deadline) < today : false;
-      
-      // Urgentes vêm primeiro
-      if (aIsUrgent && !bIsUrgent) return -1;
-      if (!aIsUrgent && bIsUrgent) return 1;
-      
-      // Depois vencidos
-      if (aIsOverdue && !bIsOverdue) return -1;
-      if (!aIsOverdue && bIsOverdue) return 1;
-      
-      // Resto mantém a ordem por updatedAt (mais recentes primeiro)
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+
+    // Transform and sort: 1) hadUrgent first (by entryDate desc),
+    // 2) hadDueSoonOrOverdue next (by entryDate desc), 3) rest by entryDate desc
+    return Array.from(map.values())
+      .sort((a, b) => {
+        if (a.hadUrgent && !b.hadUrgent) return -1;
+        if (!a.hadUrgent && b.hadUrgent) return 1;
+
+        const aDue = a.hadOverdue;
+        const bDue = b.hadOverdue;
+        if (aDue && !bDue) return -1;
+        if (!aDue && bDue) return 1;
+
+        const aTime = a.latest.entryDate ? new Date(a.latest.entryDate).getTime() : 0;
+        const bTime = b.latest.entryDate ? new Date(b.latest.entryDate).getTime() : 0;
+        return bTime - aTime;
+      })
+      .map(item => ({ ...item.latest, _hadUrgent: item.hadUrgent, _hadOverdue: item.hadOverdue } as Process));
   }, [processes]);
+
+  // DEBUG: log the first items after dedupe/sort to inspect ordering issues
+  useEffect(() => {
+    try {
+      const sample = uniqueProcesses.slice(0, 50).map((p, idx) => {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const deadline = p.deadline ? new Date(p.deadline) : null;
+        const isOverdue = deadline ? (deadline.setHours(0,0,0,0) < today.getTime()) : false;
+        const deadlineDiff = deadline ? Math.ceil((deadline.getTime() - today.getTime()) / (1000*60*60*24)) : null;
+        return {
+          idx: idx + 1,
+          number: p.number,
+          entryDate: p.entryDate,
+          urgent: !!p.urgent,
+          _hadUrgent: (p as any)._hadUrgent ?? false,
+          deadline: p.deadline,
+          _hadOverdue: (p as any)._hadOverdue ?? false,
+          isOverdue,
+          daysToDeadline: deadlineDiff
+        };
+      });
+      // eslint-disable-next-line no-console
+      console.table(sample);
+    } catch (e) {
+      // ignore
+    }
+  }, [uniqueProcesses]);
 
   const availableCgofs = useMemo(() => {
     const currentOptions = new Set(CGOF_OPTIONS);
@@ -340,7 +409,14 @@ export const ProcessManager = () => {
     return Array.from(currentOptions).sort();
   }, [processes]);
 
-  const totalPages = Math.ceil(totalProcessesCount / itemsPerPage);
+  // Paginar apenas a lista ordenada
+  const paginatedProcesses = useMemo(() => {
+    const from = (currentPage - 1) * itemsPerPage;
+    const to = from + itemsPerPage;
+    return uniqueProcesses.slice(from, to);
+  }, [uniqueProcesses, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(uniqueProcesses.length / itemsPerPage);
 
   const getPageNumbers = () => {
     const pageNumbers = [];
@@ -446,21 +522,26 @@ export const ProcessManager = () => {
     setPendingProcessToSave(null);
   };
 
-  // Função para determinar qual é a Localização Atual baseada nas datas mais recentes
+  // Função para determinar qual é a Localização Atual baseada nas datas + horas mais recentes
+  // Considera: updatedAt (timestamp completo) para identificar com precisão a última movimentação
   const getCurrentLocationId = (history: Process[]): string | null => {
     if (history.length === 0) return null;
     
-    // Encontrar o item com a data mais recente (processDate se houver, senão entryDate)
-    let currentItem: Process | null = null;
-    let mostRecentDate: Date | null = null;
-    
-    for (const item of history) {
-      const dateToCompare = item.processDate ? new Date(item.processDate) : new Date(item.entryDate);
-      if (!mostRecentDate || dateToCompare > mostRecentDate) {
-        mostRecentDate = dateToCompare;
-        currentItem = item;
+    // Ordenar por updatedAt (data/hora com precisão) em ordem decrescente
+    // If updatedAt é igual, usar entryDate como tie-breaker
+    let currentItem = history.reduce((latest, current) => {
+      const latestTime = new Date(latest.updatedAt).getTime();
+      const currentTime = new Date(current.updatedAt).getTime();
+      
+      if (currentTime !== latestTime) {
+        return currentTime > latestTime ? current : latest;
       }
-    }
+      
+      // Se updatedAt é igual, comparar entryDate
+      const latestEntry = new Date(latest.entryDate).getTime();
+      const currentEntry = new Date(current.entryDate).getTime();
+      return currentEntry > latestEntry ? current : latest;
+    });
     
     return currentItem?.id || null;
   };
@@ -665,7 +746,7 @@ export const ProcessManager = () => {
       'Assunto': p.subject, 
       'Localização': p.sector,
       'saida': toDisplayDate(p.processDate), 
-      'Urgente': p.urgent ? 'Sim' : 'Não',
+      'Urgente': (p as any)._hadUrgent ? 'Sim' : (p.urgent ? 'Sim' : 'Não'),
       'Retorno': toDisplayDate(p.deadline), 
       'Status': getDeadlineStatus(p.deadline).label,
       'Link': p.processLink || ''
@@ -760,11 +841,11 @@ export const ProcessManager = () => {
             </div>
         </div>
         <div className="flex gap-1.5 w-full lg:col-span-1 justify-end">
-          <button onClick={() => handleFilterChange(setFilterUrgent, !filterUrgent)} className={`px-2 py-2 rounded border transition-colors ${filterUrgent ? 'bg-red-50 border-red-200 text-red-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Urgentes"><Flag size={14} /></button>
+
           <button onClick={() => handleFilterChange(setFilterOverdue, !filterOverdue)} className={`px-2 py-2 rounded border transition-colors ${filterOverdue ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Vencidos"><AlertTriangle size={14} /></button>
           <button onClick={() => handleFilterChange(setFilterEmptySector, !filterEmptySector)} className={`px-2 py-2 rounded border transition-colors ${filterEmptySector ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Sem Localização"><MapPinOff size={14} /></button>
           <button onClick={() => handleFilterChange(setFilterEmptyExitDate, !filterEmptyExitDate)} className={`px-2 py-2 rounded border transition-colors ${filterEmptyExitDate ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Sem Saída"><CalendarOff size={14} /></button>
-          <button onClick={() => { setSearchTerm(''); setFilterCgof(''); setFilterSector(''); setFilterEntryDateStart(''); setFilterEntryDateEnd(''); setFilterUrgent(false); setFilterOverdue(false); setFilterEmptySector(false); setFilterEmptyExitDate(false); setCurrentPage(1); }} className="px-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-tighter">Limpar</button>
+          <button onClick={() => { setSearchTerm(''); setFilterCgof(''); setFilterSector(''); setFilterEntryDateStart(''); setFilterEntryDateEnd(''); setFilterOverdue(false); setFilterEmptySector(false); setFilterEmptyExitDate(false); setCurrentPage(1); }} className="px-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-tighter">Limpar</button>
         </div>
       </div>
 
@@ -836,21 +917,22 @@ export const ProcessManager = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {uniqueProcesses.map(process => {
+              {paginatedProcesses.map(process => {
                 const status = getDeadlineStatus(process.deadline);
                 const dynamicRowStyle = { fontSize: `${tableFontSize}px` };
                 
                 // Determinar cor de fundo baseado no status
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const isOverdue = process.deadline ? new Date(process.deadline) < today : false;
-                
+                const hadUrgent = (process as any)._hadUrgent ?? !!process.urgent;
+                const hadOverdue = (process as any)._hadOverdue ?? (process.deadline ? new Date(process.deadline) < today : false);
+
                 let rowBgClass = 'hover:bg-blue-50/30';
-                if (process.urgent && isOverdue) {
+                if (hadUrgent && hadOverdue) {
                   rowBgClass = 'bg-red-100/60 hover:bg-red-100/80'; // Urgente e vencido - vermelho mais forte
-                } else if (process.urgent) {
+                } else if (hadUrgent) {
                   rowBgClass = 'bg-orange-100/60 hover:bg-orange-100/80'; // Urgente - laranja
-                } else if (isOverdue) {
+                } else if (hadOverdue) {
                   rowBgClass = 'bg-red-50/60 hover:bg-red-50/80'; // Vencido - vermelho suave
                 }
                 
@@ -862,12 +944,12 @@ export const ProcessManager = () => {
                            {selectedIds.has(process.id) ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} />}
                         </button>
                         <div className="flex items-center gap-1">
-                          {process.urgent && (
+                          {hadUrgent && (
                             <div className="flex items-center justify-center w-5 h-5 bg-orange-500 rounded-full" title="Urgente">
                               <Flag size={12} className="text-white" />
                             </div>
                           )}
-                          {isOverdue && (
+                          {hadOverdue && (
                             <div className="flex items-center justify-center w-5 h-5 bg-red-600 rounded-full" title="Vencido">
                               <AlertTriangle size={12} className="text-white" />
                             </div>
@@ -1121,19 +1203,24 @@ export const ProcessManager = () => {
                             const isCurrentLocation = item.id === currentLocationId;
                             return (
                             <div key={item.id} className="relative pl-8">
-                                <div className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 ${isCurrentLocation ? 'bg-blue-600 border-blue-600' : 'bg-white border-blue-200'}`}></div>
-                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
+                                <div className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 ${isCurrentLocation ? 'bg-green-600 border-green-600 shadow-lg shadow-green-400' : 'bg-white border-blue-200'}`}></div>
+                                <div className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all relative group ${isCurrentLocation ? 'bg-green-50 border-green-300 shadow-md' : 'bg-white border-slate-200'} ${item.urgent ? 'ring-2 ring-red-400' : ''}`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                                                {isCurrentLocation ? 'Localização Atual' : 'Movimentação'}
+                                            {item.urgent && (
+                                                <span className="text-[10px] uppercase font-extrabold block mb-1 bg-red-600 text-white px-2 py-1 rounded inline-block">
+                                                    🚩 Urgente
+                                                </span>
+                                            )}
+                                            <span className={`text-[10px] uppercase font-bold block mb-1 ${isCurrentLocation ? 'text-green-700 bg-green-200/50 px-2 py-1 rounded font-extrabold' : 'text-slate-400'}`}>
+                                                {isCurrentLocation ? '📍 Localização Atual' : 'Movimentação'}
                                             </span>
-                                            <h4 className="font-bold text-slate-800 text-sm">{item.sector || 'Não Informado'}</h4>
+                                            <h4 className={`font-bold text-sm ${isCurrentLocation ? 'text-green-900' : 'text-slate-800'}`}>{item.sector || 'Não Informado'}</h4>
                                         </div>
                                         <div className="flex items-start gap-4">
                                             <div className="text-right">
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Entrada</span>
-                                                <div className="text-xs font-bold text-blue-600">{toDisplayDate(item.entryDate)}</div>
+                                                <span className={`text-[10px] uppercase font-bold block mb-1 ${isCurrentLocation ? 'text-green-700' : 'text-slate-400'}`}>Entrada</span>
+                                                <div className={`text-xs font-bold ${isCurrentLocation ? 'text-green-700' : 'text-blue-600'}`}>{toDisplayDate(item.entryDate)}</div>
                                             </div>
                                             <div className="flex flex-col gap-1">
                                                 <button 
@@ -1160,25 +1247,37 @@ export const ProcessManager = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-100 text-[11px]">
+                                    <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t text-[11px]" style={{borderColor: isCurrentLocation ? '#d1fae5' : '#f1f5f9'}}>
                                         <div>
-                                            <span className="text-slate-400">Origem:</span>
-                                            <span className="ml-1 font-medium text-slate-700">{item.CGOF}</span>
+                                            <span className={isCurrentLocation ? 'text-green-700' : 'text-slate-400'}>Origem:</span>
+                                            <span className={`ml-1 font-medium ${isCurrentLocation ? 'text-green-850' : 'text-slate-700'}`}>{item.CGOF}</span>
                                         </div>
                                         <div className="text-right">
                                             {item.processDate && (
                                                 <>
-                                                    <span className="text-slate-400">Saída:</span>
-                                                    <span className="ml-1 font-medium text-red-600">{toDisplayDate(item.processDate)}</span>
+                                                    <span className={isCurrentLocation ? 'text-green-700' : 'text-slate-400'}>Saída:</span>
+                                                    <span className={`ml-1 font-medium ${isCurrentLocation ? 'text-green-700' : 'text-red-600'}`}>{toDisplayDate(item.processDate)}</span>
                                                 </>
                                             )}
                                         </div>
                                     </div>
                                     {item.observations && (
-                                        <div className="mt-2 pt-2 border-t border-dashed border-slate-100 italic text-[10px] text-slate-500">
+                                        <div className={`mt-2 pt-2 border-t border-dashed italic text-[10px] ${isCurrentLocation ? 'border-green-200 text-green-700' : 'border-slate-100 text-slate-500'}`}>
                                             Obs: {item.observations}
                                         </div>
                                     )}
+                                    <div className={`mt-3 pt-3 border-t text-[10px] ${isCurrentLocation ? 'border-green-200 text-green-600' : 'border-slate-100 text-slate-400'}`}>
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <span className="font-semibold">Criado por:</span>
+                                                <span className="ml-1">{usersCache[item.createdBy] || item.createdBy}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="font-semibold">Data/Hora:</span>
+                                                <div className="font-mono text-[9px]">{toDisplayDateTime(item.createdAt)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         );})}
