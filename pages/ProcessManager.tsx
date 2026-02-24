@@ -327,8 +327,8 @@ export const ProcessManager = () => {
   };
 
   const uniqueProcesses = useMemo(() => {
-    // Map number -> { latest: Process; hadUrgent: boolean; hadDueSoonOrOverdue: boolean }
-    const map = new Map<string, { latest: Process; hadUrgent: boolean; hadDueSoonOrOverdue: boolean }>();
+    // Map number -> { latest: Process; hadUrgent: boolean; hadOverdue: boolean }
+    const map = new Map<string, { latest: Process; hadUrgent: boolean; hadOverdue: boolean }>();
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
     processes.forEach(p => {
