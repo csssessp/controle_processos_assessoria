@@ -251,7 +251,6 @@ export const DbService = {
       if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
       if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
       if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
-      if (params.filters?.urgent) query = query.eq('urgent', true);
       if (params.filters?.overdue) {
         const today = new Date().toISOString().split('T')[0];
         query = query.lt('deadline', today);
@@ -264,16 +263,12 @@ export const DbService = {
         query = query.is('processDate', null);
       }
 
-      if (params.sortBy) {
-        query = query.order(params.sortBy.field, { ascending: params.sortBy.order === 'asc' });
-      } else {
-        query = query.order('entryDate', { ascending: false });
-      }
+      // Ordenação SIMPLES: apenas por entryDate (o frontend fará a ordenação inteligente)
+      query = query.order('entryDate', { ascending: false });
 
-      const from = (params.page - 1) * params.itemsPerPage;
-      const to = from + params.itemsPerPage - 1;
-      query = query.range(from, to);
+      // SEM PAGINAÇÃO aqui - trazer todos os dados para o frontend ordenar corretamente
     } else {
+      // Padrão sem params: apenas por data de entrada
       query = query.order('entryDate', { ascending: false });
     }
 
@@ -368,6 +363,8 @@ export const DbService = {
       .from('processes')
       .select('*')
       .eq('number', number)
+      .order('urgent', { ascending: false })
+      .order('updatedAt', { ascending: false })
       .order('entryDate', { ascending: false });
     if (error) throw error;
     return (data || []).map(mapProcessFromDB) as Process[];
@@ -378,6 +375,8 @@ export const DbService = {
     const { data, count, error } = await supabase
       .from('processes')
       .select('*', { count: 'exact' })
+      .order('entryDate', { ascending: false })
+      .order('updatedAt', { ascending: false })
       .limit(30000); // Limite aumentado para cobrir bases grandes
       
     if (error) {
