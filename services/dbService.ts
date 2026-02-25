@@ -251,10 +251,8 @@ export const DbService = {
       if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
       if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
       if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
-      if (params.filters?.overdue) {
-        const today = new Date().toISOString().split('T')[0];
-        query = query.lt('deadline', today);
-      }
+      // NOTE: overdue filter removed - show all processes (vencidos, futuros, sem deadline)
+      // Frontend orderinglogic handles grouping by status
       if (params.filters?.emptySector) {
         query = query.or('sector.is.null,sector.eq.""');
       }
@@ -362,10 +360,7 @@ export const DbService = {
     const { data, error } = await supabase
       .from('processes')
       .select('*')
-      .eq('number', number)
-      .order('urgent', { ascending: false })
-      .order('updatedAt', { ascending: false })
-      .order('entryDate', { ascending: false });
+      .eq('number', number);
     if (error) throw error;
     return (data || []).map(mapProcessFromDB) as Process[];
   },

@@ -228,7 +228,7 @@ export const ProcessManager = () => {
   const [filterEntryDateStart, setFilterEntryDateStart] = useState(() => getInitialState('filterEntryDateStart', ''));
   const [filterEntryDateEnd, setFilterEntryDateEnd] = useState(() => getInitialState('filterEntryDateEnd', ''));
   const [filterUrgent, setFilterUrgent] = useState(() => getInitialState('filterUrgent', false));
-  const [filterOverdue, setFilterOverdue] = useState(() => getInitialState('filterOverdue', false));
+  const [filterOverdue, setFilterOverdue] = useState(() => getInitialState('filterOverdue', true));
   const [filterEmptySector, setFilterEmptySector] = useState(() => getInitialState('filterEmptySector', false));
   const [filterEmptyExitDate, setFilterEmptyExitDate] = useState(() => getInitialState('filterEmptyExitDate', false));
   const [sortBy, setSortBy] = useState<'deadline' | 'updatedAt' | 'number' | 'entryDate'>(() => getInitialState('sortBy', 'updatedAt'));
@@ -327,8 +327,8 @@ export const ProcessManager = () => {
   };
 
   const uniqueProcesses = useMemo(() => {
-    // Map number -> { latest: Process; hadUrgent: boolean; hadOverdue: boolean }
-    const map = new Map<string, { latest: Process; hadUrgent: boolean; hadOverdue: boolean }>();
+    // Map number -> { latest: Process; latestWithDeadline: Process | null; hadUrgent: boolean; hadOverdue: boolean }
+    const map = new Map<string, { latest: Process; latestWithDeadline: Process | null; hadUrgent: boolean; hadOverdue: boolean }>();
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
     processes.forEach(p => {
@@ -346,7 +346,12 @@ export const ProcessManager = () => {
       const pUrgent = !!p.urgent;
 
       if (!existing) {
-        map.set(p.number, { latest: p, hadUrgent: pUrgent, hadOverdue: pHadOverdue });
+        map.set(p.number, { 
+          latest: p, 
+          latestWithDeadline: p.deadline ? p : null,
+          hadUrgent: pUrgent, 
+          hadOverdue: pHadOverdue 
+        });
       } else {
         // update had flags
         existing.hadUrgent = existing.hadUrgent || pUrgent;
@@ -354,26 +359,45 @@ export const ProcessManager = () => {
         // keep the latest entryDate as the primary record
         const existingEntryTime = existing.latest.entryDate ? new Date(existing.latest.entryDate).getTime() : 0;
         if (pEntryTime > existingEntryTime) existing.latest = p;
+        // also preserve the latest record that HAS deadline
+        if (p.deadline && (!existing.latestWithDeadline || pEntryTime > (existing.latestWithDeadline.entryDate ? new Date(existing.latestWithDeadline.entryDate).getTime() : 0))) {
+          existing.latestWithDeadline = p;
+        }
       }
     });
 
-    // Transform and sort: 1) hadUrgent first (by entryDate desc),
-    // 2) hadDueSoonOrOverdue next (by entryDate desc), 3) rest by entryDate desc
+    // Transform and sort: 1) (Urgentes OR Vencidos) at top (by deadline desc),
+    // 2) rest by entryDate desc
     return Array.from(map.values())
       .sort((a, b) => {
-        if (a.hadUrgent && !b.hadUrgent) return -1;
-        if (!a.hadUrgent && b.hadUrgent) return 1;
+        // Group 1: Urgentes OR Vencidos (at top)
+        const aIsPriority = a.hadUrgent || a.hadOverdue;
+        const bIsPriority = b.hadUrgent || b.hadOverdue;
+        
+        if (aIsPriority && !bIsPriority) return -1;
+        if (!aIsPriority && bIsPriority) return 1;
 
-        const aDue = a.hadOverdue;
-        const bDue = b.hadOverdue;
-        if (aDue && !bDue) return -1;
-        if (!aDue && bDue) return 1;
+        // Within same group, sort by deadline (desc) if both have it, else by entryDate (desc)
+        if (aIsPriority && bIsPriority) {
+          // Both are urgent or overdue - sort by deadline (use latestWithDeadline if available)
+          const aDeadline = (a.latestWithDeadline?.deadline || a.latest.deadline) ? new Date(a.latestWithDeadline?.deadline || a.latest.deadline).getTime() : Infinity;
+          const bDeadline = (b.latestWithDeadline?.deadline || b.latest.deadline) ? new Date(b.latestWithDeadline?.deadline || b.latest.deadline).getTime() : Infinity;
+          if (aDeadline !== bDeadline) return aDeadline - bDeadline; // earlier deadline first (ascending)
+        }
 
+        // Fallback: sort by entryDate desc
         const aTime = a.latest.entryDate ? new Date(a.latest.entryDate).getTime() : 0;
         const bTime = b.latest.entryDate ? new Date(b.latest.entryDate).getTime() : 0;
         return bTime - aTime;
       })
-      .map(item => ({ ...item.latest, _hadUrgent: item.hadUrgent, _hadOverdue: item.hadOverdue } as Process));
+      .map(item => {
+        // Merge: use latest for all data, but use latestWithDeadline for deadline if available
+        const merged = { ...item.latest, _hadUrgent: item.hadUrgent, _hadOverdue: item.hadOverdue };
+        if (item.latestWithDeadline?.deadline) {
+          merged.deadline = item.latestWithDeadline.deadline;
+        }
+        return merged as Process;
+      });
   }, [processes]);
 
   // DEBUG: log the first items after dedupe/sort to inspect ordering issues
@@ -552,7 +576,16 @@ export const ProcessManager = () => {
     setHistoryLoading(true);
     try {
         const history = await fetchProcessHistory(process.number);
-        setSelectedProcessHistory(history);
+        
+        // Ordenar por updatedAt (ou entryDate se null) em descending order
+        const sorted = [...history].sort((a, b) => {
+          const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : new Date(a.entryDate).getTime();
+          const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : new Date(b.entryDate).getTime();
+          return timeB - timeA; // descending: mais recente primeiro
+        });
+        
+        console.log('History sorted:', sorted.map(h => ({ sector: h.sector, updatedAt: h.updatedAt, entryDate: h.entryDate })));
+        setSelectedProcessHistory(sorted);
     } catch (e) { console.error("Failed to load history", e); }
     finally { setHistoryLoading(false); }
   };
@@ -842,10 +875,10 @@ export const ProcessManager = () => {
         </div>
         <div className="flex gap-1.5 w-full lg:col-span-1 justify-end">
 
-          <button onClick={() => handleFilterChange(setFilterOverdue, !filterOverdue)} className={`px-2 py-2 rounded border transition-colors ${filterOverdue ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Vencidos"><AlertTriangle size={14} /></button>
+          <button disabled onClick={() => handleFilterChange(setFilterOverdue, !filterOverdue)} className={`px-2 py-2 rounded border transition-colors bg-amber-50 border-amber-200 text-amber-700 shadow-inner opacity-70 cursor-not-allowed`} title="Vencidos sempre mostrados"><AlertTriangle size={14} /></button>
           <button onClick={() => handleFilterChange(setFilterEmptySector, !filterEmptySector)} className={`px-2 py-2 rounded border transition-colors ${filterEmptySector ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Sem Localização"><MapPinOff size={14} /></button>
           <button onClick={() => handleFilterChange(setFilterEmptyExitDate, !filterEmptyExitDate)} className={`px-2 py-2 rounded border transition-colors ${filterEmptyExitDate ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600'}`} title="Sem Saída"><CalendarOff size={14} /></button>
-          <button onClick={() => { setSearchTerm(''); setFilterCgof(''); setFilterSector(''); setFilterEntryDateStart(''); setFilterEntryDateEnd(''); setFilterOverdue(false); setFilterEmptySector(false); setFilterEmptyExitDate(false); setCurrentPage(1); }} className="px-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-tighter">Limpar</button>
+          <button onClick={() => { setSearchTerm(''); setFilterCgof(''); setFilterSector(''); setFilterEntryDateStart(''); setFilterEntryDateEnd(''); setFilterEmptySector(false); setFilterEmptyExitDate(false); setCurrentPage(1); }} className="px-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-tighter">Limpar</button>
         </div>
       </div>
 
