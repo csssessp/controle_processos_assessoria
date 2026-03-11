@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { User, Process, Log, ProcessQueryParams } from '../types';
+import { User, Process, Log, ProcessQueryParams, PrestacaoConta, PrestacaoContaHistorico } from '../types';
 // Change import to point to the new Supabase service instead of mockDb
 import { DbService } from '../services/dbService'; 
 
@@ -22,6 +22,10 @@ interface AppContextType {
   deleteUser: (id: string) => Promise<void>;
   updateProcesses: (ids: string[], updates: Partial<Process>) => Promise<void>;
   deleteProcesses: (ids: string[]) => Promise<void>;
+  fetchPrestacaoContas: (searchTerm?: string) => Promise<PrestacaoConta[]>;
+  savePrestacaoConta: (pc: PrestacaoConta) => Promise<void>;
+  deletePrestacaoConta: (id: string) => Promise<void>;
+  fetchPrestacaoContaHistorico: (prestacaoId: string) => Promise<PrestacaoContaHistorico[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,6 +147,24 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     await DbService.deleteUser(id, currentUser);
   };
 
+  const fetchPrestacaoContas = async (searchTerm?: string): Promise<PrestacaoConta[]> => {
+    return await DbService.getPrestacaoContas(searchTerm);
+  };
+
+  const savePrestacaoConta = async (pc: PrestacaoConta): Promise<void> => {
+    if (!currentUser) return;
+    await DbService.savePrestacaoConta(pc, currentUser);
+  };
+
+  const deletePrestacaoConta = async (id: string): Promise<void> => {
+    if (!currentUser) return;
+    await DbService.deletePrestacaoConta(id, currentUser);
+  };
+
+  const fetchPrestacaoContaHistorico = async (prestacaoId: string): Promise<PrestacaoContaHistorico[]> => {
+    return await DbService.getPrestacaoContaHistorico(prestacaoId);
+  };
+
   if (loading && !currentUser && !processes.length) return (
     <div className="flex h-screen items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-4">
@@ -157,7 +179,7 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
       currentUser, processes, totalProcessesCount, logs, loading,
       login, logout, refreshData, fetchProcesses, fetchProcessHistory,
       saveProcess, importProcesses, deleteProcess, deleteLastMovement, saveUser, deleteUser,
-      updateProcesses, deleteProcesses
+      updateProcesses, deleteProcesses, fetchPrestacaoContas, savePrestacaoConta, deletePrestacaoConta, fetchPrestacaoContaHistorico
     }}>
       {children}
     </AppContext.Provider>

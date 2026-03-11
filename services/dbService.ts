@@ -40,12 +40,10 @@ $$ LANGUAGE plpgsql STABLE;
 -- Permissões de Acesso
 GRANT EXECUTE ON FUNCTION public.distinct_setor() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.distinct_interessada() TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.distinct_assunto() TO anon, authenticated, service_role;
-================================================================================
-*/
+GRANT EXECUTE ON FUNCTION public.distinct_assunto() TO anon, authenticated, service_role;\n================================================================================\n*/
 
 import { supabase } from './supabaseClient';
-import { User, Process, Log, UserRole, ProcessQueryParams, CGOF_OPTIONS } from '../types';
+import { User, Process, Log, UserRole, ProcessQueryParams, CGOF_OPTIONS, PrestacaoConta, PrestacaoContaHistorico } from '../types';
 import { getInitialAssessoriaData } from './assessoriaData';
 
 // Função para normalizar valores de CGOF e evitar erros de Enum no Supabase
@@ -280,16 +278,54 @@ export const DbService = {
   },
 
   saveProcess: async (process: Process, performedBy: User): Promise<void> => {
-    const { processLink, ...processData } = process;
+    const { processLink, is_prestacao_conta, ...processData } = process;
     const payload = {
       ...processData,
       CGOF: normalizeCGOF(process.CGOF),
       processDate: cleanDate(process.processDate),
       deadline: cleanDate(process.deadline),
-      process_link: processLink || null
+      process_link: processLink || null,
+      is_prestacao_conta: !!is_prestacao_conta
     };
     const { error } = await supabase.from('processes').upsert(payload);
     if (error) throw error;
+
+    // Se marcado como prestação de contas, criar/atualizar na tabela prestacoes_contas
+    if (is_prestacao_conta) {
+      // Verifica se já existe registro para este processo
+      const { data: existing } = await supabase
+        .from('prestacoes_contas')
+        .select('id, version_number')
+        .eq('process_id', process.id)
+        .maybeSingle();
+
+      if (!existing) {
+        const pcPayload = {
+          id: crypto.randomUUID(),
+          process_id: process.id,
+          process_number: process.number,
+          month: new Date().toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
+          status: 'Pendente',
+          motivo: null,
+          observations: process.observations || null,
+          entry_date: cleanDate(process.entryDate),
+          exit_date: cleanDate(process.processDate),
+          link: processLink || null,
+          created_by: performedBy.id,
+          updated_by: performedBy.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          version_number: 1,
+          interested: process.interested || null
+        };
+        const { error: pcError } = await supabase.from('prestacoes_contas').insert(pcPayload);
+        if (pcError) console.error('Erro ao salvar prestação de contas:', pcError.message);
+      }
+    } else {
+      // Se desmarcou, remover da tabela prestacoes_contas
+      await supabase.from('prestacoes_contas').delete().eq('process_id', process.id);
+    }
+
     await DbService.logAction(process.id ? 'UPDATE' : 'CREATE', `Processo salvo: ${process.number}`, performedBy, process.id);
   },
 
@@ -366,20 +402,39 @@ export const DbService = {
   },
 
   getAllProcessesForDashboard: async (): Promise<{ data: Process[], count: number }> => {
-    // Busca um volume expressivo de dados para garantir que os cálculos do dashboard sejam precisos
-    const { data, count, error } = await supabase
-      .from('processes')
-      .select('*', { count: 'exact' })
-      .order('entryDate', { ascending: false })
-      .order('updatedAt', { ascending: false })
-      .limit(30000); // Limite aumentado para cobrir bases grandes
-      
-    if (error) {
-      console.error('Erro ao buscar dados para dashboard:', error.message);
-      return { data: [], count: 0 };
+    // Supabase retorna no máximo 1000 linhas por requisição.
+    // Paginar para buscar todos os registros.
+    const PAGE_SIZE = 1000;
+    let allData: any[] = [];
+    let totalCount = 0;
+    let from = 0;
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const { data, count, error } = await supabase
+        .from('processes')
+        .select('*', { count: from === 0 ? 'exact' : undefined })
+        .order('entryDate', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        console.error('Erro ao buscar dados para dashboard:', error.message);
+        break;
+      }
+
+      if (from === 0 && count != null) {
+        totalCount = count;
+      }
+
+      const rows = data || [];
+      allData = allData.concat(rows);
+      from += PAGE_SIZE;
+      keepFetching = rows.length === PAGE_SIZE;
     }
-    const mappedData = (data || []).map(mapProcessFromDB);
-    return { data: mappedData as Process[], count: count || 0 };
+
+    if (totalCount === 0) totalCount = allData.length;
+    const mappedData = allData.map(mapProcessFromDB);
+    return { data: mappedData as Process[], count: totalCount };
   },
 
   getUniqueValues: async (column: 'sector' | 'interested' | 'subject'): Promise<string[]> => {
@@ -443,5 +498,87 @@ export const DbService = {
       }));
       await DbService.importProcesses(initialData as Process[], user);
     }
+  },
+
+  // --- PRESTAÇÃO DE CONTAS ---
+  getPrestacaoContas: async (searchTerm?: string): Promise<PrestacaoConta[]> => {
+    let query = supabase.from('prestacoes_contas').select('*').order('updated_at', { ascending: false });
+    
+    if (searchTerm) {
+      const term = `%${searchTerm}%`;
+      query = query.or(`process_number.ilike.${term},interested.ilike.${term},observations.ilike.${term},status.ilike.${term}`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Erro ao buscar prestação de contas:', error.message);
+      return [];
+    }
+    return (data || []) as PrestacaoConta[];
+  },
+
+  savePrestacaoConta: async (pc: PrestacaoConta, performedBy: User): Promise<void> => {
+    // Buscar registro existente para histórico
+    const { data: existing } = await supabase
+      .from('prestacoes_contas')
+      .select('*')
+      .eq('id', pc.id)
+      .maybeSingle();
+
+    const payload = {
+      ...pc,
+      entry_date: cleanDate(pc.entry_date),
+      exit_date: cleanDate(pc.exit_date),
+      updated_by: performedBy.id,
+      updated_at: new Date().toISOString(),
+      version_number: existing ? (existing.version_number || 0) + 1 : (pc.version_number || 1)
+    };
+
+    const { error } = await supabase.from('prestacoes_contas').upsert(payload);
+    if (error) throw error;
+
+    // Se está editando (existe registro anterior), salvar histórico
+    if (existing) {
+      const historico = {
+        id: crypto.randomUUID(),
+        prestacao_id: pc.id,
+        version_number: payload.version_number,
+        status_anterior: existing.status || '',
+        status_novo: pc.status || '',
+        motivo_anterior: existing.motivo || '',
+        motivo_novo: pc.motivo || '',
+        observacoes: pc.observations || '',
+        descricao: `Atualização da prestação de contas: ${pc.process_number}`,
+        alterado_por: performedBy.id,
+        nome_usuario: performedBy.name,
+        data_alteracao: new Date().toISOString()
+      };
+      const { error: histError } = await supabase.from('prestacoes_contas_historico').insert(historico);
+      if (histError) console.error('Erro ao salvar histórico:', histError.message);
+    }
+
+    await DbService.logAction('UPDATE', `Prestação de contas salva: ${pc.process_number}`, performedBy, pc.id);
+  },
+
+  deletePrestacaoConta: async (id: string, performedBy: User): Promise<void> => {
+    const { data: pc } = await supabase.from('prestacoes_contas').select('process_number').eq('id', id).maybeSingle();
+    
+    const { error } = await supabase.from('prestacoes_contas').delete().eq('id', id);
+    if (error) throw error;
+    
+    await DbService.logAction('DELETE', `Prestação de contas removida: ${pc?.process_number || id}`, performedBy, id);
+  },
+
+  getPrestacaoContaHistorico: async (prestacaoId: string): Promise<PrestacaoContaHistorico[]> => {
+    const { data, error } = await supabase
+      .from('prestacoes_contas_historico')
+      .select('*')
+      .eq('prestacao_id', prestacaoId)
+      .order('data_alteracao', { ascending: false });
+    if (error) {
+      console.error('Erro ao buscar histórico:', error.message);
+      return [];
+    }
+    return (data || []) as PrestacaoContaHistorico[];
   }
 };

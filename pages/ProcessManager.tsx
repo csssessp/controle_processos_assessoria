@@ -614,6 +614,7 @@ export const ProcessManager = () => {
       processDate, urgent: formData.get('urgent') === 'on',
       deadline, observations: formData.get('observations') as string,
       processLink: formData.get('processLink') as string,
+      is_prestacao_conta: formData.get('is_prestacao_conta') === 'on',
       createdBy: editingProcess?.createdBy || currentUser?.id || 'system',
       createdAt: editingProcess?.createdAt || now,
       updatedBy: currentUser?.id || 'system',
@@ -1387,10 +1388,16 @@ export const ProcessManager = () => {
                     <input name="deadline" type="date" defaultValue={toServerDateOnly(editingProcess?.deadline)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" />
                 </div>
               </div>
-               <div className="flex items-center gap-2 bg-red-50 p-2 rounded-lg border border-red-100 w-fit">
+               <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2 bg-red-50 p-2 rounded-lg border border-red-100 w-fit">
                    <input name="urgent" type="checkbox" id="urgent-check" defaultChecked={editingProcess?.urgent} className="w-4 h-4 text-red-600 focus:ring-red-200" />
                    <label htmlFor="urgent-check" className="text-sm font-bold text-red-700 flex items-center gap-1 cursor-pointer"><Flag size={14} fill="currentColor" /> Urgente</label>
                 </div>
+                <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-lg border border-purple-100 w-fit">
+                   <input name="is_prestacao_conta" type="checkbox" id="prestacao-contas-check" defaultChecked={editingProcess?.is_prestacao_conta} className="w-4 h-4 text-purple-600 focus:ring-purple-200" />
+                   <label htmlFor="prestacao-contas-check" className="text-sm font-bold text-purple-700 flex items-center gap-1 cursor-pointer"><FileText size={14} /> Prestação de Contas</label>
+                </div>
+               </div>
               <div>
                 <label className="block text-sm font-bold mb-1 text-slate-700">Link do Processo</label>
                 <input name="processLink" type="url" defaultValue={editingProcess?.processLink || ''} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" placeholder="https://exemplo.com/processo" />

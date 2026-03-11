@@ -38,6 +38,7 @@ export interface Process {
   deadline: string | null; // ISO Date or null
   observations?: string;
   processLink?: string; // Link direto do processo
+  is_prestacao_conta?: boolean; // Marca se é prestação de contas
   
   createdBy: string; // User ID
   updatedBy: string;
@@ -85,4 +86,48 @@ export interface ProcessQueryParams {
   searchTerm?: string;
   filters?: ProcessFilters;
   sortBy?: ProcessSort;
+}
+
+// Status possíveis para Prestação de Contas
+export const PRESTACAO_STATUS_OPTIONS = [
+  'Pendente',
+  'Em Análise',
+  'Aprovada',
+  'Reprovada',
+  'Devolvida',
+  'Concluída'
+] as const;
+
+export interface PrestacaoConta {
+  id: string;
+  process_id: string;
+  process_number: string;
+  month: string;
+  status: string;
+  motivo?: string;
+  observations?: string;
+  entry_date: string | null;
+  exit_date: string | null;
+  link?: string;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+  version_number: number;
+  interested?: string;
+}
+
+export interface PrestacaoContaHistorico {
+  id: string;
+  prestacao_id: string;
+  version_number: number;
+  status_anterior: string;
+  status_novo: string;
+  motivo_anterior?: string;
+  motivo_novo?: string;
+  observacoes?: string;
+  descricao?: string;
+  alterado_por: string;
+  nome_usuario: string;
+  data_alteracao: string;
 }

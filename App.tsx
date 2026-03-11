@@ -3,7 +3,9 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/Layout';
+import { Dashboard } from './pages/Dashboard';
 import { ProcessManager } from './pages/ProcessManager';
+import { PrestacaoContas } from './pages/PrestacaoContas';
 import { UserManagement } from './pages/UserManagement';
 import { Logs } from './pages/Logs';
 import { Login } from './pages/Login';
@@ -18,7 +20,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children?: React.Reac
   }
 
   if (adminOnly && currentUser.role !== UserRole.ADMIN) {
-    return <Navigate to="/processos" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Layout>{children}</Layout>;
@@ -29,17 +31,29 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={currentUser ? <Navigate to="/processos" /> : <Login />} />
+      <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
       
       <Route path="/" element={
         <ProtectedRoute>
-          <Navigate to="/processos" replace />
+          <Navigate to="/dashboard" replace />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <Dashboard />
         </ProtectedRoute>
       } />
       
       <Route path="/processos" element={
         <ProtectedRoute>
           <ProcessManager />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/prestacao-contas" element={
+        <ProtectedRoute>
+          <PrestacaoContas />
         </ProtectedRoute>
       } />
 
@@ -61,7 +75,7 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      <Route path="*" element={<Navigate to="/processos" />} />
+      <Route path="*" element={<Navigate to="/dashboard" />} />
     </Routes>
   );
 };
