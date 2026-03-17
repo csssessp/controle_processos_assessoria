@@ -1199,6 +1199,7 @@ export const ProcessManager = () => {
                         id: '',
                         number: processToEdit.number,
                         entryDate: new Date().toISOString().split('T')[0],
+                        processDate: null,
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()
                       });
