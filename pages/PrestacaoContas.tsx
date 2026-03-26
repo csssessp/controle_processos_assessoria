@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import { DbService } from '../services/dbService';
 import { 
   Search, Plus, Edit, Trash2, Download, X, Filter, ChevronLeft, ChevronRight,
+  ChevronUp, ChevronDown, ChevronsUpDown,
   Loader2, Lock, AlertCircle, FileText, Activity, ZoomIn, ZoomOut, ExternalLink
 } from 'lucide-react';
 
@@ -30,6 +31,20 @@ export const PrestacaoContas = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [tableFontSize, setTableFontSize] = useState(10.5);
+
+  // Ordenação
+  type SortableKey = 'process_number' | 'interested' | 'month' | 'status' | 'motivo' | 'entry_date' | 'exit_date';
+  const [sortKey, setSortKey] = useState<SortableKey | ''>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: SortableKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   // Modal de edição/criação
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -97,6 +112,17 @@ export const PrestacaoContas = () => {
     return result;
   }, [prestacoes, filterStatus, filterMonth]);
 
+  const sortedPrestacoes = useMemo(() => {
+    if (!sortKey) return filteredPrestacoes;
+    return [...filteredPrestacoes].sort((a, b) => {
+      const aVal = String(a[sortKey as keyof PrestacaoConta] ?? '').toLowerCase();
+      const bVal = String(b[sortKey as keyof PrestacaoConta] ?? '').toLowerCase();
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredPrestacoes, sortKey, sortDir]);
+
   const availableMonths = useMemo(() => {
     const months = new Set(prestacoes.map(p => p.month).filter(Boolean));
     return Array.from(months).sort().reverse();
@@ -104,10 +130,10 @@ export const PrestacaoContas = () => {
 
   const paginatedPrestacoes = useMemo(() => {
     const from = (currentPage - 1) * itemsPerPage;
-    return filteredPrestacoes.slice(from, from + itemsPerPage);
-  }, [filteredPrestacoes, currentPage, itemsPerPage]);
+    return sortedPrestacoes.slice(from, from + itemsPerPage);
+  }, [sortedPrestacoes, currentPage, itemsPerPage]);
 
-  const totalPages = Math.ceil(filteredPrestacoes.length / itemsPerPage);
+  const totalPages = Math.ceil(sortedPrestacoes.length / itemsPerPage);
 
   const getPageNumbers = () => {
     const pageNumbers = [];
@@ -316,6 +342,13 @@ export const PrestacaoContas = () => {
     return `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
   };
 
+  const SortIcon = ({ col }: { col: string }) => {
+    if (sortKey !== col) return <ChevronsUpDown size={11} className="inline ml-0.5 opacity-40" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={11} className="inline ml-0.5 text-purple-700" />
+      : <ChevronDown size={11} className="inline ml-0.5 text-purple-700" />;
+  };
+
   return (
     <div className="space-y-4 relative min-h-[calc(100vh-100px)] flex flex-col">
       {/* Header */}
@@ -386,13 +419,13 @@ export const PrestacaoContas = () => {
           <table className="w-full text-sm text-left">
             <thead className="text-[11px] text-slate-500 uppercase bg-purple-50 border-b border-purple-200 sticky top-0 z-10 font-bold">
               <tr>
-                <th className="px-3 py-3">Nº Processo</th>
-                <th className="px-3 py-3">Interessada</th>
-                <th className="px-3 py-3">Mês</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Motivo</th>
-                <th className="px-3 py-3">Entrada</th>
-                <th className="px-3 py-3">Saída</th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('process_number')}>Nº Processo<SortIcon col="process_number" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('interested')}>Interessada<SortIcon col="interested" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('month')}>Mês<SortIcon col="month" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('status')}>Status<SortIcon col="status" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('motivo')}>Motivo<SortIcon col="motivo" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('entry_date')}>Entrada<SortIcon col="entry_date" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-purple-100 select-none whitespace-nowrap" onClick={() => handleSort('exit_date')}>Saída<SortIcon col="exit_date" /></th>
                 <th className="px-3 py-3">Link</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
