@@ -649,7 +649,7 @@ export const ProcessManager = () => {
 
     try {
         await saveProcess(newProcess);
-        if (!editingProcess && isPrestacaoContaChecked && currentUser) {
+        if (isPrestacaoContaChecked && currentUser) {
           if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
           const pcData: PrestacaoConta = {
             id: crypto.randomUUID(),
@@ -670,7 +670,7 @@ export const ProcessManager = () => {
             version_number: 1
           };
           await savePrestacaoConta(pcData);
-          alert('Processo cadastrado e Prestação de Contas criada com sucesso!');
+          alert(editingProcess ? 'Processo atualizado e Prestação de Contas criada com sucesso!' : 'Processo cadastrado e Prestação de Contas criada com sucesso!');
           handleCloseModal();
           navigate('/prestacao-contas');
         } else {
@@ -1436,7 +1436,7 @@ export const ProcessManager = () => {
                    <label htmlFor="prestacao-contas-check" className="text-sm font-bold text-purple-700 flex items-center gap-1 cursor-pointer"><FileText size={14} /> Prestação de Contas</label>
                 </div>
                </div>
-              {isPrestacaoContaChecked && !editingProcess && (
+              {isPrestacaoContaChecked && (
                 <div className="border border-purple-200 rounded-lg p-4 bg-purple-50/60 space-y-3">
                   <p className="text-xs font-bold text-purple-700 uppercase tracking-tight">Dados da Prestação de Contas</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
