@@ -90,20 +90,25 @@ export interface ProcessQueryParams {
 
 // Status possíveis para Prestação de Contas
 export const PRESTACAO_STATUS_OPTIONS = [
-  'Pendente',
-  'Em Análise',
-  'Aprovada',
-  'Reprovada',
-  'Devolvida',
-  'Concluída'
+  'REGULAR',
+  'REGULAR COM RESSALVA',
+  'IRREGULAR'
+] as const;
+
+export const REGULARIDADE_OPTIONS = [
+  'Não avaliada',
+  'Regular',
+  'Regular com Ressalva',
+  'Irregular'
 ] as const;
 
 export interface PrestacaoConta {
   id: string;
-  process_id: string;
+  process_id: string | null;
   process_number: string;
   month: string;
   status: string;
+  regularidade?: string;
   motivo?: string;
   observations?: string;
   entry_date: string | null;

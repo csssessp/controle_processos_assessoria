@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Process, CGOF_OPTIONS, ProcessQueryParams, UserRole } from '../types';
+import { Process, CGOF_OPTIONS, ProcessQueryParams, UserRole, PRESTACAO_STATUS_OPTIONS, PrestacaoConta } from '../types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -182,9 +183,10 @@ const getInitialState = <T,>(key: string, defaultValue: T): T => {
 };
 
 export const ProcessManager = () => {
+  const navigate = useNavigate();
   const { 
     processes, totalProcessesCount, fetchProcesses, fetchProcessHistory, currentUser,
-    saveProcess, deleteLastMovement, deleteProcess, loading, importProcesses
+    saveProcess, deleteLastMovement, deleteProcess, loading, importProcesses, savePrestacaoConta
   } = useApp();
   
   const [usersCache, setUsersCache] = useState<{[key: string]: string}>({});
@@ -210,6 +212,14 @@ export const ProcessManager = () => {
   const [pendingProcessToSave, setPendingProcessToSave] = useState<Process | null>(null);
   const [newEntryDate, setNewEntryDate] = useState('');
   const [originalEntryDate, setOriginalEntryDate] = useState('');
+
+  // Prestação de Contas fields
+  const [isPrestacaoContaChecked, setIsPrestacaoContaChecked] = useState(false);
+  const [prestacaoFormState, setPrestacaoFormState] = useState({ month: '', status: 'REGULAR', motivo: '' });
+
+  useEffect(() => {
+    setIsPrestacaoContaChecked(!!editingProcess?.is_prestacao_conta);
+  }, [editingProcess]);
   
   const [sectorOptions, setSectorOptions] = useState<string[]>([]);
   const [interestedOptions, setInterestedOptions] = useState<string[]>([]);
@@ -544,6 +554,8 @@ export const ProcessManager = () => {
     setEntryDatePassword('');
     setEntryDatePasswordError('');
     setPendingProcessToSave(null);
+    setIsPrestacaoContaChecked(false);
+    setPrestacaoFormState({ month: '', status: 'PENDENTE', motivo: '' });
   };
 
   // Função para determinar qual é a Localização Atual baseada nas datas + horas mais recentes
@@ -637,13 +649,38 @@ export const ProcessManager = () => {
 
     try {
         await saveProcess(newProcess);
-        alert(editingProcess ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
-        handleCloseModal();
-        refreshCurrentList();
-        
-        if (isHistoryModalOpen) {
-          const updatedHistory = await fetchProcessHistory(selectedProcessNumber);
-          setSelectedProcessHistory(updatedHistory);
+        if (!editingProcess && isPrestacaoContaChecked && currentUser) {
+          if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
+          const pcData: PrestacaoConta = {
+            id: crypto.randomUUID(),
+            process_id: newProcess.id,
+            process_number: newProcess.number,
+            month: prestacaoFormState.month.includes('/') ? (() => { const [m,y] = prestacaoFormState.month.split('/'); return `${y}-${m}`; })() : prestacaoFormState.month,
+            status: prestacaoFormState.status,
+            motivo: prestacaoFormState.motivo || undefined,
+            interested: newProcess.interested || undefined,
+            entry_date: entryDate,
+            exit_date: null,
+            link: newProcess.processLink || undefined,
+            observations: newProcess.observations || undefined,
+            created_by: currentUser.id,
+            updated_by: currentUser.id,
+            created_at: now,
+            updated_at: now,
+            version_number: 1
+          };
+          await savePrestacaoConta(pcData);
+          alert('Processo cadastrado e Prestação de Contas criada com sucesso!');
+          handleCloseModal();
+          navigate('/prestacao-contas');
+        } else {
+          alert(editingProcess ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
+          handleCloseModal();
+          refreshCurrentList();
+          if (isHistoryModalOpen) {
+            const updatedHistory = await fetchProcessHistory(selectedProcessNumber);
+            setSelectedProcessHistory(updatedHistory);
+          }
         }
     } catch (error: any) { 
         alert('Erro ao salvar: ' + (error?.message || 'Verifique os dados.')); 
@@ -1395,10 +1432,31 @@ export const ProcessManager = () => {
                    <label htmlFor="urgent-check" className="text-sm font-bold text-red-700 flex items-center gap-1 cursor-pointer"><Flag size={14} fill="currentColor" /> Urgente</label>
                 </div>
                 <div className="flex items-center gap-2 bg-purple-50 p-2 rounded-lg border border-purple-100 w-fit">
-                   <input name="is_prestacao_conta" type="checkbox" id="prestacao-contas-check" defaultChecked={editingProcess?.is_prestacao_conta} className="w-4 h-4 text-purple-600 focus:ring-purple-200" />
+                   <input name="is_prestacao_conta" type="checkbox" id="prestacao-contas-check" checked={isPrestacaoContaChecked} onChange={(e) => setIsPrestacaoContaChecked(e.target.checked)} className="w-4 h-4 text-purple-600 focus:ring-purple-200" />
                    <label htmlFor="prestacao-contas-check" className="text-sm font-bold text-purple-700 flex items-center gap-1 cursor-pointer"><FileText size={14} /> Prestação de Contas</label>
                 </div>
                </div>
+              {isPrestacaoContaChecked && !editingProcess && (
+                <div className="border border-purple-200 rounded-lg p-4 bg-purple-50/60 space-y-3">
+                  <p className="text-xs font-bold text-purple-700 uppercase tracking-tight">Dados da Prestação de Contas</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">Mês de Referência <span className="text-red-600">*</span></label>
+                      <input value={prestacaoFormState.month} onChange={(e) => setPrestacaoFormState(prev => ({...prev, month: e.target.value}))} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" placeholder="MM/AAAA" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">Status <span className="text-red-600">*</span></label>
+                      <select value={prestacaoFormState.status} onChange={(e) => setPrestacaoFormState(prev => ({...prev, status: e.target.value}))} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100">
+                        {PRESTACAO_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1 text-slate-700">Motivo</label>
+                    <input value={prestacaoFormState.motivo} onChange={(e) => setPrestacaoFormState(prev => ({...prev, motivo: e.target.value}))} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" placeholder="Motivo da prestação de contas" />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-bold mb-1 text-slate-700">Link do Processo</label>
                 <input name="processLink" type="url" defaultValue={editingProcess?.processLink || ''} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100" placeholder="https://exemplo.com/processo" />

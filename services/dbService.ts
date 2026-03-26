@@ -290,41 +290,8 @@ export const DbService = {
     const { error } = await supabase.from('processes').upsert(payload);
     if (error) throw error;
 
-    // Se marcado como prestação de contas, criar/atualizar na tabela prestacoes_contas
-    if (is_prestacao_conta) {
-      // Verifica se já existe registro para este processo
-      const { data: existing } = await supabase
-        .from('prestacoes_contas')
-        .select('id, version_number')
-        .eq('process_id', process.id)
-        .maybeSingle();
-
-      if (!existing) {
-        const pcPayload = {
-          id: crypto.randomUUID(),
-          process_id: process.id,
-          process_number: process.number,
-          month: new Date().toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
-          status: 'Pendente',
-          motivo: null,
-          observations: process.observations || null,
-          entry_date: cleanDate(process.entryDate),
-          exit_date: cleanDate(process.processDate),
-          link: processLink || null,
-          created_by: performedBy.id,
-          updated_by: performedBy.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          version_number: 1,
-          interested: process.interested || null
-        };
-        const { error: pcError } = await supabase.from('prestacoes_contas').insert(pcPayload);
-        if (pcError) console.error('Erro ao salvar prestação de contas:', pcError.message);
-      }
-    } else {
-      // Se desmarcou, remover da tabela prestacoes_contas
-      await supabase.from('prestacoes_contas').delete().eq('process_id', process.id);
-    }
+    // A criação do registro em prestacoes_contas é feita pelo ProcessManager
+    // após salvar o processo, com os dados informados pelo usuário no formulário.
 
     await DbService.logAction(process.id ? 'UPDATE' : 'CREATE', `Processo salvo: ${process.number}`, performedBy, process.id);
   },
@@ -525,11 +492,22 @@ export const DbService = {
       .eq('id', pc.id)
       .maybeSingle();
 
-    const payload = {
-      ...pc,
+    const payload: Record<string, any> = {
+      id: pc.id,
+      process_id: pc.process_id || null,
+      process_number: pc.process_number,
+      month: pc.month,
+      status: pc.status,
+      regularidade: pc.regularidade || null,
+      motivo: pc.motivo || null,
+      observations: pc.observations || null,
       entry_date: cleanDate(pc.entry_date),
       exit_date: cleanDate(pc.exit_date),
+      link: pc.link || null,
+      interested: pc.interested || null,
+      created_by: pc.created_by,
       updated_by: performedBy.id,
+      created_at: pc.created_at,
       updated_at: new Date().toISOString(),
       version_number: existing ? (existing.version_number || 0) + 1 : (pc.version_number || 1)
     };
@@ -539,7 +517,7 @@ export const DbService = {
 
     // Se está editando (existe registro anterior), salvar histórico
     if (existing) {
-      const historico = {
+      const historico: Record<string, any> = {
         id: crypto.randomUUID(),
         prestacao_id: pc.id,
         version_number: payload.version_number,

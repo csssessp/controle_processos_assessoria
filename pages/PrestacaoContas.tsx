@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { PrestacaoConta, PrestacaoContaHistorico, PRESTACAO_STATUS_OPTIONS, UserRole } from '../types';
 import { toDisplayDate, toDisplayDateTime, toServerDateOnly, toServerTimestampNoonLocal } from './ProcessManager';
@@ -34,7 +34,23 @@ export const PrestacaoContas = () => {
   // Modal de edição/criação
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPrestacao, setEditingPrestacao] = useState<PrestacaoConta | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
+
+  // Form state (controlled)
+  const [formState, setFormState] = useState({
+    process_number: '',
+    interested: '',
+    month: '',
+    status: 'PENDENTE',
+    motivo: '',
+    entry_date: '',
+    exit_date: '',
+    link: '',
+    observations: ''
+  });
+
+  const updateFormField = (field: string, value: string) => {
+    setFormState(prev => ({ ...prev, [field]: value }));
+  };
 
   // Modal de histórico
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -109,19 +125,52 @@ export const PrestacaoContas = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Pendente': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Em Análise': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Aprovada': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Reprovada': return 'bg-red-100 text-red-800 border-red-200';
-      case 'Devolvida': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'Concluída': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    const s = (status || '').toUpperCase();
+    switch (s) {
+      case 'REGULAR': return 'bg-green-100 text-green-800 border-green-200';
+      case 'REGULAR COM RESSALVA': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'IRREGULAR': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-slate-100 text-slate-600 border-slate-200';
     }
   };
 
+  // Normalize month from MM/AAAA to YYYY-MM for DB storage
+  const normalizeMonthForDB = (month: string): string => {
+    if (/^\d{2}\/\d{4}$/.test(month)) {
+      const [m, y] = month.split('/');
+      return `${y}-${m}`;
+    }
+    return month;
+  };
+
   const handleOpenModal = (prestacao?: PrestacaoConta) => {
-    setEditingPrestacao(prestacao || null);
+    if (prestacao) {
+      setEditingPrestacao(prestacao);
+      setFormState({
+        process_number: prestacao.process_number || '',
+        interested: prestacao.interested || '',
+        month: prestacao.month || '',
+        status: prestacao.status || 'REGULAR',
+        motivo: prestacao.motivo || '',
+        entry_date: toServerDateOnly(prestacao.entry_date) || '',
+        exit_date: toServerDateOnly(prestacao.exit_date) || '',
+        link: prestacao.link || '',
+        observations: prestacao.observations || ''
+      });
+    } else {
+      setEditingPrestacao(null);
+      setFormState({
+        process_number: '',
+        interested: '',
+        month: getCurrentMonthDefault(),
+        status: 'REGULAR',
+        motivo: '',
+        entry_date: '',
+        exit_date: '',
+        link: '',
+        observations: ''
+      });
+    }
     setIsModalOpen(true);
   };
 
@@ -132,23 +181,22 @@ export const PrestacaoContas = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formRef.current || !currentUser) return;
+    if (!currentUser) return;
     setSaving(true);
-    const formData = new FormData(formRef.current);
     const now = new Date().toISOString();
 
     const data: PrestacaoConta = {
       id: editingPrestacao?.id || crypto.randomUUID(),
-      process_id: editingPrestacao?.process_id || '',
-      process_number: formData.get('process_number') as string,
-      month: formData.get('month') as string,
-      status: formData.get('status') as string,
-      motivo: (formData.get('motivo') as string) || undefined,
-      observations: (formData.get('observations') as string) || undefined,
-      entry_date: toServerTimestampNoonLocal(formData.get('entry_date') as string),
-      exit_date: toServerTimestampNoonLocal(formData.get('exit_date') as string),
-      link: (formData.get('link') as string) || undefined,
-      interested: (formData.get('interested') as string) || undefined,
+      process_id: editingPrestacao?.process_id || null,
+      process_number: formState.process_number,
+      month: normalizeMonthForDB(formState.month),
+      status: formState.status,
+      motivo: formState.motivo || undefined,
+      observations: formState.observations || undefined,
+      entry_date: toServerTimestampNoonLocal(formState.entry_date),
+      exit_date: toServerTimestampNoonLocal(formState.exit_date),
+      link: formState.link || undefined,
+      interested: formState.interested || undefined,
       created_by: editingPrestacao?.created_by || currentUser.id,
       updated_by: currentUser.id,
       created_at: editingPrestacao?.created_at || now,
@@ -497,50 +545,52 @@ export const PrestacaoContas = () => {
               <h3 className="text-lg font-bold text-slate-800">{editingPrestacao ? 'Editar Prestação de Contas' : 'Nova Prestação de Contas'}</h3>
               <button onClick={handleCloseModal} className="p-1 hover:bg-slate-200 rounded"><X size={24} /></button>
             </div>
-            <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Nº do Processo <span className="text-red-600">*</span></label>
-                  <input required name="process_number" type="text" defaultValue={editingPrestacao?.process_number} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm font-mono placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="000.000/0000" />
+                  <input required name="process_number" type="text" value={formState.process_number} onChange={(e) => updateFormField('process_number', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm font-mono placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="000.000/0000" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Interessada</label>
-                  <input name="interested" type="text" defaultValue={editingPrestacao?.interested} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="Quem solicita ou órgão" />
+                  <input name="interested" type="text" value={formState.interested} onChange={(e) => updateFormField('interested', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="Quem solicita ou órgão" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Mês de Referência <span className="text-red-600">*</span></label>
-                  <input required name="month" type="text" defaultValue={editingPrestacao?.month || getCurrentMonthDefault()} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="MM/AAAA" />
+                  <input required name="month" type="text" value={formState.month} onChange={(e) => updateFormField('month', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="MM/AAAA" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Status <span className="text-red-600">*</span></label>
-                  <select name="status" defaultValue={editingPrestacao?.status || 'Pendente'} required className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100">
+                  <select name="status" value={formState.status} onChange={(e) => updateFormField('status', e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100">
                     {PRESTACAO_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-bold mb-1 text-slate-700">Motivo</label>
-                <input name="motivo" type="text" defaultValue={editingPrestacao?.motivo} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="Motivo da prestação de contas" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-slate-700">Motivo</label>
+                  <input name="motivo" type="text" value={formState.motivo} onChange={(e) => updateFormField('motivo', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm placeholder-slate-300 focus:ring-2 focus:ring-purple-100" placeholder="Motivo da prestação de contas" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-slate-700">Data de Entrada</label>
+                  <input name="entry_date" type="date" value={formState.entry_date} onChange={(e) => updateFormField('entry_date', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold mb-1 text-slate-700">Data de Entrada</label>
-                  <input name="entry_date" type="date" defaultValue={toServerDateOnly(editingPrestacao?.entry_date)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" />
+                  <label className="block text-sm font-bold mb-1 text-slate-700">Data de Saída</label>
+                  <input name="exit_date" type="date" value={formState.exit_date} onChange={(e) => updateFormField('exit_date', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-1 text-slate-700">Data de Saída</label>
-                  <input name="exit_date" type="date" defaultValue={toServerDateOnly(editingPrestacao?.exit_date)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" />
+                  <label className="block text-sm font-bold mb-1 text-slate-700">Link</label>
+                  <input name="link" type="url" value={formState.link} onChange={(e) => updateFormField('link', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" placeholder="https://exemplo.com/documento" />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold mb-1 text-slate-700">Link</label>
-                <input name="link" type="url" defaultValue={editingPrestacao?.link || ''} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" placeholder="https://exemplo.com/documento" />
               </div>
               <div>
                 <label className="block text-sm font-bold mb-1 text-slate-700">Observações</label>
-                <textarea name="observations" rows={3} defaultValue={editingPrestacao?.observations} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" placeholder="Informações adicionais..."></textarea>
+                <textarea name="observations" rows={3} value={formState.observations} onChange={(e) => updateFormField('observations', e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-purple-100" placeholder="Informações adicionais..."></textarea>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
                 <button type="button" onClick={handleCloseModal} className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold transition-colors">Cancelar</button>
