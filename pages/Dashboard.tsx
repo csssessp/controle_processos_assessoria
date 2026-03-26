@@ -141,6 +141,13 @@ export const Dashboard = () => {
       .slice(0, 10);
   }, [processes]);
 
+  // ─── Normaliza mês para YYYY-MM independente do formato armazenado ───
+  const normalizeMonth = (m: string): string => {
+    if (!m) return '';
+    if (/^\d{2}\/\d{4}$/.test(m)) { const [mm, yy] = m.split('/'); return `${yy}-${mm}`; }
+    return m;
+  };
+
   // ─── Prestação de Contas Stats ─────────────────────────────
   const pcStats = useMemo(() => {
     const total = prestacoes.length;
@@ -152,11 +159,15 @@ export const Dashboard = () => {
 
     const byMonth: Record<string, number> = {};
     prestacoes.forEach(p => {
-      if (p.month) byMonth[p.month] = (byMonth[p.month] || 0) + 1;
+      if (p.month) {
+        const key = normalizeMonth(p.month);
+        byMonth[key] = (byMonth[key] || 0) + 1;
+      }
     });
+    // Ordena cronologicamente (mais recente primeiro) e mostra top 8
     const topMonths = Object.entries(byMonth)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 6);
+      .sort(([a], [b]) => b.localeCompare(a))
+      .slice(0, 8);
 
     const withExit = prestacoes.filter(p => p.exit_date).length;
     const withoutExit = total - withExit;
@@ -397,10 +408,11 @@ export const Dashboard = () => {
           {pcStats.topMonths.length > 0 ? (
             <div className="space-y-2.5">
               {pcStats.topMonths.map(([month, count]) => {
-                const maxM = pcStats.topMonths[0][1] as number;
+                const maxM = Math.max(...pcStats.topMonths.map(([, c]) => c as number));
+                const label = /^\d{4}-\d{2}$/.test(month) ? month.split('-').reverse().join('/') : month;
                 return (
                   <div key={month} className="flex items-center gap-3">
-                    <span className="text-xs text-purple-600 font-bold font-mono w-16">{month}</span>
+                    <span className="text-xs text-purple-600 font-bold font-mono w-16">{label}</span>
                     <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden relative">
                       <div className="h-full rounded-full transition-all bg-purple-400" style={{ width: `${((count as number) / maxM) * 100}%` }} />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-purple-800">{count}</span>
