@@ -244,6 +244,8 @@ export interface GpcRecebido {
   posicao?: string | null;
   movimento: string | null;
   link_processo?: string | null;
+  is_parcelamento?: boolean | null;
+  remessa?: 'ACIMA' | 'ABAIXO' | null;
   created_at?: string;
 }
 

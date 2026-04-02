@@ -588,6 +588,26 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 ))}
               </select>
             </div>
+            <div>
+              <label className={LABEL}>Remessa</label>
+              <select className={INPUT} value={form.remessa ?? ''} onChange={e => set('remessa', (e.target.value || null) as 'ACIMA' | 'ABAIXO' | null)}>
+                <option value="">— selecione —</option>
+                <option value="ACIMA">Acima de Remessa</option>
+                <option value="ABAIXO">Abaixo de Remessa</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2 flex items-center gap-3 pt-1">
+              <input
+                id="is_parcelamento"
+                type="checkbox"
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer"
+                checked={!!form.is_parcelamento}
+                onChange={e => set('is_parcelamento', e.target.checked || null)}
+              />
+              <label htmlFor="is_parcelamento" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
+                Este processo é de <strong>Parcelamento</strong>
+              </label>
+            </div>
             <div className="sm:col-span-2">
               <label className={LABEL}>
                 <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
@@ -1108,12 +1128,12 @@ const ProdutividadePage = () => {
 // ---- Main Page ----
 
 export const GpcProcessos = () => {
-  const [mainTab, setMainTab] = useState<'registros' | 'produtividade'>('registros');
+  const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade'>('registros');
   const [rows, setRows] = useState<GpcRecebido[]>([]);
   const [posicoes, setPosicoes] = useState<GpcPosicao[]>([]);
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
-  const [filters, setFilters] = useState({ processo: '', convenio: '', entidade: '', exercicio: '', drs: '', responsavel: '', posicao_id: '', movimento: '' });
+  const [filters, setFilters] = useState({ processo: '', convenio: '', entidade: '', exercicio: '', drs: '', responsavel: '', posicao_id: '', movimento: '', remessa: '' });
   const [page, setPage] = useState(1);
   const [viewRow, setViewRow] = useState<GpcRecebido | null>(null);
   const [modal, setModal] = useState<null | { data?: GpcRecebido }>(null);
@@ -1141,7 +1161,10 @@ export const GpcProcessos = () => {
 
   const filtered = useMemo(() => {
     const f = filters;
-    return sortRows(rows.filter(r =>
+    const base = mainTab === 'parcelamentos'
+      ? rows.filter(r => !!r.is_parcelamento)
+      : rows;
+    return sortRows(base.filter(r =>
       (!f.processo    || sv(r.processo).includes(sv(f.processo))) &&
       (!f.convenio    || sv(r.convenio).includes(sv(f.convenio))) &&
       (!f.entidade    || sv(r.entidade).includes(sv(f.entidade))) &&
@@ -1149,9 +1172,10 @@ export const GpcProcessos = () => {
       (!f.drs         || sv(r.drs).includes(sv(f.drs))) &&
       (!f.responsavel || sv(r.responsavel).includes(sv(f.responsavel))) &&
       (!f.posicao_id  || sv(r.posicao_id) === sv(f.posicao_id)) &&
-      (!f.movimento   || sv(r.movimento).includes(sv(f.movimento)))
+      (!f.movimento   || sv(r.movimento).includes(sv(f.movimento))) &&
+      (!f.remessa     || sv(r.remessa) === sv(f.remessa))
     ), sort);
-  }, [rows, filters, sort]);
+  }, [rows, filters, sort, mainTab]);
 
   useEffect(() => { setPage(1); }, [filters, sort]);
 
@@ -1320,6 +1344,13 @@ export const GpcProcessos = () => {
           <span className={`px-1.5 py-0.5 rounded-full text-xs ${mainTab === 'registros' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{rows.length}</span>
         </button>
         <button
+          onClick={() => setMainTab('parcelamentos')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'parcelamentos' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <DollarSign size={15} />Parcelamentos
+          <span className={`px-1.5 py-0.5 rounded-full text-xs ${mainTab === 'parcelamentos' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{rows.filter(r => !!r.is_parcelamento).length}</span>
+        </button>
+        <button
           onClick={() => setMainTab('produtividade')}
           className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'produtividade' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
@@ -1329,7 +1360,7 @@ export const GpcProcessos = () => {
 
       {mainTab === 'produtividade' && <ProdutividadePage />}
 
-      {mainTab === 'registros' && (
+      {(mainTab === 'registros' || mainTab === 'parcelamentos') && (
         <>
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             {loading ? (
@@ -1350,6 +1381,7 @@ export const GpcProcessos = () => {
                       <SortTh label="Responsável" col="responsavel" sort={sort} onSort={toggleSort} />
                       <SortTh label="Posição"     col="posicao"     sort={sort} onSort={toggleSort} />
                       <SortTh label="Movimento"   col="movimento"   sort={sort} onSort={toggleSort} />
+                      <SortTh label="Remessa"     col="remessa"     sort={sort} onSort={toggleSort} cls="w-24" />
                       <FThX />
                     </tr>
                     <tr>
@@ -1366,6 +1398,11 @@ export const GpcProcessos = () => {
                         opts={posicoes.map(p => ({ value: String(p.codigo), label: p.posicao ?? '' }))}
                       />
                       <FTh v={filters.movimento} onChange={v => setF('movimento', v)} />
+                      <FThSel
+                        v={filters.remessa}
+                        onChange={v => setF('remessa', v)}
+                        opts={[{ value: 'ACIMA', label: 'Acima' }, { value: 'ABAIXO', label: 'Abaixo' }]}
+                      />
                       <FThX />
                     </tr>
                   </thead>
@@ -1403,6 +1440,11 @@ export const GpcProcessos = () => {
                                 {isDupe && (
                                   <span className="text-xs text-purple-500 flex items-center gap-0.5" title={`${dupes.length} registros com este número`}>
                                     <Info size={10} />{dupes.length}
+                                  </span>
+                                )}
+                                {r.is_parcelamento && (
+                                  <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-1 py-0.5" title="Parcelamento">
+                                    <DollarSign size={9} />Parcela
                                   </span>
                                 )}
                               </div>
@@ -1443,6 +1485,11 @@ export const GpcProcessos = () => {
                           <td className="px-3 py-3 text-slate-500 text-xs max-w-[110px]">
                             <span className="block truncate" title={r.movimento ?? ''}>{r.movimento ?? '-'}</span>
                           </td>
+                          <td className="px-3 py-3 text-xs text-center">
+                            {r.remessa === 'ACIMA' && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">Acima</span>}
+                            {r.remessa === 'ABAIXO' && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">Abaixo</span>}
+                            {!r.remessa && <span className="text-slate-300">-</span>}
+                          </td>
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
                               <button
@@ -1473,7 +1520,7 @@ export const GpcProcessos = () => {
                     })}
                     {!paged.length && (
                       <tr>
-                        <td colSpan={10} className="py-20 text-center">
+                        <td colSpan={11} className="py-20 text-center">
                           <Search size={32} className="mx-auto mb-3 text-slate-200" />
                           <p className="text-slate-400 text-sm">Nenhum registro encontrado</p>
                           <p className="text-slate-300 text-xs mt-1">Tente ajustar os filtros</p>

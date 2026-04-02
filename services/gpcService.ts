@@ -372,6 +372,8 @@ export const GpcService = {
       posicao_id: r.posicao_id ?? null,
       movimento: r.movimento ?? null,
       link_processo: r.link_processo ?? null,
+      is_parcelamento: r.is_parcelamento ?? false,
+      remessa: r.remessa ?? null,
     };
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();
