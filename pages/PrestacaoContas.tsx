@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { generateUUID } from '../utils';
 import { PrestacaoConta, PrestacaoContaHistorico, PRESTACAO_STATUS_OPTIONS, UserRole } from '../types';
 import { toDisplayDate, toDisplayDateTime, toServerDateOnly, toServerTimestampNoonLocal } from './ProcessManager';
 import * as XLSX from 'xlsx';
@@ -212,7 +213,7 @@ export const PrestacaoContas = () => {
     const now = new Date().toISOString();
 
     const data: PrestacaoConta = {
-      id: editingPrestacao?.id || crypto.randomUUID(),
+      id: editingPrestacao?.id || generateUUID(),
       process_id: editingPrestacao?.process_id || null,
       process_number: formState.process_number,
       month: normalizeMonthForDB(formState.month),

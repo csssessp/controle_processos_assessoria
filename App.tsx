@@ -11,8 +11,10 @@ import { Logs } from './pages/Logs';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
 import { UserRole } from './types';
+import { GpcProcessos } from './pages/GpcProcessos_v2';
+import { GpcRelatorios } from './pages/GpcRelatorios';
 
-const ProtectedRoute = ({ children, adminOnly = false }: { children?: React.ReactNode, adminOnly?: boolean }) => {
+const ProtectedRoute = ({ children, adminOnly = false, gpcAllowed = false, gpcForbidden = false }: { children?: React.ReactNode, adminOnly?: boolean, gpcAllowed?: boolean, gpcForbidden?: boolean }) => {
   const { currentUser } = useApp();
   
   if (!currentUser) {
@@ -20,7 +22,16 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children?: React.Reac
   }
 
   if (adminOnly && currentUser.role !== UserRole.ADMIN) {
+    return <Navigate to={currentUser.role === UserRole.GPC ? '/gpc' : '/dashboard'} replace />;
+  }
+
+  if (gpcAllowed && currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.GPC) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // GPC users cannot access non-GPC pages
+  if (gpcForbidden && currentUser.role === UserRole.GPC) {
+    return <Navigate to="/gpc" replace />;
   }
 
   return <Layout>{children}</Layout>;
@@ -31,28 +42,32 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
+      <Route path="/login" element={
+        currentUser
+          ? <Navigate to={currentUser.role === UserRole.GPC ? '/gpc' : '/dashboard'} />
+          : <Login />
+      } />
       
       <Route path="/" element={
         <ProtectedRoute>
-          <Navigate to="/dashboard" replace />
+          <Navigate to={currentUser?.role === UserRole.GPC ? '/gpc' : '/dashboard'} replace />
         </ProtectedRoute>
       } />
       
       <Route path="/dashboard" element={
-        <ProtectedRoute>
+        <ProtectedRoute gpcForbidden>
           <Dashboard />
         </ProtectedRoute>
       } />
       
       <Route path="/processos" element={
-        <ProtectedRoute>
+        <ProtectedRoute gpcForbidden>
           <ProcessManager />
         </ProtectedRoute>
       } />
 
       <Route path="/prestacao-contas" element={
-        <ProtectedRoute>
+        <ProtectedRoute gpcForbidden>
           <PrestacaoContas />
         </ProtectedRoute>
       } />
@@ -75,7 +90,19 @@ const AppRoutes = () => {
         </ProtectedRoute>
       } />
 
-      <Route path="*" element={<Navigate to="/dashboard" />} />
+      <Route path="/gpc" element={
+        <ProtectedRoute gpcAllowed>
+          <GpcProcessos />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/gpc/relatorios" element={
+        <ProtectedRoute gpcAllowed>
+          <GpcRelatorios />
+        </ProtectedRoute>
+      } />
+
+      <Route path="*" element={<Navigate to={currentUser?.role === UserRole.GPC ? '/gpc' : '/dashboard'} />} />
     </Routes>
   );
 };

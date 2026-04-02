@@ -1,7 +1,8 @@
 
 export enum UserRole {
   ADMIN = 'ADMIN',
-  USER = 'USER'
+  USER = 'USER',
+  GPC = 'GPC'
 }
 
 // Removed enum ProcessCategory to allow dynamic categories/origins from DB
@@ -135,4 +136,125 @@ export interface PrestacaoContaHistorico {
   alterado_por: string;
   nome_usuario: string;
   data_alteracao: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GPC (Grupo de Prestação de Contas) – tabelas migradas do Access
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GpcClassificacao {
+  codigo: number;
+  indice: number;
+  descricao: string;
+}
+
+export interface GpcPosicao {
+  codigo: number;
+  posicao: string;
+}
+
+export interface GpcProcesso {
+  codigo: number;
+  processo: string | null;
+  convenio: string | null;
+  tipo: string | null;
+  ano_cadastro: string | null;
+  entidade: string | null;
+  drs: number | null;
+  vistoriado: boolean;
+  parcelamento: boolean;
+  acima_abaixo: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GpcExercicio {
+  codigo: number;
+  processo_id: number;
+  exercicio: string | null;
+  exercicio_anterior: number | null;
+  repasse: number | null;
+  aplicacao: number | null;
+  gastos: number | null;
+  devolvido: number | null;
+}
+
+export interface GpcHistorico {
+  codigo: number;
+  exercicio_id: number;
+  movimento: string | null;
+  acao: string | null;
+  data: string | null;
+  setor: string | null;
+  responsavel: string | null;
+  posicao_id: number | null;
+  // join
+  posicao?: string;
+}
+
+export interface GpcObjeto {
+  codigo: number;
+  processo_id: number | null;
+  objeto: string | null;
+  custo: number | null;
+}
+
+export interface GpcParcelamento {
+  codigo: number;
+  processo_id: number | null;
+  proc_parcela: string | null;
+  tipo: string | null;
+  exercicio: number | null;
+  valor_parcelado: number | null;
+  valor_corrigido: number | null;
+  parcelas: number | null;
+  em_dia: boolean;
+  parcelas_concluidas: boolean;
+  providencias: string | null;
+  obs: string | null;
+}
+
+export interface GpcTa {
+  codigo: number;
+  processo_id: number | null;
+  numero: string | null;
+  data: string | null;
+  custo: number | null;
+}
+
+export type GpcProcessoFull = GpcProcesso & {
+  exercicios?: GpcExercicio[];
+  historicos?: GpcHistorico[];
+  objetos?: GpcObjeto[];
+  parcelamentos?: GpcParcelamento[];
+  tas?: GpcTa[];
+};
+
+export interface GpcRecebido {
+  codigo: number;
+  processo_codigo: number | null;
+  processo: string | null;
+  entidade: string | null;
+  convenio: string | null;
+  exercicio: string | null;
+  drs: number | null;
+  data: string | null;
+  responsavel: string | null;
+  posicao_id: number | null;
+  posicao?: string | null;
+  movimento: string | null;
+  link_processo?: string | null;
+  created_at?: string;
+}
+
+export interface GpcProdutividade {
+  id: number;
+  registro_id: number;
+  responsavel: string | null;
+  posicao_id: number | null;
+  posicao?: string | null;
+  evento: string; // 'CRIACAO' | 'RESPONSAVEL' | 'POSICAO'
+  data_evento: string;
+  obs: string | null;
+  created_at?: string;
 }

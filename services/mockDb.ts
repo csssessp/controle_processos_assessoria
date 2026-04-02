@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie';
 import { User, Process, Log, UserRole, ProcessCategory } from '../types';
+import { generateUUID } from '../utils';
 
 class ProControlDatabase extends Dexie {
   users!: Table<User, string>;
@@ -109,7 +110,7 @@ export const DbService = {
 
   logAction: async (action: Log['action'], description: string, user: User, targetId?: string) => {
     await db.logs.add({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       action,
       description,
       userId: user.id,

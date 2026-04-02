@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { generateUUID } from '../utils';
 import { useApp } from '../context/AppContext';
 import { Process, CGOF_OPTIONS, ProcessQueryParams, UserRole, PRESTACAO_STATUS_OPTIONS, PrestacaoConta } from '../types';
 import * as XLSX from 'xlsx';
@@ -616,7 +617,7 @@ export const ProcessManager = () => {
 
     const now = new Date().toISOString();
     const newProcess: Process = {
-      id: editingProcess?.id || crypto.randomUUID(),
+      id: editingProcess?.id || generateUUID(),
       category: 'Assessoria',
       CGOF: formData.get('cgof') as string,
       entryDate, number: formData.get('number') as string,
@@ -652,7 +653,7 @@ export const ProcessManager = () => {
         if (isPrestacaoContaChecked && currentUser) {
           if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
           const pcData: PrestacaoConta = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             process_id: newProcess.id,
             process_number: newProcess.number,
             month: prestacaoFormState.month.includes('/') ? (() => { const [m,y] = prestacaoFormState.month.split('/'); return `${y}-${m}`; })() : prestacaoFormState.month,
@@ -772,7 +773,7 @@ export const ProcessManager = () => {
           };
 
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             category: 'Assessoria',
             CGOF: String(sectorEntradaRaw || 'Assessoria').trim(),
             entryDate: parseExcelDate(entryRaw) || now,

@@ -45,6 +45,7 @@ GRANT EXECUTE ON FUNCTION public.distinct_assunto() TO anon, authenticated, serv
 import { supabase } from './supabaseClient';
 import { User, Process, Log, UserRole, ProcessQueryParams, CGOF_OPTIONS, PrestacaoConta, PrestacaoContaHistorico } from '../types';
 import { getInitialAssessoriaData } from './assessoriaData';
+import { generateUUID } from '../utils';
 
 // Função para normalizar valores de CGOF e evitar erros de Enum no Supabase
 const normalizeCGOF = (value: string): string => {
@@ -195,7 +196,7 @@ export const DbService = {
     if (!userRaw) {
         const { count } = await supabase.from('users').select('*', { count: 'exact', head: true });
         if (count === 0) {
-            const adminId = crypto.randomUUID();
+            const adminId = generateUUID();
             await supabase.from('users').insert({
                 id: adminId,
                 name: 'Administrador',
@@ -443,7 +444,7 @@ export const DbService = {
 
   logAction: async (action: Log['action'], description: string, user: User, targetId?: string) => {
     await supabase.from('logs').insert({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       action,
       description,
       userId: user.id,
@@ -459,7 +460,7 @@ export const DbService = {
       const initialDataRaw = getInitialAssessoriaData();
       const initialData = initialDataRaw.map(p => ({
         ...p,
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }));
@@ -518,7 +519,7 @@ export const DbService = {
     // Se está editando (existe registro anterior), salvar histórico
     if (existing) {
       const historico: Record<string, any> = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         prestacao_id: pc.id,
         version_number: payload.version_number,
         status_anterior: existing.status || '',

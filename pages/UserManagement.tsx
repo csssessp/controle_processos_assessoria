@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
+import { generateUUID } from '../utils';
 import { User, UserRole } from '../types';
 import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -42,7 +43,9 @@ export const UserManagement = () => {
     setSaving(true);
     
     const formData = new FormData(e.currentTarget);
-    const role = formData.get('isAdmin') === 'on' ? UserRole.ADMIN : UserRole.USER;
+    let role: UserRole = UserRole.USER;
+    if (formData.get('isAdmin') === 'on') role = UserRole.ADMIN;
+    else if (formData.get('isGpc') === 'on') role = UserRole.GPC;
     const passwordInput = formData.get('password') as string;
 
     // Validation
@@ -59,7 +62,7 @@ export const UserManagement = () => {
     }
     
     const userData: User = {
-      id: editingUser?.id || crypto.randomUUID(),
+      id: editingUser?.id || generateUUID(),
       name: formData.get('name') as string,
       email: formData.get('email') as string,
       role: role,
@@ -128,7 +131,7 @@ export const UserManagement = () => {
                   <td className="px-6 py-3 font-medium">{u.name}</td>
                   <td className="px-6 py-3">{u.email}</td>
                   <td className="px-6 py-3">
-                    <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded w-fit ${u.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded w-fit ${u.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-700' : u.role === UserRole.GPC ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
                       {u.role === UserRole.ADMIN ? <Shield size={12}/> : null}
                       {u.role}
                     </span>
@@ -202,18 +205,23 @@ export const UserManagement = () => {
                   </div>
               )}
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
-                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-                  <div className="relative flex items-center">
-                      <input type="checkbox" name="isAdmin" defaultChecked={editingUser?.role === UserRole.ADMIN} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"/>
-                  </div>
-                  <span className="flex items-center gap-1"><Shield size={14} className="text-purple-500"/> Administrador</span>
-                </label>
-                
-                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-                  <input type="checkbox" name="active" defaultChecked={editingUser ? editingUser.active : true} className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-500"/>
-                  <span>Ativo</span>
-                </label>
+              <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Perfil de Acesso</p>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                    <input type="checkbox" name="isAdmin" defaultChecked={editingUser?.role === UserRole.ADMIN} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"/>
+                    <span className="flex items-center gap-1"><Shield size={14} className="text-purple-500"/> Administrador</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                    <input type="checkbox" name="isGpc" defaultChecked={editingUser?.role === UserRole.GPC} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"/>
+                    <span className="flex items-center gap-1 text-blue-700 font-medium">GPC</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none ml-auto">
+                    <input type="checkbox" name="active" defaultChecked={editingUser ? editingUser.active : true} className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-500"/>
+                    <span>Ativo</span>
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-400">Se Administrador estiver marcado, o perfil GPC é ignorado. Sem nenhum marcado, o usuário é perfil Usuário padrão.</p>
               </div>
 
               <div className="flex gap-3 pt-4">
