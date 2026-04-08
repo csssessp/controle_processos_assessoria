@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, X, Check, Loader2, AlertCircle,
@@ -40,6 +40,33 @@ const INPUT = 'w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus
 const LABEL = 'block text-xs font-medium text-slate-600 mb-1';
 const BTN_PRIMARY = 'flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50';
 const BTN_GHOST = 'flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors';
+
+// ─── CurrencyInput (BRL masked) ───────────────────────────────────────────────
+const CurrencyInput = ({ value, onChange }: {
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+}) => {
+  const toDisplay = (v: number | null | undefined) =>
+    v == null ? '' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const [display, setDisplay] = useState(() => toDisplay(value));
+  const prevRef = useRef(value);
+  useEffect(() => {
+    if (prevRef.current !== value) { prevRef.current = value; setDisplay(toDisplay(value)); }
+  }, [value]);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '');
+    if (!digits) { setDisplay(''); onChange(null); return; }
+    const num = parseInt(digits, 10) / 100;
+    setDisplay(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    onChange(num);
+  };
+  return (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none select-none">R$</span>
+      <input type="text" inputMode="numeric" className={INPUT + ' pl-9'} value={display} onChange={handleChange} placeholder="0,00" />
+    </div>
+  );
+};
 
 // ─── Sort type ────────────────────────────────────────────────────────────────
 
@@ -251,11 +278,11 @@ const ExercicioForm = ({ processoId, initial, onSave, onClose }: {
       {err && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16} />{err}</div>}
       <div className="grid grid-cols-2 gap-4">
         <div><label className={LABEL}>Exercício (ano)</label><input className={INPUT} value={form.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
-        <div><label className={LABEL}>Exercício Anterior (R$)</label><input className={INPUT} type="number" step="0.01" value={form.exercicio_anterior ?? ''} onChange={e => set('exercicio_anterior', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Repasse (R$)</label><input className={INPUT} type="number" step="0.01" value={form.repasse ?? ''} onChange={e => set('repasse', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Aplicação (R$)</label><input className={INPUT} type="number" step="0.01" value={form.aplicacao ?? ''} onChange={e => set('aplicacao', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Gastos (R$)</label><input className={INPUT} type="number" step="0.01" value={form.gastos ?? ''} onChange={e => set('gastos', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Devolvido (R$)</label><input className={INPUT} type="number" step="0.01" value={form.devolvido ?? ''} onChange={e => set('devolvido', num(e.target.value))} /></div>
+        <div><label className={LABEL}>Exercício Anterior (R$)</label><CurrencyInput value={form.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} /></div>
+        <div><label className={LABEL}>Repasse (R$)</label><CurrencyInput value={form.repasse} onChange={v => set('repasse', v)} /></div>
+        <div><label className={LABEL}>Aplicação (R$)</label><CurrencyInput value={form.aplicacao} onChange={v => set('aplicacao', v)} /></div>
+        <div><label className={LABEL}>Gastos (R$)</label><CurrencyInput value={form.gastos} onChange={v => set('gastos', v)} /></div>
+        <div><label className={LABEL}>Devolvido (R$)</label><CurrencyInput value={form.devolvido} onChange={v => set('devolvido', v)} /></div>
       </div>
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" className={BTN_GHOST} onClick={onClose}>Cancelar</button>
@@ -328,7 +355,7 @@ const ObjetoForm = ({ processoId, initial, onSave, onClose }: {
     <form onSubmit={handleSubmit} className="space-y-4">
       {err && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16} />{err}</div>}
       <div><label className={LABEL}>Descrição do Objeto</label><textarea className={INPUT} rows={4} value={form.objeto ?? ''} onChange={e => setForm(f => ({ ...f, objeto: e.target.value }))} required /></div>
-      <div><label className={LABEL}>Custo (R$)</label><input className={INPUT} type="number" step="0.01" value={form.custo ?? ''} onChange={e => setForm(f => ({ ...f, custo: e.target.value ? Number(e.target.value) : null }))} /></div>
+      <div><label className={LABEL}>Custo (R$)</label><CurrencyInput value={form.custo} onChange={v => setForm(f => ({ ...f, custo: v }))} /></div>
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" className={BTN_GHOST} onClick={onClose}>Cancelar</button>
         <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}Salvar</button>
@@ -361,8 +388,8 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
         <div><label className={LABEL}>Tipo</label><input className={INPUT} value={form.tipo ?? ''} onChange={e => set('tipo', e.target.value)} /></div>
         <div><label className={LABEL}>Exercício</label><input className={INPUT} type="number" value={form.exercicio ?? ''} onChange={e => set('exercicio', num(e.target.value))} /></div>
         <div><label className={LABEL}>Nº Parcelas</label><input className={INPUT} type="number" value={form.parcelas ?? ''} onChange={e => set('parcelas', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Valor Parcelado (R$)</label><input className={INPUT} type="number" step="0.01" value={form.valor_parcelado ?? ''} onChange={e => set('valor_parcelado', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Valor Corrigido (R$)</label><input className={INPUT} type="number" step="0.01" value={form.valor_corrigido ?? ''} onChange={e => set('valor_corrigido', num(e.target.value))} /></div>
+        <div><label className={LABEL}>Valor Parcelado (R$)</label><CurrencyInput value={form.valor_parcelado} onChange={v => set('valor_parcelado', v)} /></div>
+        <div><label className={LABEL}>Valor Corrigido (R$)</label><CurrencyInput value={form.valor_corrigido} onChange={v => set('valor_corrigido', v)} /></div>
         <div className="flex items-center gap-4 col-span-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={form.em_dia ?? false} onChange={e => set('em_dia', e.target.checked)} className="w-4 h-4 accent-blue-600" />Em Dia</label>
           <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={form.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600" />Concluídas</label>
@@ -398,7 +425,7 @@ const TaForm = ({ processoId, initial, onSave, onClose }: {
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2"><label className={LABEL}>Número do TA</label><input className={INPUT} value={form.numero ?? ''} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} required /></div>
         <div><label className={LABEL}>Data</label><input className={INPUT} type="date" value={form.data ?? ''} onChange={e => setForm(f => ({ ...f, data: e.target.value || null }))} /></div>
-        <div><label className={LABEL}>Custo (R$)</label><input className={INPUT} type="number" step="0.01" value={form.custo ?? ''} onChange={e => setForm(f => ({ ...f, custo: e.target.value ? Number(e.target.value) : null }))} /></div>
+        <div><label className={LABEL}>Custo (R$)</label><CurrencyInput value={form.custo} onChange={v => setForm(f => ({ ...f, custo: v }))} /></div>
       </div>
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" className={BTN_GHOST} onClick={onClose}>Cancelar</button>

@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, Check,
   Loader2, AlertCircle, FileText, Calendar, Activity,
   ClipboardList, GitBranch, Download, ArrowUp, ArrowDown,
   ArrowUpDown, ExternalLink, Link as LinkIcon, TrendingUp,
   User, Search, AlertTriangle, Clock, DollarSign, Info,
-  BarChart2, Save, Eye,
+  BarChart2, Save, Eye, Lock,
 } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { UserRole } from '../types';
 import { GpcService } from '../services/gpcService';
 import {
   GpcProcessoFull, GpcExercicio, GpcHistorico, GpcObjeto,
@@ -59,6 +61,48 @@ const INPUT = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-wh
 const LABEL = 'block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1';
 const BTN_PRI = 'inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
 const BTN_SEC = 'inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-700 text-sm font-medium rounded-lg border border-slate-200 hover:bg-slate-50 active:scale-95 transition-all';
+
+// ---- CurrencyInput (BRL masked input) ----
+const CurrencyInput = ({ value, onChange, placeholder = '0,00' }: {
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+  placeholder?: string;
+}) => {
+  const toDisplay = (v: number | null | undefined) =>
+    v == null ? '' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const [display, setDisplay] = useState(() => toDisplay(value));
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (prevRef.current !== value) {
+      prevRef.current = value;
+      setDisplay(toDisplay(value));
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '');
+    if (!digits) { setDisplay(''); onChange(null); return; }
+    const num = parseInt(digits, 10) / 100;
+    setDisplay(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    onChange(num);
+  };
+
+  return (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none select-none">R$</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        className={INPUT + ' pl-9'}
+        value={display}
+        onChange={handleChange}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+};
 
 // ---- Posicao visual config ----
 
@@ -240,10 +284,11 @@ const InfoCard = ({ label, value, icon }: { label: string; value: string | null 
 // ---- Productivity Panel ----
 
 const EVENTO_CFG: Record<string, { color: string; label: string }> = {
-  CRIACAO:     { color: 'bg-blue-500',    label: 'Atribuição inicial' },
-  RESPONSAVEL: { color: 'bg-emerald-500', label: 'Mudança de responsável' },
-  POSICAO:     { color: 'bg-amber-500',   label: 'Mudança de posição' },
-  MOVIMENTO:   { color: 'bg-purple-500',  label: 'Saída de análise' },
+  CRIACAO:        { color: 'bg-blue-500',    label: 'Atribuição inicial' },
+  RESPONSAVEL:    { color: 'bg-emerald-500', label: 'Mudança de responsável' },
+  POSICAO:        { color: 'bg-amber-500',   label: 'Mudança de posição' },
+  MOVIMENTO:      { color: 'bg-purple-500',  label: 'Alteração de movimento' },
+  INICIO_ANALISE: { color: 'bg-sky-500',     label: 'Início de análise' },
 };
 
 const ProdPanel = ({ registroId }: { registroId: number }) => {
@@ -304,6 +349,14 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
   prevPositions: string[];
 }) => {
   const [tab, setTab] = useState<'dados' | 'prod'>('dados');
+  const [full, setFull] = useState<GpcProcessoFull | null>(null);
+  const [loadingFull, setLoadingFull] = useState(false);
+
+  useEffect(() => {
+    if (!row.processo_codigo) return;
+    setLoadingFull(true);
+    GpcService.getProcessoFull(row.processo_codigo).then(d => { setFull(d); setLoadingFull(false); });
+  }, [row.processo_codigo]);
 
   return (
     <Modal
@@ -345,7 +398,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
             </div>
           </div>
 
-          {/* Info grid */}
+          {/* Info grid — all fields */}
           <div className="grid grid-cols-2 gap-3">
             <InfoCard label="Convênio" value={row.convenio} />
             <InfoCard label="Exercício" value={row.exercicio} />
@@ -360,6 +413,16 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
             </div>
             <InfoCard label="Movimento" value={row.movimento} />
             <InfoCard label="Entidade" value={row.entidade} />
+            <InfoCard
+              label="Remessa"
+              value={row.remessa === 'ACIMA' ? 'Acima de Remessa' : row.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : null}
+            />
+            <InfoCard label="Parcelamento" value={row.is_parcelamento ? 'Sim' : 'Não'} />
+            {row.created_at && (
+              <div className="col-span-2">
+                <InfoCard label="Cadastrado em" value={fmtTs(row.created_at)} />
+              </div>
+            )}
           </div>
 
           {/* Link */}
@@ -376,6 +439,87 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
               >
                 <ExternalLink size={14} className="flex-shrink-0" />{row.link_processo}
               </a>
+            </div>
+          )}
+
+          {/* Full processo data */}
+          {loadingFull && (
+            <div className="flex items-center gap-2 py-3 text-slate-400 text-xs">
+              <Loader2 size={13} className="animate-spin" />Carregando dados adicionais...
+            </div>
+          )}
+          {full && (
+            <div className="space-y-3">
+              {/* Exercícios */}
+              {(full.exercicios?.length ?? 0) > 0 && (
+                <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+                  <div className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <Calendar size={11} />Exercícios ({full.exercicios!.length})
+                  </div>
+                  <div className="space-y-1">
+                    {full.exercicios!.map(ex => (
+                      <div key={ex.codigo} className="grid grid-cols-4 gap-2 text-xs">
+                        <span className="font-bold text-slate-700">{ex.exercicio}</span>
+                        <span className="text-slate-500">Rep: <span className="text-green-700 font-medium">{fmt(ex.repasse)}</span></span>
+                        <span className="text-slate-500">Apl: <span className="font-medium">{fmt(ex.aplicacao)}</span></span>
+                        <span className="text-slate-500">Dev: <span className="font-medium">{fmt(ex.devolvido)}</span></span>
+                      </div>
+                    ))}
+                    <div className="border-t border-green-200 pt-1 flex justify-between text-xs font-bold">
+                      <span className="text-slate-600">Total Repasse</span>
+                      <span className="text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Histórico (últimos 3) */}
+              {(full.historicos?.length ?? 0) > 0 && (
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <Activity size={11} />Histórico — {full.historicos!.length} movimento{full.historicos!.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="space-y-1">
+                    {full.historicos!.slice(-5).map(h => (
+                      <div key={h.codigo} className="flex items-center gap-2 text-xs py-0.5">
+                        <span className="text-slate-400 whitespace-nowrap w-20 flex-shrink-0">{fmtDate(h.data)}</span>
+                        <span className="text-slate-700 font-medium truncate">{h.movimento ?? '-'}</span>
+                        {h.posicao && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-medium">{h.posicao}</span>
+                        )}
+                        {h.responsavel && (
+                          <span className="flex-shrink-0 text-slate-400 flex items-center gap-0.5"><User size={9} />{h.responsavel}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Objetos, Parcelamentos, TAs summary */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-blue-700">{full.objetos?.length ?? 0}</div>
+                  <div className="text-xs text-blue-500 mt-0.5">Objetos</div>
+                  {(full.objetos?.length ?? 0) > 0 && (
+                    <div className="text-xs text-blue-600 font-semibold mt-1">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>
+                  )}
+                </div>
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-amber-700">{full.parcelamentos?.length ?? 0}</div>
+                  <div className="text-xs text-amber-500 mt-0.5">Parcelamentos</div>
+                  {(full.parcelamentos?.length ?? 0) > 0 && (
+                    <div className="text-xs text-amber-600 font-semibold mt-1">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>
+                  )}
+                </div>
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+                  <div className="text-xl font-bold text-purple-700">{full.tas?.length ?? 0}</div>
+                  <div className="text-xs text-purple-500 mt-0.5">TAs</div>
+                  {(full.tas?.length ?? 0) > 0 && (
+                    <div className="text-xs text-purple-600 font-semibold mt-1">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -407,19 +551,17 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
 
 // ---- RegistroModal (create / edit) ----
 
-interface RegistroModalProps {
-  initial?: GpcRecebido;
-  posicoes: GpcPosicao[];
-  onSave: (form: Partial<GpcRecebido>, prev?: GpcRecebido) => Promise<GpcRecebido>;
-  onClose: () => void;
-}
-
 const MOVIMENTOS = [
   'RECEBIDO',
   'EM ANÁLISE',
   'DILIGÊNCIA',
   'AGUARDANDO COMPLEMENTAÇÃO',
   'ENCAMINHADO À CHEFIA',
+  'ENCAMINHADO A CHEFIA GCP',
+  'ENCAMINHADO AO GGCON',
+  'ENCAMINHADO AO CATC',
+  'ENCAMINHADO A ASSESSORIA',
+  'ENCAMINHADO AO GABINETE',
   'ENCAMINHADO AO TCE-SP',
   'ENCAMINHADO À PGE',
   'ENCAMINHADO À CGE',
@@ -429,13 +571,21 @@ const MOVIMENTOS = [
   'PARECER EMITIDO',
 ];
 
-const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose }) => {
+interface RegistroModalProps {
+  initial?: GpcRecebido;
+  posicoes: GpcPosicao[];
+  onSave: (form: Partial<GpcRecebido>, prev?: GpcRecebido) => Promise<GpcRecebido>;
+  onClose: () => void;
+  isAdmin?: boolean;
+}
+
+const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin }) => {
   const [liveRecord, setLiveRecord] = useState<GpcRecebido | undefined>(initial);
   const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? {});
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [savedOk, setSavedOk] = useState(false);
-  const [tab, setTab] = useState<'dados' | 'exercicios' | 'historico' | 'objetos' | 'parcelamentos' | 'tas'>('dados');
+  const [tab, setTab] = useState<'dados' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas'>('dados');
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [subModal, setSubModal] = useState<null | { type: string; data?: any }>(null);
@@ -485,11 +635,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const isEditing = !!(liveRecord?.codigo);
 
-  type TabId = 'dados' | 'exercicios' | 'historico' | 'objetos' | 'parcelamentos' | 'tas';
+  type TabId = 'dados' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas';
   const tabItems: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'dados',         label: 'Dados Gerais',  icon: <FileText size={13} /> },
     { id: 'exercicios',    label: 'Exercícios',    icon: <Calendar size={13} />,      count: full?.exercicios?.length },
-    { id: 'historico',     label: 'Histórico',     icon: <Activity size={13} />,      count: full?.historicos?.length },
     { id: 'objetos',       label: 'Objetos',       icon: <ClipboardList size={13} />, count: full?.objetos?.length },
     { id: 'parcelamentos', label: 'Parcelamentos', icon: <DollarSign size={13} />,    count: full?.parcelamentos?.length },
     { id: 'tas',           label: 'TAs',           icon: <GitBranch size={13} />,     count: full?.tas?.length },
@@ -555,8 +704,19 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               </select>
             </div>
             <div>
-              <label className={LABEL}>Data de Recebimento</label>
-              <input className={INPUT} type="date" value={form.data ?? ''} onChange={e => set('data', e.target.value || null)} />
+              <label className={LABEL + ' flex items-center gap-1'}>
+                Data de Recebimento
+                {!!initial?.data && !isAdmin && <Lock size={11} className="text-slate-400" />}
+              </label>
+              {!!initial?.data && !isAdmin ? (
+                <div className={INPUT + ' bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed select-none'}>
+                  <Lock size={13} className="text-slate-400 flex-shrink-0" />
+                  <span>{form.data ?? '—'}</span>
+                  <span className="ml-auto text-xs text-slate-400">Somente ADMIN</span>
+                </div>
+              ) : (
+                <input className={INPUT} type="date" value={form.data ?? ''} onChange={e => set('data', e.target.value || null)} />
+              )}
             </div>
             <div>
               <label className={LABEL}>Responsável (Técnico)</label>
@@ -692,29 +852,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                   />
                 </div>
               )}
-              {tab === 'historico' && (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={() => setSubModal({ type: 'historico' })}>
-                      <Plus size={13} />Novo Movimento
-                    </button>
-                  </div>
-                  <InlineTable
-                    cols={[
-                      { label: 'Data',        render: (r: GpcHistorico) => fmtDate(r.data) },
-                      { label: 'Movimento',   render: (r: GpcHistorico) => <span className="max-w-[180px] block truncate" title={r.movimento ?? ''}>{r.movimento ?? '-'}</span> },
-                      { label: 'Ação',        render: (r: GpcHistorico) => r.acao ?? '-' },
-                      { label: 'Setor',       render: (r: GpcHistorico) => r.setor ?? '-' },
-                      { label: 'Responsável', render: (r: GpcHistorico) => r.responsavel ?? '-' },
-                      { label: 'Posição',     render: (r: GpcHistorico) => r.posicao ? <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium">{r.posicao}</span> : '-' },
-                    ]}
-                    rows={full.historicos ?? []}
-                    onEdit={r => setSubModal({ type: 'historico', data: r })}
-                    onDelete={r => confirmDeleteSub(() => GpcService.deleteHistorico(r.codigo))}
-                    emptyMsg="Nenhum movimento cadastrado"
-                  />
-                </div>
-              )}
               {tab === 'objetos' && (
                 <div className="space-y-3">
                   <div className="flex justify-end">
@@ -796,18 +933,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               />
             </Modal>
           )}
-          {subModal.type === 'historico' && (
-            <Modal title={subModal.data ? 'Editar Movimento' : 'Novo Movimento'} onClose={() => setSubModal(null)} size="md">
-              <HistoricoForm
-                exercicioId={subModal.data?.exercicio_id ?? full.exercicios?.[0]?.codigo ?? 0}
-                posicoes={posicoes}
-                gpcUsers={gpcUsers}
-                initial={subModal.data}
-                onSave={async h => { await GpcService.saveHistorico(h); await refreshFull(); setSubModal(null); }}
-                onClose={() => setSubModal(null)}
-              />
-            </Modal>
-          )}
           {subModal.type === 'objeto' && (
             <Modal title={subModal.data ? 'Editar Objeto' : 'Novo Objeto'} onClose={() => setSubModal(null)} size="md">
               <ObjetoForm
@@ -865,56 +990,11 @@ const ExercicioForm = ({ processoId, initial, onSave, onClose }: {
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div><label className={LABEL}>Exercício *</label><input className={INPUT} value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
-        <div><label className={LABEL}>Exerc. Anterior (R$)</label><input className={INPUT} type="number" step="0.01" value={f.exercicio_anterior ?? ''} onChange={e => set('exercicio_anterior', n(e.target.value))} /></div>
-        <div><label className={LABEL}>Repasse (R$)</label><input className={INPUT} type="number" step="0.01" value={f.repasse ?? ''} onChange={e => set('repasse', n(e.target.value))} /></div>
-        <div><label className={LABEL}>Aplicação (R$)</label><input className={INPUT} type="number" step="0.01" value={f.aplicacao ?? ''} onChange={e => set('aplicacao', n(e.target.value))} /></div>
-        <div><label className={LABEL}>Gastos (R$)</label><input className={INPUT} type="number" step="0.01" value={f.gastos ?? ''} onChange={e => set('gastos', n(e.target.value))} /></div>
-        <div><label className={LABEL}>Devolvido (R$)</label><input className={INPUT} type="number" step="0.01" value={f.devolvido ?? ''} onChange={e => set('devolvido', n(e.target.value))} /></div>
-      </div>
-      <div className="flex justify-end gap-3">
-        <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
-        <button type="submit" className={BTN_PRI} disabled={saving}>{saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}Salvar</button>
-      </div>
-    </form>
-  );
-};
-
-const HistoricoForm = ({ exercicioId, posicoes, gpcUsers, initial, onSave, onClose }: {
-  exercicioId: number; posicoes: GpcPosicao[]; gpcUsers: { id: string; name: string }[];
-  initial?: Partial<GpcHistorico>;
-  onSave: (h: Partial<GpcHistorico>) => Promise<void>; onClose: () => void;
-}) => {
-  const [f, setF] = useState<Partial<GpcHistorico>>(initial ?? { exercicio_id: exercicioId });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState('');
-  const set = (k: keyof GpcHistorico, v: any) => setF(p => ({ ...p, [k]: v }));
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setErr('');
-    try { await onSave({ ...f, exercicio_id: exercicioId }); }
-    catch (ex: any) { setErr(ex.message); setSaving(false); }
-  };
-  return (
-    <form onSubmit={submit} className="space-y-4">
-      {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className={LABEL}>Movimento *</label><input className={INPUT} value={f.movimento ?? ''} onChange={e => set('movimento', e.target.value)} required /></div>
-        <div><label className={LABEL}>Data</label><input className={INPUT} type="date" value={f.data ?? ''} onChange={e => set('data', e.target.value || null)} /></div>
-        <div><label className={LABEL}>Setor</label><input className={INPUT} value={f.setor ?? ''} onChange={e => set('setor', e.target.value)} /></div>
-        <div>
-          <label className={LABEL}>Responsável</label>
-          <select className={INPUT} value={f.responsavel ?? ''} onChange={e => set('responsavel', e.target.value || null)}>
-            <option value="">— selecione —</option>
-            {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={LABEL}>Posição</label>
-          <select className={INPUT} value={f.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
-            <option value="">-</option>
-            {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
-          </select>
-        </div>
-        <div><label className={LABEL}>Ação</label><input className={INPUT} value={f.acao ?? ''} onChange={e => set('acao', e.target.value)} /></div>
+        <div><label className={LABEL}>Exerc. Anterior (R$)</label><CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} /></div>
+        <div><label className={LABEL}>Repasse (R$)</label><CurrencyInput value={f.repasse} onChange={v => set('repasse', v)} /></div>
+        <div><label className={LABEL}>Aplicação (R$)</label><CurrencyInput value={f.aplicacao} onChange={v => set('aplicacao', v)} /></div>
+        <div><label className={LABEL}>Gastos (R$)</label><CurrencyInput value={f.gastos} onChange={v => set('gastos', v)} /></div>
+        <div><label className={LABEL}>Devolvido (R$)</label><CurrencyInput value={f.devolvido} onChange={v => set('devolvido', v)} /></div>
       </div>
       <div className="flex justify-end gap-3">
         <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
@@ -945,7 +1025,7 @@ const ObjetoForm = ({ processoId, initial, onSave, onClose }: {
       </div>
       <div>
         <label className={LABEL}>Custo (R$)</label>
-        <input className={INPUT} type="number" step="0.01" value={f.custo ?? ''} onChange={e => setF(p => ({ ...p, custo: e.target.value ? Number(e.target.value) : null }))} />
+        <CurrencyInput value={f.custo} onChange={v => setF(p => ({ ...p, custo: v }))} />
       </div>
       <div className="flex justify-end gap-3">
         <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
@@ -977,8 +1057,8 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
         <div><label className={LABEL}>Tipo</label><input className={INPUT} value={f.tipo ?? ''} onChange={e => set('tipo', e.target.value)} /></div>
         <div><label className={LABEL}>Exercício</label><input className={INPUT} type="number" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} /></div>
         <div><label className={LABEL}>Nº Parcelas</label><input className={INPUT} type="number" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} /></div>
-        <div><label className={LABEL}>Valor Parcelado (R$)</label><input className={INPUT} type="number" step="0.01" value={f.valor_parcelado ?? ''} onChange={e => set('valor_parcelado', n(e.target.value))} /></div>
-        <div><label className={LABEL}>Valor Corrigido (R$)</label><input className={INPUT} type="number" step="0.01" value={f.valor_corrigido ?? ''} onChange={e => set('valor_corrigido', n(e.target.value))} /></div>
+        <div><label className={LABEL}>Valor Parcelado (R$)</label><CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} /></div>
+        <div><label className={LABEL}>Valor Corrigido (R$)</label><CurrencyInput value={f.valor_corrigido} onChange={v => set('valor_corrigido', v)} /></div>
         <div className="col-span-2 flex items-center gap-6">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={f.em_dia ?? false} onChange={e => set('em_dia', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />Em Dia
@@ -1019,7 +1099,7 @@ const TaForm = ({ processoId, initial, onSave, onClose }: {
           <input className={INPUT} value={f.numero ?? ''} onChange={e => setF(p => ({ ...p, numero: e.target.value }))} required />
         </div>
         <div><label className={LABEL}>Data</label><input className={INPUT} type="date" value={f.data ?? ''} onChange={e => setF(p => ({ ...p, data: e.target.value || null }))} /></div>
-        <div><label className={LABEL}>Custo (R$)</label><input className={INPUT} type="number" step="0.01" value={f.custo ?? ''} onChange={e => setF(p => ({ ...p, custo: e.target.value ? Number(e.target.value) : null }))} /></div>
+        <div><label className={LABEL}>Custo (R$)</label><CurrencyInput value={f.custo} onChange={v => setF(p => ({ ...p, custo: v }))} /></div>
       </div>
       <div className="flex justify-end gap-3">
         <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
@@ -1031,38 +1111,144 @@ const TaForm = ({ processoId, initial, onSave, onClose }: {
 
 // ---- Productivity summary page ----
 
+// ---- Productivity Page ----
+
+type ProdEvento = { registro_id: number; responsavel: string; evento: string; data_evento: string };
+type Granularity = 'dia' | 'mes' | 'ano' | 'geral';
+
+interface TechStats {
+  responsavel: string;
+  analises: number;       // unique registro_ids with INICIO_ANALISE
+  posicoes: number;       // POSICAO events
+  movimentos: number;     // MOVIMENTO events
+  total: number;
+}
+
+function periodoKey(date: string, gran: Granularity): string {
+  const d = date.slice(0, 10);
+  if (gran === 'dia')   return d;
+  if (gran === 'mes')   return d.slice(0, 7);
+  if (gran === 'ano')   return d.slice(0, 4);
+  return 'geral';
+}
+
+function fmtPeriodo(key: string, gran: Granularity): string {
+  if (gran === 'dia')  { const [y, m, d] = key.split('-'); return `${d}/${m}/${y}`; }
+  if (gran === 'mes')  { const [y, m] = key.split('-'); return `${MONTHS_PT[Number(m) - 1] ?? m}/${y}`; }
+  if (gran === 'ano')  return key;
+  return 'Geral';
+}
+
+function computeStats(events: ProdEvento[], gran: Granularity, period: string): TechStats[] {
+  const inPeriod = gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period);
+  const map: Record<string, { analises: Set<number>; posicoes: number; movimentos: number }> = {};
+  for (const e of inPeriod) {
+    if (!map[e.responsavel]) map[e.responsavel] = { analises: new Set(), posicoes: 0, movimentos: 0 };
+    if (e.evento === 'INICIO_ANALISE') map[e.responsavel].analises.add(e.registro_id);
+    if (e.evento === 'POSICAO')        map[e.responsavel].posicoes++;
+    if (e.evento === 'MOVIMENTO')      map[e.responsavel].movimentos++;
+  }
+  return Object.entries(map).map(([responsavel, s]) => ({
+    responsavel,
+    analises:   s.analises.size,
+    posicoes:   s.posicoes,
+    movimentos: s.movimentos,
+    total:      s.analises.size + s.posicoes + s.movimentos,
+  })).sort((a, b) => b.total - a.total);
+}
+
 const ProdutividadePage = () => {
-  const [resumo, setResumo] = useState<{ responsavel: string; mes: string; count: number }[]>([]);
+  const [events, setEvents] = useState<ProdEvento[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mesFiltro, setMesFiltro] = useState(() => new Date().toISOString().slice(0, 7));
+  const [gran, setGran] = useState<Granularity>('mes');
+  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
 
   useEffect(() => {
-    GpcService.getProdutividadeResumo().then(d => { setResumo(d); setLoading(false); });
+    GpcService.getProdutividadeDetalhado().then(d => { setEvents(d); setLoading(false); });
   }, []);
 
-  const allMeses = useMemo(() => [...new Set(resumo.map(r => r.mes))].sort().reverse(), [resumo]);
-  const filtered = useMemo(() => resumo.filter(r => r.mes === mesFiltro).sort((a, b) => b.count - a.count), [resumo, mesFiltro]);
-  const total = useMemo(() => filtered.reduce((s, r) => s + r.count, 0), [filtered]);
+  // Periods available for selected granularity
+  const allPeriods = useMemo(() => {
+    if (gran === 'geral') return ['geral'];
+    const set = new Set<string>();
+    for (const e of events) set.add(periodoKey(e.data_evento, gran));
+    return [...set].sort().reverse();
+  }, [events, gran]);
+
+  // Keep period in sync when granularity changes
+  useEffect(() => {
+    if (gran === 'geral') { setPeriod('geral'); return; }
+    const now = new Date().toISOString();
+    const cur = periodoKey(now, gran);
+    setPeriod(prev => allPeriods.includes(prev) ? prev : (allPeriods[0] ?? cur));
+  }, [gran, allPeriods]);
+
+  const stats = useMemo(() => computeStats(events, gran, period), [events, gran, period]);
+  const totals = useMemo(() => stats.reduce((acc, s) => ({
+    analises:   acc.analises + s.analises,
+    posicoes:   acc.posicoes + s.posicoes,
+    movimentos: acc.movimentos + s.movimentos,
+    total:      acc.total + s.total,
+  }), { analises: 0, posicoes: 0, movimentos: 0, total: 0 }), [stats]);
 
   if (loading) return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-400" /></div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4">
-        <label className="text-sm font-semibold text-slate-600">Mês:</label>
-        <select
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={mesFiltro}
-          onChange={e => setMesFiltro(e.target.value)}
-        >
-          {allMeses.map(m => <option key={m} value={m}>{fmtMes(m)}</option>)}
-        </select>
-        <span className="text-sm text-slate-400 ml-auto">{total} evento{total !== 1 ? 's' : ''} em {fmtMes(mesFiltro)}</span>
+      {/* Filter bar */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-4">
+        {/* Granularity */}
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+          {(['dia', 'mes', 'ano', 'geral'] as Granularity[]).map(g => (
+            <button
+              key={g}
+              onClick={() => setGran(g)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors capitalize ${gran === g ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {g === 'dia' ? 'Dia' : g === 'mes' ? 'Mês' : g === 'ano' ? 'Ano' : 'Geral'}
+            </button>
+          ))}
+        </div>
+
+        {/* Period selector */}
+        {gran !== 'geral' && (
+          <select
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={period}
+            onChange={e => setPeriod(e.target.value)}
+          >
+            {allPeriods.map(p => <option key={p} value={p}>{fmtPeriodo(p, gran)}</option>)}
+          </select>
+        )}
+
+        <span className="text-sm text-slate-400 ml-auto">
+          {gran === 'geral' ? 'Todos os períodos' : fmtPeriodo(period, gran)}
+          {' · '}{stats.length} técnico{stats.length !== 1 ? 's' : ''}
+        </span>
       </div>
-      {!filtered.length ? (
+
+      {/* KPI summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Análises Iniciadas',   value: totals.analises,   bg: 'bg-sky-50 border-sky-100',       text: 'text-sky-700',     dot: 'bg-sky-500' },
+          { label: 'Mudanças de Posição',  value: totals.posicoes,   bg: 'bg-amber-50 border-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500' },
+          { label: 'Mudanças de Movimento',value: totals.movimentos, bg: 'bg-purple-50 border-purple-100', text: 'text-purple-700',  dot: 'bg-purple-500' },
+          { label: 'Total de Ações',        value: totals.total,      bg: 'bg-blue-50 border-blue-100',     text: 'text-blue-700',    dot: 'bg-blue-500' },
+        ].map(k => (
+          <div key={k.label} className={`${k.bg} rounded-xl border p-4 flex items-center gap-3`}>
+            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${k.dot}`} />
+            <div>
+              <div className={`text-2xl font-bold ${k.text}`}>{k.value.toLocaleString('pt-BR')}</div>
+              <div className="text-xs text-slate-500 mt-0.5">{k.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {!stats.length ? (
         <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
           <TrendingUp size={40} className="mx-auto mb-3 text-slate-200" />
-          <p className="text-slate-400 text-sm">Nenhum dado para {fmtMes(mesFiltro)}.</p>
+          <p className="text-slate-400 text-sm">Nenhum dado para o período selecionado.</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -1070,34 +1256,50 @@ const ProdutividadePage = () => {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Mês</th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Eventos</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-48">Participação</th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-sky-600 uppercase tracking-wider">
+                  <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />Análises</span>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">
+                  <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Posições</span>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider">
+                  <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />Movimentos</span>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-blue-600 uppercase tracking-wider">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-40">Participação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map(r => {
-                const pct = total > 0 ? Math.round((r.count / total) * 100) : 0;
+              {stats.map(s => {
+                const pct = totals.total > 0 ? Math.round((s.total / totals.total) * 100) : 0;
                 return (
-                  <tr key={`${r.responsavel}__${r.mes}`} className="hover:bg-blue-50/30 transition-colors">
+                  <tr key={s.responsavel} className="hover:bg-blue-50/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
-                          {r.responsavel.charAt(0).toUpperCase()}
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0">
+                          {s.responsavel.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-semibold text-slate-800">{r.responsavel}</span>
+                        <span className="font-semibold text-slate-800">{s.responsavel}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{fmtMes(r.mes)}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">{r.count}</span>
+                      <span className="inline-block px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-bold">{s.analises}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-block px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">{s.posicoes}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.movimentos}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">{s.total}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 rounded-full h-2">
-                          <div className="bg-gradient-to-r from-blue-400 to-blue-600 rounded-full h-2 transition-all" style={{ width: `${pct}%` }} />
+                        <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs text-slate-500 w-9 text-right font-medium">{pct}%</span>
+                        <span className="text-xs text-slate-500 w-9 text-right font-semibold">{pct}%</span>
                       </div>
                     </td>
                   </tr>
@@ -1106,14 +1308,15 @@ const ProdutividadePage = () => {
             </tbody>
             <tfoot className="border-t-2 border-slate-200 bg-slate-50">
               <tr>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700" colSpan={2}>Total</td>
-                <td className="px-4 py-3 text-center">
-                  <span className="inline-block px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-bold">{total}</span>
-                </td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">Total</td>
+                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-bold">{totals.analises}</span></td>
+                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">{totals.posicoes}</span></td>
+                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold">{totals.movimentos}</span></td>
+                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-bold">{totals.total}</span></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-blue-500 rounded-full h-2" />
-                    <span className="text-xs text-slate-500 w-9 text-right font-medium">100%</span>
+                    <div className="flex-1 bg-blue-500 rounded-full h-2.5" />
+                    <span className="text-xs text-slate-500 w-9 text-right font-semibold">100%</span>
                   </div>
                 </td>
               </tr>
@@ -1128,6 +1331,8 @@ const ProdutividadePage = () => {
 // ---- Main Page ----
 
 export const GpcProcessos = () => {
+  const { currentUser } = useApp();
+  const isAdmin = currentUser?.role === UserRole.ADMIN;
   const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade'>('registros');
   const [rows, setRows] = useState<GpcRecebido[]>([]);
   const [posicoes, setPosicoes] = useState<GpcPosicao[]>([]);
@@ -1207,42 +1412,77 @@ export const GpcProcessos = () => {
 
     const now = new Date().toISOString();
     const posLabel = posicoes.find(p => p.codigo === form.posicao_id)?.posicao ?? null;
+    const diffDias = (from: string) =>
+      Math.round((new Date().getTime() - new Date(from).getTime()) / 86400000);
+
     if (!prev?.codigo) {
+      // New record
       if (form.responsavel) {
         await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel, posicao_id: form.posicao_id ?? null, posicao: posLabel, evento: 'CRIACAO', data_evento: now });
       }
+      // If created already in EM ANÁLISE, register start of analysis
+      if (form.movimento === 'EM ANÁLISE') {
+        await GpcService.saveProdutividade({
+          registro_id: saved.codigo, responsavel: form.responsavel ?? null,
+          posicao_id: form.posicao_id ?? null, posicao: posLabel,
+          evento: 'INICIO_ANALISE', data_evento: now,
+          obs: `Processo criado já em análise${form.responsavel ? ' por ' + form.responsavel : ''}`,
+        });
+      }
     } else {
+      // Lazy-load previous events (fetched at most once)
+      let _prevEvents: GpcProdutividade[] | null = null;
+      const getEvents = async () => {
+        if (!_prevEvents) _prevEvents = await GpcService.getProdutividade(saved.codigo);
+        return _prevEvents;
+      };
+
+      // 1. Responsible changed
       if (form.responsavel !== prev.responsavel && form.responsavel) {
         await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel, posicao_id: form.posicao_id ?? null, posicao: posLabel, evento: 'RESPONSAVEL', data_evento: now });
       }
+
+      // 2. Process entering EM ANÁLISE (e.g. new technician starts analysis)
+      if (prev.movimento !== 'EM ANÁLISE' && form.movimento === 'EM ANÁLISE') {
+        await GpcService.saveProdutividade({
+          registro_id: saved.codigo, responsavel: form.responsavel ?? null,
+          posicao_id: form.posicao_id ?? null, posicao: posLabel,
+          evento: 'INICIO_ANALISE', data_evento: now,
+          obs: `Iniciado em análise${form.responsavel ? ' por ' + form.responsavel : ''}`,
+        });
+      }
+
+      // 3. Position changed — calculate time in previous position
       if (form.posicao_id !== prev.posicao_id && form.posicao_id) {
-        // Calcula tempo na posição anterior
         const posLabelPrev = posicoes.find(p => p.codigo === prev.posicao_id)?.posicao ?? String(prev.posicao_id ?? '');
+        const events = await getEvents();
+        const lastRef = [...events].reverse().find(e =>
+          e.evento === 'POSICAO' || e.evento === 'CRIACAO' || e.evento === 'INICIO_ANALISE'
+        );
         let posObsText: string;
-        const prevEvents = await GpcService.getProdutividade(saved.codigo);
-        const lastPosEvent = [...prevEvents].reverse().find(e => e.evento === 'POSICAO' || e.evento === 'CRIACAO');
-        const refDate = lastPosEvent?.data_evento ?? prev.data ?? null;
-        if (refDate) {
-          const dtStart = new Date(refDate);
-          const dtHoje = new Date();
-          const dias = Math.round((dtHoje.getTime() - dtStart.getTime()) / (1000 * 60 * 60 * 24));
+        if (lastRef?.data_evento) {
+          const dias = diffDias(lastRef.data_evento);
           posObsText = `${posLabelPrev || 'posição anterior'} → ${posLabel || 'nova posição'}. Tempo na posição: ${dias} dia${dias !== 1 ? 's' : ''}`;
         } else {
           posObsText = `${posLabelPrev || 'posição anterior'} → ${posLabel || 'nova posição'}`;
         }
         await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel ?? null, posicao_id: form.posicao_id, posicao: posLabel, evento: 'POSICAO', data_evento: now, obs: posObsText });
       }
-      // Saída de EM ANÁLISE → calcula tempo desde data de recebimento
-      if (prev.movimento === 'EM ANÁLISE' && form.movimento && form.movimento !== 'EM ANÁLISE') {
-        const dataReceb = form.data ?? prev.data;
+
+      // 4. Movement changed — track ANY movimento change
+      if (form.movimento && form.movimento !== prev.movimento) {
         let obsText: string;
-        if (dataReceb) {
-          const dtReceb = new Date(dataReceb);
-          const dtHoje = new Date();
-          const dias = Math.round((dtHoje.getTime() - dtReceb.getTime()) / (1000 * 60 * 60 * 24));
-          obsText = `EM ANÁLISE → ${form.movimento}. Tempo em análise: ${dias} dia${dias !== 1 ? 's' : ''} (recebido em ${fmtDate(dataReceb)})`;
+        if (prev.movimento === 'EM ANÁLISE') {
+          const events = await getEvents();
+          const lastAnalise = [...events].reverse().find(e => e.evento === 'INICIO_ANALISE');
+          if (lastAnalise?.data_evento) {
+            const dias = diffDias(lastAnalise.data_evento);
+            obsText = `${prev.movimento} → ${form.movimento}. Tempo em análise: ${dias} dia${dias !== 1 ? 's' : ''}`;
+          } else {
+            obsText = `${prev.movimento} → ${form.movimento}`;
+          }
         } else {
-          obsText = `EM ANÁLISE → ${form.movimento}`;
+          obsText = `${prev.movimento ?? '-'} → ${form.movimento}`;
         }
         await GpcService.saveProdutividade({
           registro_id: saved.codigo,
@@ -1570,6 +1810,7 @@ export const GpcProcessos = () => {
           posicoes={posicoes}
           onSave={handleSave}
           onClose={() => setModal(null)}
+          isAdmin={isAdmin}
         />
       )}
     </div>

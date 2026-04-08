@@ -435,5 +435,16 @@ export const GpcService = {
       return { responsavel: key.slice(0, sep), mes: key.slice(sep + 2), count };
     }).sort((a, b) => b.mes.localeCompare(a.mes) || b.count - a.count);
   },
+
+  getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string }[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_produtividade')
+      .select('registro_id, responsavel, evento, data_evento')
+      .not('responsavel', 'is', null)
+      .in('evento', ['INICIO_ANALISE', 'POSICAO', 'MOVIMENTO'])
+      .order('data_evento', { ascending: true });
+    if (error) { console.error(error); return []; }
+    return (data ?? []) as { registro_id: number; responsavel: string; evento: string; data_evento: string }[];
+  },
 };
 
