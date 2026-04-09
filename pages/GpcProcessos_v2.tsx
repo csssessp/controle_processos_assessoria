@@ -5,14 +5,15 @@ import {
   ClipboardList, GitBranch, Download, ArrowUp, ArrowDown,
   ArrowUpDown, ExternalLink, Link as LinkIcon, TrendingUp,
   User, Search, AlertTriangle, Clock, DollarSign, Info,
-  BarChart2, Save, Eye, Lock,
+  BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { GpcService } from '../services/gpcService';
 import {
   GpcProcessoFull, GpcExercicio, GpcHistorico, GpcObjeto,
-  GpcParcelamento, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade
+  GpcParcelamento, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
+  GpcFluxoTecnico
 } from '../types';
 
 // ---- Utilities ----
@@ -341,6 +342,359 @@ const ProdPanel = ({ registroId }: { registroId: number }) => {
 
 // ---- ViewModal - all info of a record ----
 
+// ---- Movement options (shared) ----
+
+const MOVIMENTOS = [
+  'RECEBIDO',
+  'EM ANÁLISE',
+  'DILIGÊNCIA',
+  'AGUARDANDO COMPLEMENTAÇÃO',
+  'ENCAMINHADO À CHEFIA',
+  'ENCAMINHADO A CHEFIA GCP',
+  'ENCAMINHADO AO GGCON',
+  'ENCAMINHADO AO CATC',
+  'ENCAMINHADO A ASSESSORIA',
+  'ENCAMINHADO AO GABINETE',
+  'ENCAMINHADO AO TCE-SP',
+  'ENCAMINHADO À PGE',
+  'ENCAMINHADO À CGE',
+  'ARQUIVADO',
+  'CONCLUÍDO',
+  'DEVOLVIDO AO CONVENENTE',
+  'PARECER EMITIDO',
+];
+
+// ---- Fluxo Técnico Panel ----
+
+const ACAO_OPTIONS = [
+  'RECEBIMENTO',
+  'INÍCIO DA ANÁLISE',
+  'ANÁLISE EM ANDAMENTO',
+  'DILIGÊNCIA EMITIDA',
+  'AGUARDANDO RESPOSTA',
+  'RESPOSTA RECEBIDA',
+  'PARECER ELABORADO',
+  'REVISÃO DO PARECER',
+  'ENCAMINHAMENTO',
+  'DEVOLUÇÃO',
+  'ARQUIVAMENTO',
+  'CONCLUSÃO',
+];
+
+const ACAO_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  'RECEBIMENTO':          { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' },
+  'INÍCIO DA ANÁLISE':    { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200',     dot: 'bg-sky-500' },
+  'ANÁLISE EM ANDAMENTO': { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200',  dot: 'bg-indigo-500' },
+  'DILIGÊNCIA EMITIDA':   { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
+  'AGUARDANDO RESPOSTA':  { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200',  dot: 'bg-orange-400' },
+  'RESPOSTA RECEBIDA':    { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200',    dot: 'bg-teal-500' },
+  'PARECER ELABORADO':    { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200',  dot: 'bg-purple-500' },
+  'REVISÃO DO PARECER':   { bg: 'bg-pink-50',    text: 'text-pink-700',    border: 'border-pink-200',    dot: 'bg-pink-500' },
+  'ENCAMINHAMENTO':       { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200',    dot: 'bg-cyan-500' },
+  'DEVOLUÇÃO':            { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' },
+  'ARQUIVAMENTO':         { bg: 'bg-slate-50',   text: 'text-slate-600',   border: 'border-slate-200',   dot: 'bg-slate-400' },
+  'CONCLUSÃO':            { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200',   dot: 'bg-green-500' },
+};
+const ACAO_DEF = { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' };
+
+const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved }: {
+  registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
+  gpcUsers: { id: string; name: string }[];
+  onSaved: () => void;
+}) => {
+  const [form, setForm] = useState<Partial<GpcFluxoTecnico>>({
+    registro_id: registroId,
+    data_evento: new Date().toISOString().slice(0, 16),
+    num_paginas_analise: numPaginas ?? undefined,
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k: keyof GpcFluxoTecnico, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true); setErr('');
+    try {
+      await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId });
+      setForm({ registro_id: registroId, data_evento: new Date().toISOString().slice(0, 16), num_paginas_analise: numPaginas ?? undefined });
+      onSaved();
+    } catch (ex: any) { setErr(ex.message); }
+    finally { setSaving(false); }
+  };
+  return (
+    <form onSubmit={submit} className="bg-gradient-to-br from-slate-50 to-blue-50/30 border border-slate-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Activity size={14} className="text-blue-600" />
+        <span className="text-sm font-bold text-slate-700">Registrar Novo Evento no Fluxo</span>
+      </div>
+      {err && <div className="text-red-600 text-xs flex items-center gap-1"><AlertCircle size={12} />{err}</div>}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+          <label className={LABEL}>Técnico Responsável</label>
+          <select className={INPUT} value={form.tecnico ?? ''} onChange={e => set('tecnico', e.target.value || null)} required>
+            <option value="">— selecione —</option>
+            {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL}>Data/Hora do Evento</label>
+          <input className={INPUT} type="datetime-local" value={form.data_evento ?? ''} onChange={e => set('data_evento', e.target.value)} required />
+        </div>
+        <div>
+          <label className={LABEL}>Ação Realizada</label>
+          <select className={INPUT} value={form.acao ?? ''} onChange={e => set('acao', e.target.value || null)} required>
+            <option value="">— selecione —</option>
+            {ACAO_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL}>Posição Atual</label>
+          <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+            <option value="">— selecione —</option>
+            {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL}>Movimento</label>
+          <select className={INPUT} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
+            <option value="">— selecione —</option>
+            {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL}>Páginas Analisadas</label>
+          <input className={INPUT} type="number" min={0} value={form.num_paginas_analise ?? ''} onChange={e => set('num_paginas_analise', e.target.value ? Number(e.target.value) : null)} placeholder="ex: 50" />
+        </div>
+        <div className="sm:col-span-3">
+          <label className={LABEL}>Observações</label>
+          <input className={INPUT} value={form.obs ?? ''} onChange={e => set('obs', e.target.value || null)} placeholder="Detalhes adicionais sobre o evento..." />
+        </div>
+      </div>
+      <div className="flex justify-end pt-1">
+        <button type="submit" className={BTN_PRI + ' text-xs px-3 py-1.5'} disabled={saving}>
+          {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}Registrar Evento
+        </button>
+      </div>
+    </form>
+  );
+};
+
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers }: {
+  registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
+  gpcUsers: { id: string; name: string }[];
+}) => {
+  const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const d = await GpcService.getFluxoTecnico(registroId);
+    setItems(d);
+    setLoading(false);
+  }, [registroId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Excluir este evento do fluxo?')) return;
+    await GpcService.deleteFluxoTecnico(id);
+    load();
+  };
+
+  // Compute derived metrics
+  const metrics = useMemo(() => {
+    if (!items.length) return null;
+    const tecnicos = new Set(items.map(i => i.tecnico).filter(Boolean));
+    const firstEvent = items[0];
+    const lastEvent = items[items.length - 1];
+    const totalDias = firstEvent && lastEvent
+      ? Math.round((new Date(lastEvent.data_evento).getTime() - new Date(firstEvent.data_evento).getTime()) / 86400000)
+      : 0;
+    const totalPaginas = items.reduce((s, i) => s + (i.num_paginas_analise ?? 0), 0);
+    const diligencias = items.filter(i => i.acao === 'DILIGÊNCIA EMITIDA').length;
+    const analises = items.filter(i => i.acao === 'ANÁLISE EM ANDAMENTO' || i.acao === 'INÍCIO DA ANÁLISE').length;
+    // Tempo médio entre eventos
+    let tempoMedio = 0;
+    if (items.length > 1) {
+      let total = 0;
+      for (let i = 1; i < items.length; i++) {
+        total += Math.abs(new Date(items[i].data_evento).getTime() - new Date(items[i - 1].data_evento).getTime());
+      }
+      tempoMedio = Math.round((total / (items.length - 1)) / 86400000);
+    }
+    return { tecnicos: tecnicos.size, totalDias, totalPaginas, diligencias, analises, tempoMedio, totalEventos: items.length };
+  }, [items]);
+
+  if (loading) return (
+    <div className="flex items-center gap-2 py-10 justify-center text-slate-400 text-sm">
+      <Loader2 size={16} className="animate-spin" />Carregando fluxo técnico...
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Metrics cards */}
+      {metrics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { label: 'Eventos',    value: String(metrics.totalEventos), color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-100',   icon: <Activity size={14} className="text-blue-400" /> },
+            { label: 'Tempo Total', value: `${metrics.totalDias} dias`, color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200',  icon: <Timer size={14} className="text-slate-400" /> },
+            { label: 'Pág. Analisadas', value: String(metrics.totalPaginas), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100', icon: <BookOpen size={14} className="text-purple-400" /> },
+            { label: 'Tempo Médio/Evento', value: `${metrics.tempoMedio} dias`, color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-100',  icon: <Gauge size={14} className="text-amber-400" /> },
+          ].map(k => (
+            <div key={k.label} className={`${k.bg} rounded-xl border px-3 py-2.5 flex items-center gap-2.5`}>
+              {k.icon}
+              <div>
+                <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+                <div className="text-xs text-slate-500">{k.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Complexity indicator */}
+      {(numPaginas ?? 0) > 0 && (
+        <div className={`rounded-xl border p-3 flex items-center gap-3 ${
+          (numPaginas ?? 0) <= 50 ? 'bg-green-50 border-green-200' :
+          (numPaginas ?? 0) <= 200 ? 'bg-amber-50 border-amber-200' :
+          (numPaginas ?? 0) <= 500 ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200'
+        }`}>
+          <BookOpen size={18} className={
+            (numPaginas ?? 0) <= 50 ? 'text-green-500' :
+            (numPaginas ?? 0) <= 200 ? 'text-amber-500' :
+            (numPaginas ?? 0) <= 500 ? 'text-orange-500' : 'text-red-500'
+          } />
+          <div>
+            <div className="text-sm font-bold text-slate-700">
+              Processo com {numPaginas} páginas — Complexidade{' '}
+              <span className={
+                (numPaginas ?? 0) <= 50 ? 'text-green-700' :
+                (numPaginas ?? 0) <= 200 ? 'text-amber-700' :
+                (numPaginas ?? 0) <= 500 ? 'text-orange-700' : 'text-red-700'
+              }>
+                {(numPaginas ?? 0) <= 50 ? 'Baixa' :
+                 (numPaginas ?? 0) <= 200 ? 'Média' :
+                 (numPaginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5">
+              {(numPaginas ?? 0) <= 50 ? 'Prazo estimado: 5-10 dias úteis' :
+               (numPaginas ?? 0) <= 200 ? 'Prazo estimado: 10-20 dias úteis' :
+               (numPaginas ?? 0) <= 500 ? 'Prazo estimado: 20-40 dias úteis' : 'Prazo estimado: 40+ dias úteis — análise complexa'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New entry form */}
+      <FluxoTecnicoFormInline
+        registroId={registroId}
+        posicoes={posicoes}
+        numPaginas={numPaginas}
+        gpcUsers={gpcUsers}
+        onSaved={load}
+      />
+
+      {/* Timeline */}
+      {items.length === 0 ? (
+        <div className="py-10 text-center text-slate-400 text-sm">
+          <Activity size={36} className="mx-auto mb-2 opacity-30" />
+          <p className="font-medium">Nenhum evento registrado no fluxo técnico</p>
+          <p className="text-xs mt-1">Use o formulário acima para registrar o primeiro evento.</p>
+        </div>
+      ) : (
+        <div className="space-y-0">
+          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Activity size={12} />Linha do Tempo do Processo ({items.length} eventos)
+          </div>
+          <div className="relative pl-6">
+            {/* Vertical line */}
+            <div className="absolute left-[11px] top-3 bottom-3 w-0.5 bg-gradient-to-b from-blue-300 via-slate-200 to-green-300 rounded-full" />
+
+            {items.map((it, idx) => {
+              const cfg = ACAO_COLORS[it.acao ?? ''] ?? ACAO_DEF;
+              const isFirst = idx === 0;
+              const isLast = idx === items.length - 1;
+              // Calculate time from previous event
+              let daysSincePrev: number | null = null;
+              if (idx > 0) {
+                daysSincePrev = Math.round(
+                  (new Date(it.data_evento).getTime() - new Date(items[idx - 1].data_evento).getTime()) / 86400000
+                );
+              }
+
+              return (
+                <div key={it.id} className={`relative flex gap-3 ${idx < items.length - 1 ? 'pb-4' : ''}`}>
+                  {/* Dot */}
+                  <div className={`absolute -left-[13px] top-2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm z-10 ${
+                    isFirst ? 'bg-blue-500 ring-2 ring-blue-200' :
+                    isLast ? 'bg-green-500 ring-2 ring-green-200' : cfg.dot
+                  }`} />
+
+                  {/* Card */}
+                  <div className={`${cfg.bg} border ${cfg.border} rounded-xl px-4 py-3 w-full shadow-sm hover:shadow-md transition-shadow group`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
+                            {it.acao ?? 'EVENTO'}
+                          </span>
+                          {it.posicao && <PosicaoBadge id={it.posicao_id} label={it.posicao} />}
+                          {it.movimento && (
+                            <span className="text-xs text-slate-500 bg-white border border-slate-200 rounded-full px-2 py-0.5">
+                              {it.movimento}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-slate-600">
+                          <span className="flex items-center gap-1 font-medium">
+                            <Calendar size={10} className="text-slate-400" />
+                            {fmtTs(it.data_evento)}
+                          </span>
+                          {it.tecnico && (
+                            <span className="flex items-center gap-1">
+                              <User size={10} className="text-slate-400" />
+                              <span className="font-semibold">{it.tecnico}</span>
+                            </span>
+                          )}
+                          {it.num_paginas_analise && (
+                            <span className="flex items-center gap-1 text-purple-600">
+                              <BookOpen size={10} />{it.num_paginas_analise} pág.
+                            </span>
+                          )}
+                          {daysSincePrev !== null && daysSincePrev > 0 && (
+                            <span className={`flex items-center gap-1 font-medium ${
+                              daysSincePrev <= 5 ? 'text-green-600' :
+                              daysSincePrev <= 15 ? 'text-amber-600' : 'text-red-600'
+                            }`}>
+                              <Timer size={10} />+{daysSincePrev} dia{daysSincePrev !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        {it.obs && (
+                          <p className="mt-1.5 text-xs text-slate-500 italic">{it.obs}</p>
+                        )}
+                      </div>
+                      <button
+                        className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                        onClick={() => handleDelete(it.id)}
+                        title="Excluir evento"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---- ViewModal - all info of a record ----
+
 const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
   row: GpcRecebido;
   posicoes: GpcPosicao[];
@@ -348,15 +702,18 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
   onClose: () => void;
   prevPositions: string[];
 }) => {
-  const [tab, setTab] = useState<'dados' | 'prod'>('dados');
+  const [tab, setTab] = useState<'dados' | 'tecnico' | 'prod'>('dados');
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
+  const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (!row.processo_codigo) return;
     setLoadingFull(true);
     GpcService.getProcessoFull(row.processo_codigo).then(d => { setFull(d); setLoadingFull(false); });
   }, [row.processo_codigo]);
+
+  useEffect(() => { GpcService.getGpcUsers().then(setGpcUsers); }, []);
 
   return (
     <Modal
@@ -372,6 +729,12 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
           className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${tab === 'dados' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <FileText size={12} />Detalhes
+        </button>
+        <button
+          onClick={() => setTab('tecnico')}
+          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${tab === 'tecnico' ? 'border-indigo-500 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <Activity size={12} />Fluxo Técnico
         </button>
         <button
           onClick={() => setTab('prod')}
@@ -418,6 +781,17 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
               value={row.remessa === 'ACIMA' ? 'Acima de Remessa' : row.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : null}
             />
             <InfoCard label="Parcelamento" value={row.is_parcelamento ? 'Sim' : 'Não'} />
+            {(row.num_paginas ?? 0) > 0 && (
+              <InfoCard
+                label="Nº de Páginas"
+                value={`${row.num_paginas} — ${
+                  (row.num_paginas ?? 0) <= 50 ? 'Complexidade Baixa' :
+                  (row.num_paginas ?? 0) <= 200 ? 'Complexidade Média' :
+                  (row.num_paginas ?? 0) <= 500 ? 'Complexidade Alta' : 'Complexidade Muito Alta'
+                }`}
+                icon={<BookOpen size={12} />}
+              />
+            )}
             {row.created_at && (
               <div className="col-span-2">
                 <InfoCard label="Cadastrado em" value={fmtTs(row.created_at)} />
@@ -544,32 +918,21 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
         </div>
       )}
 
+      {tab === 'tecnico' && (
+        <FluxoTecnicoPanel
+          registroId={row.codigo}
+          posicoes={posicoes}
+          numPaginas={row.num_paginas}
+          gpcUsers={gpcUsers}
+        />
+      )}
+
       {tab === 'prod' && <ProdPanel registroId={row.codigo} />}
     </Modal>
   );
 };
 
 // ---- RegistroModal (create / edit) ----
-
-const MOVIMENTOS = [
-  'RECEBIDO',
-  'EM ANÁLISE',
-  'DILIGÊNCIA',
-  'AGUARDANDO COMPLEMENTAÇÃO',
-  'ENCAMINHADO À CHEFIA',
-  'ENCAMINHADO A CHEFIA GCP',
-  'ENCAMINHADO AO GGCON',
-  'ENCAMINHADO AO CATC',
-  'ENCAMINHADO A ASSESSORIA',
-  'ENCAMINHADO AO GABINETE',
-  'ENCAMINHADO AO TCE-SP',
-  'ENCAMINHADO À PGE',
-  'ENCAMINHADO À CGE',
-  'ARQUIVADO',
-  'CONCLUÍDO',
-  'DEVOLVIDO AO CONVENENTE',
-  'PARECER EMITIDO',
-];
 
 interface RegistroModalProps {
   initial?: GpcRecebido;
@@ -585,7 +948,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [savedOk, setSavedOk] = useState(false);
-  const [tab, setTab] = useState<'dados' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas'>('dados');
+  const [tab, setTab] = useState<'dados' | 'tecnico' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas'>('dados');
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [subModal, setSubModal] = useState<null | { type: string; data?: any }>(null);
@@ -635,9 +998,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const isEditing = !!(liveRecord?.codigo);
 
-  type TabId = 'dados' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas';
+  type TabId = 'dados' | 'tecnico' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas';
   const tabItems: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'dados',         label: 'Dados Gerais',  icon: <FileText size={13} /> },
+    { id: 'tecnico',       label: 'Técnico',       icon: <Activity size={13} /> },
     { id: 'exercicios',    label: 'Exercícios',    icon: <Calendar size={13} />,      count: full?.exercicios?.length },
     { id: 'objetos',       label: 'Objetos',       icon: <ClipboardList size={13} />, count: full?.objetos?.length },
     { id: 'parcelamentos', label: 'Parcelamentos', icon: <DollarSign size={13} />,    count: full?.parcelamentos?.length },
@@ -719,7 +1083,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               )}
             </div>
             <div>
-              <label className={LABEL}>Responsável (Técnico)</label>
+              <label className={LABEL}>Responsável pelo Cadastro</label>
               <select className={INPUT} value={form.responsavel ?? ''} onChange={e => set('responsavel', e.target.value || null)}>
                 <option value="">— selecione —</option>
                 {gpcUsers.map(u => (
@@ -767,6 +1131,34 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               <label htmlFor="is_parcelamento" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
                 Este processo é de <strong>Parcelamento</strong>
               </label>
+            </div>
+            <div>
+              <label className={LABEL}>
+                <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
+              </label>
+              <input
+                className={INPUT}
+                type="number"
+                min={0}
+                placeholder="ex: 150"
+                value={form.num_paginas ?? ''}
+                onChange={e => set('num_paginas', e.target.value ? Number(e.target.value) : null)}
+              />
+              {(form.num_paginas ?? 0) > 0 && (
+                <p className="mt-1 text-xs text-slate-400 flex items-center gap-1">
+                  <Gauge size={10} />
+                  Complexidade: {' '}
+                  <span className={`font-semibold ${
+                    (form.num_paginas ?? 0) <= 50 ? 'text-green-600' :
+                    (form.num_paginas ?? 0) <= 200 ? 'text-amber-600' :
+                    (form.num_paginas ?? 0) <= 500 ? 'text-orange-600' : 'text-red-600'
+                  }`}>
+                    {(form.num_paginas ?? 0) <= 50 ? 'Baixa' :
+                     (form.num_paginas ?? 0) <= 200 ? 'Média' :
+                     (form.num_paginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
+                  </span>
+                </p>
+              )}
             </div>
             <div className="sm:col-span-2">
               <label className={LABEL}>
@@ -817,7 +1209,17 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
         </div>
       )}
 
-      {tab !== 'dados' && isEditing && (
+      {/* Técnico tab - standalone (doesn't require full processo linkage) */}
+      {tab === 'tecnico' && isEditing && (
+        <FluxoTecnicoPanel
+          registroId={liveRecord!.codigo}
+          posicoes={posicoes}
+          numPaginas={form.num_paginas}
+          gpcUsers={gpcUsers}
+        />
+      )}
+
+      {tab !== 'dados' && tab !== 'tecnico' && isEditing && (
         <div>
           {loadingFull && (
             <div className="flex items-center gap-2 py-8 justify-center text-slate-400">
@@ -1162,9 +1564,14 @@ const ProdutividadePage = () => {
   const [loading, setLoading] = useState(true);
   const [gran, setGran] = useState<Granularity>('mes');
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
+  const [fluxoResumo, setFluxoResumo] = useState<{
+    tecnico: string; total_registros: number; total_paginas: number;
+    tempo_medio_dias: number; ultimo_evento: string;
+  }[]>([]);
 
   useEffect(() => {
     GpcService.getProdutividadeDetalhado().then(d => { setEvents(d); setLoading(false); });
+    GpcService.getFluxoResumoTecnicos().then(setFluxoResumo);
   }, []);
 
   // Periods available for selected granularity
@@ -1322,6 +1729,69 @@ const ProdutividadePage = () => {
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {/* Fluxo Técnico - Resumo por Técnico */}
+      {fluxoResumo.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Activity size={16} className="text-indigo-600" />
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Fluxo Técnico — Desempenho por Técnico</h3>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider">Eventos</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider">Páginas</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">Tempo Médio (dias)</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Último Evento</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-40">Produtividade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {fluxoResumo.map(s => {
+                  const maxRegs = Math.max(...fluxoResumo.map(f => f.total_registros), 1);
+                  const pct = Math.round((s.total_registros / maxRegs) * 100);
+                  return (
+                    <tr key={s.tecnico} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0">
+                            {s.tecnico.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-semibold text-slate-800">{s.tecnico}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">{s.total_registros}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.total_paginas.toLocaleString('pt-BR')}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
+                          s.tempo_medio_dias <= 5 ? 'bg-green-100 text-green-700' :
+                          s.tempo_medio_dias <= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                        }`}>{s.tempo_medio_dias}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{fmtTs(s.ultimo_evento)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-500 w-9 text-right font-semibold">{pct}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

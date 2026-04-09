@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 import {
   GpcProcesso, GpcExercicio, GpcHistorico, GpcObjeto,
-  GpcParcelamento, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade
+  GpcParcelamento, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico
 } from '../types';
 
 export interface GpcReportData {
@@ -374,6 +374,7 @@ export const GpcService = {
       link_processo: r.link_processo ?? null,
       is_parcelamento: r.is_parcelamento ?? false,
       remessa: r.remessa ?? null,
+      num_paginas: r.num_paginas ?? null,
     };
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();
@@ -445,6 +446,78 @@ export const GpcService = {
       .order('data_evento', { ascending: true });
     if (error) { console.error(error); return []; }
     return (data ?? []) as { registro_id: number; responsavel: string; evento: string; data_evento: string }[];
+  },
+
+  // ── FLUXO TÉCNICO ───────────────────────────────────────────────────────
+
+  getFluxoTecnico: async (registroId: number): Promise<GpcFluxoTecnico[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_fluxo_tecnico')
+      .select('*, cgof_gpc_posicao(posicao)')
+      .eq('registro_id', registroId)
+      .order('data_evento', { ascending: true });
+    if (error) { console.error(error); return []; }
+    return (data ?? []).map((r: any) => ({
+      ...r,
+      posicao: r.cgof_gpc_posicao?.posicao ?? r.posicao ?? null,
+    })) as GpcFluxoTecnico[];
+  },
+
+  saveFluxoTecnico: async (f: Partial<GpcFluxoTecnico>): Promise<GpcFluxoTecnico> => {
+    const payload = {
+      registro_id: f.registro_id,
+      tecnico: f.tecnico ?? null,
+      data_evento: f.data_evento ?? new Date().toISOString(),
+      posicao_id: f.posicao_id ?? null,
+      movimento: f.movimento ?? null,
+      acao: f.acao ?? null,
+      tempo_dias: f.tempo_dias ?? null,
+      num_paginas_analise: f.num_paginas_analise ?? null,
+      obs: f.obs ?? null,
+    };
+    if (f.id) {
+      const { data, error } = await supabase.from('cgof_gpc_fluxo_tecnico').update(payload).eq('id', f.id).select().single();
+      if (error) throw new Error(error.message);
+      return data as GpcFluxoTecnico;
+    }
+    const { data, error } = await supabase.from('cgof_gpc_fluxo_tecnico').insert(payload).select().single();
+    if (error) throw new Error(error.message);
+    return data as GpcFluxoTecnico;
+  },
+
+  deleteFluxoTecnico: async (id: number): Promise<void> => {
+    const { error } = await supabase.from('cgof_gpc_fluxo_tecnico').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  getFluxoResumoTecnicos: async (): Promise<{
+    tecnico: string;
+    total_registros: number;
+    total_paginas: number;
+    tempo_medio_dias: number;
+    ultimo_evento: string;
+  }[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_fluxo_tecnico')
+      .select('tecnico, data_evento, tempo_dias, num_paginas_analise')
+      .not('tecnico', 'is', null);
+    if (error) { console.error(error); return []; }
+    const map: Record<string, { count: number; paginas: number; tempos: number[]; ultimo: string }> = {};
+    for (const r of data ?? []) {
+      const t = r.tecnico as string;
+      if (!map[t]) map[t] = { count: 0, paginas: 0, tempos: [], ultimo: '' };
+      map[t].count++;
+      if (r.num_paginas_analise) map[t].paginas += r.num_paginas_analise;
+      if (r.tempo_dias != null) map[t].tempos.push(r.tempo_dias);
+      if (r.data_evento > map[t].ultimo) map[t].ultimo = r.data_evento;
+    }
+    return Object.entries(map).map(([tecnico, s]) => ({
+      tecnico,
+      total_registros: s.count,
+      total_paginas: s.paginas,
+      tempo_medio_dias: s.tempos.length > 0 ? Math.round(s.tempos.reduce((a, b) => a + b, 0) / s.tempos.length) : 0,
+      ultimo_evento: s.ultimo,
+    })).sort((a, b) => b.total_registros - a.total_registros);
   },
 };
 

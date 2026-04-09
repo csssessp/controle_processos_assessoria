@@ -246,6 +246,22 @@ export interface GpcRecebido {
   link_processo?: string | null;
   is_parcelamento?: boolean | null;
   remessa?: 'ACIMA' | 'ABAIXO' | null;
+  num_paginas?: number | null;
+  created_at?: string;
+}
+
+export interface GpcFluxoTecnico {
+  id: number;
+  registro_id: number;
+  tecnico: string | null;
+  data_evento: string;
+  posicao_id: number | null;
+  posicao?: string | null;
+  movimento: string | null;
+  acao: string | null;
+  tempo_dias?: number | null;
+  num_paginas_analise?: number | null;
+  obs: string | null;
   created_at?: string;
 }
 
