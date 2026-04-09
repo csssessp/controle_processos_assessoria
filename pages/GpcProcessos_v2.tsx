@@ -404,17 +404,17 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 }) => {
   const [form, setForm] = useState<Partial<GpcFluxoTecnico>>({
     registro_id: registroId,
-    data_evento: new Date().toISOString().slice(0, 16),
     num_paginas_analise: numPaginas ?? undefined,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const now = () => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const set = (k: keyof GpcFluxoTecnico, v: any) => setForm(f => ({ ...f, [k]: v }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setErr('');
     try {
-      await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId });
-      setForm({ registro_id: registroId, data_evento: new Date().toISOString().slice(0, 16), num_paginas_analise: numPaginas ?? undefined });
+      await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: new Date().toISOString() });
+      setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined });
       onSaved();
     } catch (ex: any) { setErr(ex.message); }
     finally { setSaving(false); }
@@ -435,8 +435,14 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           </select>
         </div>
         <div>
-          <label className={LABEL}>Data/Hora do Evento</label>
-          <input className={INPUT} type="datetime-local" value={form.data_evento ?? ''} onChange={e => set('data_evento', e.target.value)} required />
+          <label className={LABEL + ' flex items-center gap-1'}>
+            <Lock size={10} className="text-slate-400" />Data/Hora do Evento
+          </label>
+          <div className={INPUT + ' bg-slate-100 text-slate-500 flex items-center gap-2 cursor-not-allowed select-none'}>
+            <Clock size={13} className="text-slate-400 flex-shrink-0" />
+            <span className="text-sm font-medium">{now()}</span>
+            <span className="ml-auto text-xs text-slate-400">Automático</span>
+          </div>
         </div>
         <div>
           <label className={LABEL}>Ação Realizada</label>
