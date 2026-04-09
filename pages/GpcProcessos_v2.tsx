@@ -400,7 +400,7 @@ const ACAO_DEF = { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-sl
 const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
-  onSaved: () => void;
+  onSaved: () => Promise<void> | void;
 }) => {
   const [form, setForm] = useState<Partial<GpcFluxoTecnico>>({
     registro_id: registroId,
@@ -483,9 +483,10 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
   );
 };
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, onRecordUpdated }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
+  onRecordUpdated?: () => Promise<void> | void;
 }) => {
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
   const [loading, setLoading] = useState(true);
@@ -597,7 +598,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers }: {
         posicoes={posicoes}
         numPaginas={numPaginas}
         gpcUsers={gpcUsers}
-        onSaved={load}
+        onSaved={async () => { await load(); onRecordUpdated?.(); }}
       />
 
       {/* Timeline */}
@@ -701,12 +702,13 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers }: {
 
 // ---- ViewModal - all info of a record ----
 
-const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
+const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpdated }: {
   row: GpcRecebido;
   posicoes: GpcPosicao[];
   onEdit: () => void;
   onClose: () => void;
   prevPositions: string[];
+  onRecordUpdated?: () => Promise<void> | void;
 }) => {
   const [tab, setTab] = useState<'dados' | 'tecnico' | 'prod'>('dados');
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
@@ -930,6 +932,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions }: {
           posicoes={posicoes}
           numPaginas={row.num_paginas}
           gpcUsers={gpcUsers}
+          onRecordUpdated={onRecordUpdated}
         />
       )}
 
@@ -946,9 +949,10 @@ interface RegistroModalProps {
   onSave: (form: Partial<GpcRecebido>, prev?: GpcRecebido) => Promise<GpcRecebido>;
   onClose: () => void;
   isAdmin?: boolean;
+  onRecordUpdated?: () => Promise<void> | void;
 }
 
-const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin }) => {
+const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin, onRecordUpdated }) => {
   const [liveRecord, setLiveRecord] = useState<GpcRecebido | undefined>(initial);
   const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? {});
   const [saving, setSaving] = useState(false);
@@ -1222,6 +1226,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           posicoes={posicoes}
           numPaginas={form.num_paginas}
           gpcUsers={gpcUsers}
+          onRecordUpdated={onRecordUpdated}
         />
       )}
 
@@ -2276,6 +2281,11 @@ export const GpcProcessos = () => {
           prevPositions={getPrevPositions(viewRow)}
           onEdit={() => { setModal({ data: viewRow }); setViewRow(null); }}
           onClose={() => setViewRow(null)}
+          onRecordUpdated={async () => {
+            await load();
+            const updated = (await GpcService.getRecebidos('', 1, 9999)).data.find(r => r.codigo === viewRow.codigo);
+            if (updated) setViewRow(updated);
+          }}
         />
       )}
 
@@ -2287,6 +2297,7 @@ export const GpcProcessos = () => {
           onSave={handleSave}
           onClose={() => setModal(null)}
           isAdmin={isAdmin}
+          onRecordUpdated={load}
         />
       )}
     </div>

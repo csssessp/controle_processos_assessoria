@@ -475,14 +475,24 @@ export const GpcService = {
       num_paginas_analise: f.num_paginas_analise ?? null,
       obs: f.obs ?? null,
     };
+    let saved: GpcFluxoTecnico;
     if (f.id) {
       const { data, error } = await supabase.from('cgof_gpc_fluxo_tecnico').update(payload).eq('id', f.id).select().single();
       if (error) throw new Error(error.message);
-      return data as GpcFluxoTecnico;
+      saved = data as GpcFluxoTecnico;
+    } else {
+      const { data, error } = await supabase.from('cgof_gpc_fluxo_tecnico').insert(payload).select().single();
+      if (error) throw new Error(error.message);
+      saved = data as GpcFluxoTecnico;
     }
-    const { data, error } = await supabase.from('cgof_gpc_fluxo_tecnico').insert(payload).select().single();
-    if (error) throw new Error(error.message);
-    return data as GpcFluxoTecnico;
+    // Sync position/movement back to main record
+    if (f.registro_id && (f.posicao_id || f.movimento)) {
+      const update: Record<string, any> = {};
+      if (f.posicao_id) update.posicao_id = f.posicao_id;
+      if (f.movimento) update.movimento = f.movimento;
+      await supabase.from('cgof_gpc_recebidos').update(update).eq('codigo', f.registro_id);
+    }
+    return saved;
   },
 
   deleteFluxoTecnico: async (id: number): Promise<void> => {

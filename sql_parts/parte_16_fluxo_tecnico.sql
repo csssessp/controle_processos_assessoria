@@ -46,6 +46,9 @@ CREATE INDEX IF NOT EXISTS idx_fluxo_tecnico_acao
 -- 4. RLS (Row Level Security) — manter padrão do projeto
 ALTER TABLE cgof_gpc_fluxo_tecnico ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir acesso total a cgof_gpc_fluxo_tecnico"
+  ON cgof_gpc_fluxo_tecnico;
+
 CREATE POLICY "Permitir acesso total a cgof_gpc_fluxo_tecnico"
   ON cgof_gpc_fluxo_tecnico
   FOR ALL
