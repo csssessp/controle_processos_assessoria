@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import { generateUUID } from '../utils';
-import { User, UserRole } from '../types';
-import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
+import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin } from 'lucide-react';
 
 export const UserManagement = () => {
   const { saveUser, deleteUser, currentUser } = useApp();
@@ -48,6 +48,17 @@ export const UserManagement = () => {
     else if (formData.get('isGpc') === 'on') role = UserRole.GPC;
     const passwordInput = formData.get('password') as string;
 
+    // Collect selected areas
+    const selectedAreas: UserArea[] = [];
+    if (formData.get('area_assessoria') === 'on') selectedAreas.push('assessoria');
+    if (formData.get('area_gpc') === 'on') selectedAreas.push('gpc');
+
+    if (selectedAreas.length === 0 && role !== UserRole.ADMIN) {
+        setErrorMsg('Selecione ao menos uma área de acesso para o usuário.');
+        setSaving(false);
+        return;
+    }
+
     // Validation
     if (!editingUser && (!passwordInput || passwordInput.length < 6)) {
         setErrorMsg('Para novos usuários, a senha é obrigatória e deve ter no mínimo 6 caracteres.');
@@ -67,6 +78,7 @@ export const UserManagement = () => {
       email: formData.get('email') as string,
       role: role,
       active: formData.get('active') === 'on',
+      areas: role === UserRole.ADMIN ? ['assessoria', 'gpc'] : selectedAreas,
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
     };
@@ -121,6 +133,7 @@ export const UserManagement = () => {
                 <th className="px-6 py-3">Nome</th>
                 <th className="px-6 py-3">Login / Email</th>
                 <th className="px-6 py-3">Nível</th>
+                <th className="px-6 py-3">Áreas</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3 text-right">Ações</th>
               </tr>
@@ -135,6 +148,19 @@ export const UserManagement = () => {
                       {u.role === UserRole.ADMIN ? <Shield size={12}/> : null}
                       {u.role}
                     </span>
+                  </td>
+                  <td className="px-6 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {u.role === UserRole.ADMIN ? (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">Todas</span>
+                      ) : (u.areas && u.areas.length > 0) ? u.areas.map(a => (
+                        <span key={a} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${a === 'gpc' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {a === 'gpc' ? 'GPC' : 'Assessoria'}
+                        </span>
+                      )) : (
+                        <span className="text-[10px] text-slate-400">—</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-3">
                     {u.active ? (
@@ -222,6 +248,21 @@ export const UserManagement = () => {
                   </label>
                 </div>
                 <p className="text-[10px] text-slate-400">Se Administrador estiver marcado, o perfil GPC é ignorado. Sem nenhum marcado, o usuário é perfil Usuário padrão.</p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1"><MapPin size={12}/> Áreas de Acesso</p>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                    <input type="checkbox" name="area_assessoria" defaultChecked={editingUser ? editingUser.areas?.includes('assessoria') : true} className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500"/>
+                    <span className="flex items-center gap-1 text-emerald-700 font-medium">Processos Assessoria</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                    <input type="checkbox" name="area_gpc" defaultChecked={editingUser?.areas?.includes('gpc') ?? false} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"/>
+                    <span className="flex items-center gap-1 text-blue-700 font-medium">Processos GPC</span>
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-400">Selecione as áreas que o usuário terá acesso. Administradores têm acesso a todas as áreas automaticamente.</p>
               </div>
 
               <div className="flex gap-3 pt-4">

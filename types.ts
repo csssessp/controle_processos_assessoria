@@ -15,15 +15,30 @@ export const CGOF_OPTIONS = [
   'Gabinete do Coordenador'
 ] as const;
 
+// Áreas de acesso disponíveis no sistema
+export type UserArea = 'assessoria' | 'gpc';
+export const USER_AREA_OPTIONS: { value: UserArea; label: string }[] = [
+  { value: 'assessoria', label: 'Processos Assessoria' },
+  { value: 'gpc', label: 'Processos GPC' },
+];
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
   active: boolean;
+  areas?: UserArea[]; // Áreas que o usuário pode acessar
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
 }
+
+/** Verifica se o usuário tem acesso a uma área específica */
+export const userHasArea = (user: User | null, area: UserArea): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return Array.isArray(user.areas) && user.areas.includes(area);
+};
 
 export interface Process {
   id: string;

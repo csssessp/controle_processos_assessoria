@@ -10,11 +10,21 @@ import { UserManagement } from './pages/UserManagement';
 import { Logs } from './pages/Logs';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
-import { UserRole } from './types';
+import { UserRole, userHasArea } from './types';
 import { GpcProcessos } from './pages/GpcProcessos_v2';
 import { GpcRelatorios } from './pages/GpcRelatorios';
 
-const ProtectedRoute = ({ children, adminOnly = false, gpcAllowed = false, gpcForbidden = false }: { children?: React.ReactNode, adminOnly?: boolean, gpcAllowed?: boolean, gpcForbidden?: boolean }) => {
+/** Resolve a home page based on user areas */
+const getHomePath = (user: User | null): string => {
+  if (!user) return '/login';
+  if (userHasArea(user, 'assessoria')) return '/dashboard';
+  if (userHasArea(user, 'gpc')) return '/gpc';
+  return '/dashboard';
+};
+
+import type { User } from './types';
+
+const ProtectedRoute = ({ children, adminOnly = false, requireArea }: { children?: React.ReactNode, adminOnly?: boolean, requireArea?: 'assessoria' | 'gpc' }) => {
   const { currentUser } = useApp();
   
   if (!currentUser) {
@@ -22,16 +32,11 @@ const ProtectedRoute = ({ children, adminOnly = false, gpcAllowed = false, gpcFo
   }
 
   if (adminOnly && currentUser.role !== UserRole.ADMIN) {
-    return <Navigate to={currentUser.role === UserRole.GPC ? '/gpc' : '/dashboard'} replace />;
+    return <Navigate to={getHomePath(currentUser)} replace />;
   }
 
-  if (gpcAllowed && currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.GPC) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // GPC users cannot access non-GPC pages
-  if (gpcForbidden && currentUser.role === UserRole.GPC) {
-    return <Navigate to="/gpc" replace />;
+  if (requireArea && !userHasArea(currentUser, requireArea)) {
+    return <Navigate to={getHomePath(currentUser)} replace />;
   }
 
   return <Layout>{children}</Layout>;
@@ -44,30 +49,30 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={
         currentUser
-          ? <Navigate to={currentUser.role === UserRole.GPC ? '/gpc' : '/dashboard'} />
+          ? <Navigate to={getHomePath(currentUser)} />
           : <Login />
       } />
       
       <Route path="/" element={
         <ProtectedRoute>
-          <Navigate to={currentUser?.role === UserRole.GPC ? '/gpc' : '/dashboard'} replace />
+          <Navigate to={getHomePath(currentUser)} replace />
         </ProtectedRoute>
       } />
       
       <Route path="/dashboard" element={
-        <ProtectedRoute gpcForbidden>
+        <ProtectedRoute requireArea="assessoria">
           <Dashboard />
         </ProtectedRoute>
       } />
       
       <Route path="/processos" element={
-        <ProtectedRoute gpcForbidden>
+        <ProtectedRoute requireArea="assessoria">
           <ProcessManager />
         </ProtectedRoute>
       } />
 
       <Route path="/prestacao-contas" element={
-        <ProtectedRoute gpcForbidden>
+        <ProtectedRoute requireArea="assessoria">
           <PrestacaoContas />
         </ProtectedRoute>
       } />
@@ -91,18 +96,18 @@ const AppRoutes = () => {
       } />
 
       <Route path="/gpc" element={
-        <ProtectedRoute gpcAllowed>
+        <ProtectedRoute requireArea="gpc">
           <GpcProcessos />
         </ProtectedRoute>
       } />
 
       <Route path="/gpc/relatorios" element={
-        <ProtectedRoute gpcAllowed>
+        <ProtectedRoute requireArea="gpc">
           <GpcRelatorios />
         </ProtectedRoute>
       } />
 
-      <Route path="*" element={<Navigate to={currentUser?.role === UserRole.GPC ? '/gpc' : '/dashboard'} />} />
+      <Route path="*" element={<Navigate to={getHomePath(currentUser)} />} />
     </Routes>
   );
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserRole } from '../types';
+import { UserRole, userHasArea } from '../types';
 import logoImg from '../img/logo1.png';
 import {
   Files,
@@ -70,9 +70,12 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
 
   const LogoImage = logoImg;
 
-  const isGpc = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
+  const isGpc = userHasArea(currentUser, 'gpc');
+  const isAssessoria = userHasArea(currentUser, 'assessoria');
   const isAdmin = currentUser?.role === UserRole.ADMIN;
-  const sectorLabel = currentUser?.role === UserRole.GPC
+  const sectorLabel = currentUser?.role === UserRole.ADMIN
+    ? 'ADMINISTRADOR'
+    : currentUser?.role === UserRole.GPC
     ? 'GRUPO DE PRESTAÇÃO DE CONTAS'
     : 'ASSESSORIA';
 
@@ -165,13 +168,17 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
         {/* Nav sections */}
         <nav className="flex-1 overflow-y-auto px-3 py-2">
 
-          {/* General */}
-          <SectionLabel label="Geral" />
-          <DrawerItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-          <DrawerItem to="/processos" icon={Files} label="Processos" />
-          <DrawerItem to="/prestacao-contas" icon={FileText} label="Prestação de Contas" />
+          {/* General — only users with assessoria area */}
+          {isAssessoria && (
+            <>
+              <SectionLabel label="Geral" />
+              <DrawerItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+              <DrawerItem to="/processos" icon={Files} label="Processos Assessoria" />
+              <DrawerItem to="/prestacao-contas" icon={FileText} label="Prestação de Contas" />
+            </>
+          )}
 
-          {/* GPC — only ADMIN or GPC role */}
+          {/* GPC — users with gpc area access */}
           {isGpc && (
             <>
               <SectionLabel label="GPC" />

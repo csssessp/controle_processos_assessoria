@@ -103,7 +103,8 @@ export const DbService = {
       name: user.name,
       email: user.email,
       role: user.role,
-      active: user.active
+      active: user.active,
+      areas: user.areas || []
     };
 
     if (user.password && user.password.trim().length > 0) {
@@ -203,7 +204,8 @@ export const DbService = {
                 email: 'admin@sistema.com',
                 password: '123456', 
                 role: UserRole.ADMIN,
-                active: true
+                active: true,
+                areas: ['assessoria', 'gpc']
             });
             return DbService.login('admin@sistema.com', '123456');
         }
