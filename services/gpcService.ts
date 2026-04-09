@@ -33,8 +33,8 @@ export const GpcService = {
     const { data, error } = await supabase
       .from('users')
       .select('id, name')
-      .in('role', ['GPC', 'ADMIN'])
       .eq('active', true)
+      .or('role.in.(GPC,ADMIN),areas.cs.["gpc"]')
       .order('name');
     if (error) { console.error(error); return []; }
     return (data ?? []) as { id: string; name: string }[];
