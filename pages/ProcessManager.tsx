@@ -367,9 +367,13 @@ export const ProcessManager = () => {
         // update had flags
         existing.hadUrgent = existing.hadUrgent || pUrgent;
         existing.hadOverdue = existing.hadOverdue || pHadOverdue;
-        // keep the latest entryDate as the primary record
+        // keep the latest record using updatedAt as primary, entryDate as tiebreaker
+        const pUpdatedTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+        const existingUpdatedTime = existing.latest.updatedAt ? new Date(existing.latest.updatedAt).getTime() : 0;
         const existingEntryTime = existing.latest.entryDate ? new Date(existing.latest.entryDate).getTime() : 0;
-        if (pEntryTime > existingEntryTime) existing.latest = p;
+        if (pUpdatedTime > existingUpdatedTime || (pUpdatedTime === existingUpdatedTime && pEntryTime > existingEntryTime)) {
+          existing.latest = p;
+        }
         // also preserve the latest record that HAS deadline
         if (p.deadline && (!existing.latestWithDeadline || pEntryTime > (existing.latestWithDeadline.entryDate ? new Date(existing.latestWithDeadline.entryDate).getTime() : 0))) {
           existing.latestWithDeadline = p;
@@ -628,7 +632,7 @@ export const ProcessManager = () => {
       deadline, observations: formData.get('observations') as string,
       processLink: formData.get('processLink') as string,
       is_prestacao_conta: formData.get('is_prestacao_conta') === 'on',
-      createdBy: editingProcess?.createdBy || currentUser?.id || 'system',
+      createdBy: (editingProcess?.id ? editingProcess.createdBy : null) || currentUser?.id || 'system',
       createdAt: editingProcess?.createdAt || now,
       updatedBy: currentUser?.id || 'system',
       updatedAt: now
@@ -1238,6 +1242,7 @@ export const ProcessManager = () => {
                         number: processToEdit.number,
                         entryDate: new Date().toISOString().split('T')[0],
                         processDate: null,
+                        createdBy: '',
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()
                       });
