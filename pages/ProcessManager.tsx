@@ -214,6 +214,11 @@ export const ProcessManager = () => {
   const [newEntryDate, setNewEntryDate] = useState('');
   const [originalEntryDate, setOriginalEntryDate] = useState('');
 
+  const [isExitDateConfirmModalOpen, setIsExitDateConfirmModalOpen] = useState(false);
+  const [pendingProcessForExitConfirm, setPendingProcessForExitConfirm] = useState<Process | null>(null);
+  const [pendingExitConfirmIsEditing, setPendingExitConfirmIsEditing] = useState(false);
+  const [pendingExitConfirmEntryDateChanged, setPendingExitConfirmEntryDateChanged] = useState(false);
+
   // Prestação de Contas fields
   const [isPrestacaoContaChecked, setIsPrestacaoContaChecked] = useState(false);
   const [prestacaoFormState, setPrestacaoFormState] = useState({ month: '', status: 'REGULAR', motivo: '' });
@@ -499,18 +504,11 @@ export const ProcessManager = () => {
           return;
         }
         // Senha correta - salvar o processo
-        await saveProcess(pendingProcessToSave);
-        alert(pendingProcessToSave.id && editingProcess ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
-        handleCloseModal();
-        refreshCurrentList();
-        
-        if (isHistoryModalOpen) {
-          const updatedHistory = await fetchProcessHistory(selectedProcessNumber);
-          setSelectedProcessHistory(updatedHistory);
-        }
         setIsEntryDatePasswordModalOpen(false);
         setEntryDatePassword('');
+        const processToSave = pendingProcessToSave;
         setPendingProcessToSave(null);
+        await doSaveProcess(processToSave, pendingExitConfirmIsEditing);
     } catch (err: any) {
         setEntryDatePasswordError('Erro ao verificar senha: ' + (err?.message || 'Tente novamente.'));
     }
@@ -561,6 +559,89 @@ export const ProcessManager = () => {
     setPendingProcessToSave(null);
     setIsPrestacaoContaChecked(false);
     setPrestacaoFormState({ month: '', status: 'PENDENTE', motivo: '' });
+    setIsExitDateConfirmModalOpen(false);
+    setPendingProcessForExitConfirm(null);
+    setPendingExitConfirmIsEditing(false);
+    setPendingExitConfirmEntryDateChanged(false);
+  };
+
+  const doSaveProcess = async (process: Process, isEditing: boolean) => {
+    setSaving(true);
+    const now = new Date().toISOString();
+    try {
+      await saveProcess(process);
+      if (isPrestacaoContaChecked && currentUser) {
+        if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
+        const pcData: PrestacaoConta = {
+          id: generateUUID(),
+          process_id: process.id,
+          process_number: process.number,
+          month: prestacaoFormState.month.includes('/') ? (() => { const [m,y] = prestacaoFormState.month.split('/'); return `${y}-${m}`; })() : prestacaoFormState.month,
+          status: prestacaoFormState.status,
+          motivo: prestacaoFormState.motivo || undefined,
+          interested: process.interested || undefined,
+          entry_date: process.entryDate,
+          exit_date: null,
+          link: process.processLink || undefined,
+          observations: process.observations || undefined,
+          created_by: currentUser.id,
+          updated_by: currentUser.id,
+          created_at: now,
+          updated_at: now,
+          version_number: 1
+        };
+        await savePrestacaoConta(pcData);
+        alert(isEditing ? 'Processo atualizado e Prestação de Contas criada com sucesso!' : 'Processo cadastrado e Prestação de Contas criada com sucesso!');
+        handleCloseModal();
+        navigate('/prestacao-contas');
+      } else {
+        alert(isEditing ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
+        handleCloseModal();
+        refreshCurrentList();
+        if (isHistoryModalOpen) {
+          const updatedHistory = await fetchProcessHistory(selectedProcessNumber);
+          setSelectedProcessHistory(updatedHistory);
+        }
+      }
+    } catch (error: any) {
+      alert('Erro ao salvar: ' + (error?.message || 'Verifique os dados.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleExitDateConfirmYes = async () => {
+    if (!pendingProcessForExitConfirm) return;
+    const today = toServerTimestampNoonLocal(getTodayLocalISO());
+    const updatedProcess = { ...pendingProcessForExitConfirm, processDate: today };
+    setIsExitDateConfirmModalOpen(false);
+    setPendingProcessForExitConfirm(null);
+    if (pendingExitConfirmEntryDateChanged) {
+      setPendingProcessToSave(updatedProcess);
+      setIsEntryDatePasswordModalOpen(true);
+    } else {
+      await doSaveProcess(updatedProcess, pendingExitConfirmIsEditing);
+    }
+  };
+
+  const handleExitDateConfirmNo = async () => {
+    if (!pendingProcessForExitConfirm) return;
+    const updatedProcess = { ...pendingProcessForExitConfirm, processDate: null };
+    setIsExitDateConfirmModalOpen(false);
+    setPendingProcessForExitConfirm(null);
+    if (pendingExitConfirmEntryDateChanged) {
+      setPendingProcessToSave(updatedProcess);
+      setIsEntryDatePasswordModalOpen(true);
+    } else {
+      await doSaveProcess(updatedProcess, pendingExitConfirmIsEditing);
+    }
+  };
+
+  const handleExitDateConfirmClose = () => {
+    setIsExitDateConfirmModalOpen(false);
+    setPendingProcessForExitConfirm(null);
+    setPendingExitConfirmIsEditing(false);
+    setPendingExitConfirmEntryDateChanged(false);
   };
 
   // Função para determinar qual é a Localização Atual baseada nas datas + horas mais recentes
@@ -638,59 +719,20 @@ export const ProcessManager = () => {
       updatedAt: now
     };
 
-    // Se estamos editando e a data de entrada foi alterada, pedir senha
+    // Pré-computa se a data de entrada foi alterada (para retomar após confirmação da saída)
+    let entryDateChanged = false;
     if (editingProcess) {
       const currentEntryDateFormatted = toServerDateOnly(formData.get('entryDate') as string);
       const originalDate = originalEntryDate || toServerDateOnly(editingProcess.entryDate);
-      const isEntryDateAltered = currentEntryDateFormatted !== originalDate;
-      
-      if (isEntryDateAltered) {
-        setPendingProcessToSave(newProcess);
-        setIsEntryDatePasswordModalOpen(true);
-        setSaving(false);
-        return;
-      }
+      entryDateChanged = currentEntryDateFormatted !== originalDate;
     }
 
-    try {
-        await saveProcess(newProcess);
-        if (isPrestacaoContaChecked && currentUser) {
-          if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
-          const pcData: PrestacaoConta = {
-            id: generateUUID(),
-            process_id: newProcess.id,
-            process_number: newProcess.number,
-            month: prestacaoFormState.month.includes('/') ? (() => { const [m,y] = prestacaoFormState.month.split('/'); return `${y}-${m}`; })() : prestacaoFormState.month,
-            status: prestacaoFormState.status,
-            motivo: prestacaoFormState.motivo || undefined,
-            interested: newProcess.interested || undefined,
-            entry_date: entryDate,
-            exit_date: null,
-            link: newProcess.processLink || undefined,
-            observations: newProcess.observations || undefined,
-            created_by: currentUser.id,
-            updated_by: currentUser.id,
-            created_at: now,
-            updated_at: now,
-            version_number: 1
-          };
-          await savePrestacaoConta(pcData);
-          alert(editingProcess ? 'Processo atualizado e Prestação de Contas criada com sucesso!' : 'Processo cadastrado e Prestação de Contas criada com sucesso!');
-          handleCloseModal();
-          navigate('/prestacao-contas');
-        } else {
-          alert(editingProcess ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
-          handleCloseModal();
-          refreshCurrentList();
-          if (isHistoryModalOpen) {
-            const updatedHistory = await fetchProcessHistory(selectedProcessNumber);
-            setSelectedProcessHistory(updatedHistory);
-          }
-        }
-    } catch (error: any) { 
-        alert('Erro ao salvar: ' + (error?.message || 'Verifique os dados.')); 
-    }
-    finally { setSaving(false); }
+    // Mostra confirmação para a data de saída antes de salvar
+    setPendingProcessForExitConfirm(newProcess);
+    setPendingExitConfirmIsEditing(!!editingProcess);
+    setPendingExitConfirmEntryDateChanged(entryDateChanged);
+    setIsExitDateConfirmModalOpen(true);
+    setSaving(false);
   };
 
   const handleConfirmPasswordDelete = async (e: React.FormEvent) => {
@@ -1220,6 +1262,29 @@ export const ProcessManager = () => {
                     </div>
                 </form>
             </div>
+        </div>
+      )}
+
+      {isExitDateConfirmModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform">
+            <div className="bg-blue-50 p-4 border-b border-blue-100 flex items-center gap-3">
+              <Calendar className="text-blue-600" size={24} />
+              <h3 className="font-bold text-blue-900">Preencher Data de Saída?</h3>
+              <button onClick={handleExitDateConfirmClose} className="ml-auto text-blue-400 hover:text-blue-700"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-slate-600 text-sm">
+                Deseja preencher a <strong>Data de Saída</strong> com a data de hoje (<strong>{new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</strong>)?
+              </p>
+              <div className="flex gap-3">
+                <button type="button" onClick={handleExitDateConfirmNo} className="flex-1 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium border border-slate-200">Não</button>
+                <button type="button" onClick={handleExitDateConfirmYes} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium flex justify-center items-center gap-2 hover:bg-blue-700 shadow-sm">
+                  <Check size={16} /> Sim, Preencher
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
