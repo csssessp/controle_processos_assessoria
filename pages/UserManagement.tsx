@@ -79,6 +79,7 @@ export const UserManagement = () => {
       role: role,
       active: formData.get('active') === 'on',
       areas: role === UserRole.ADMIN ? ['assessoria', 'gpc'] : selectedAreas,
+      can_sign: formData.get('can_sign') === 'on',
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
     };
@@ -134,6 +135,7 @@ export const UserManagement = () => {
                 <th className="px-6 py-3">Login / Email</th>
                 <th className="px-6 py-3">Nível</th>
                 <th className="px-6 py-3">Áreas</th>
+                <th className="px-6 py-3">Assinatura</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3 text-right">Ações</th>
               </tr>
@@ -161,6 +163,13 @@ export const UserManagement = () => {
                         <span className="text-[10px] text-slate-400">—</span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-3">
+                    {u.can_sign ? (
+                      <span className="text-indigo-600 flex items-center gap-1 text-xs bg-indigo-50 px-2 py-0.5 rounded-full w-fit"><Check size={12}/> Sim</span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-3">
                     {u.active ? (
@@ -248,6 +257,15 @@ export const UserManagement = () => {
                   </label>
                 </div>
                 <p className="text-[10px] text-slate-400">Se Administrador estiver marcado, o perfil GPC é ignorado. Sem nenhum marcado, o usuário é perfil Usuário padrão.</p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1">Assinatura de Processos</p>
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                  <input type="checkbox" name="can_sign" defaultChecked={editingUser?.can_sign ?? false} className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"/>
+                  <span className="flex items-center gap-1 text-indigo-700 font-medium">Pode assinar processos</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Usuários com esta permissão poderão ser indicados como responsáveis pela assinatura de processos no fluxo técnico.</p>
               </div>
 
               <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">

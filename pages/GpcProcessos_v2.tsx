@@ -5,7 +5,7 @@ import {
   ClipboardList, GitBranch, Download, ArrowUp, ArrowDown,
   ArrowUpDown, ExternalLink, Link as LinkIcon, TrendingUp,
   User, Search, AlertTriangle, Clock, DollarSign, Info,
-  BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer,
+  BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
@@ -483,13 +483,33 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
   );
 };
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, onRecordUpdated }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
+  signatoryUsers: { id: string; name: string }[];
+  responsavelAssinatura?: string | null;
+  responsavelAssinatura2?: string | null;
   onRecordUpdated?: () => Promise<void> | void;
 }) => {
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
   const [loading, setLoading] = useState(true);
+  const [assinatura1, setAssinatura1] = useState<string>(responsavelAssinatura ?? '');
+  const [assinatura2, setAssinatura2] = useState<string>(responsavelAssinatura2 ?? '');
+  const [savingAssinatura, setSavingAssinatura] = useState(false);
+  const [assinaturaMsg, setAssinaturaMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleSaveAssinatura = async () => {
+    setSavingAssinatura(true); setAssinaturaMsg(null);
+    try {
+      await GpcService.updateAssinatura(registroId, assinatura1 || null, assinatura2 || null);
+      setAssinaturaMsg({ type: 'ok', text: 'Responsáveis salvos com sucesso!' });
+      onRecordUpdated?.();
+    } catch (ex: any) {
+      setAssinaturaMsg({ type: 'err', text: ex.message });
+    } finally {
+      setSavingAssinatura(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -538,6 +558,49 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, onRecor
 
   return (
     <div className="space-y-4">
+      {/* Responsável pela Assinatura */}
+      <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <PenLine size={15} className="text-indigo-500" />
+          <span className="text-sm font-bold text-indigo-800">Responsável pela Assinatura</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={LABEL}>1º Responsável</label>
+            <select className={INPUT} value={assinatura1} onChange={e => setAssinatura1(e.target.value)}>
+              <option value="">— selecione —</option>
+              {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={LABEL}>2º Responsável <span className="text-slate-400 font-normal">(opcional)</span></label>
+            <select className={INPUT} value={assinatura2} onChange={e => setAssinatura2(e.target.value)}>
+              <option value="">— nenhum —</option>
+              {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </select>
+          </div>
+        </div>
+        {assinaturaMsg && (
+          <p className={`text-xs ${assinaturaMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{assinaturaMsg.text}</p>
+        )}
+        {signatoryUsers.length === 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            Nenhum usuário habilitado para assinar processos. O administrador deve marcar usuários como "Pode assinar processos" no Gerenciamento de Usuários.
+          </p>
+        )}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleSaveAssinatura}
+            disabled={savingAssinatura}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {savingAssinatura ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+            Salvar Responsáveis
+          </button>
+        </div>
+      </div>
+
       {/* Metrics cards */}
       {metrics && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -714,6 +777,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
+  const [signatoryUsers, setSignatoryUsers] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (!row.processo_codigo) return;
@@ -721,7 +785,10 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
     GpcService.getProcessoFull(row.processo_codigo).then(d => { setFull(d); setLoadingFull(false); });
   }, [row.processo_codigo]);
 
-  useEffect(() => { GpcService.getGpcUsers().then(setGpcUsers); }, []);
+  useEffect(() => {
+    GpcService.getGpcUsers().then(setGpcUsers);
+    GpcService.getSignatoryUsers().then(setSignatoryUsers);
+  }, []);
 
   return (
     <Modal
@@ -932,6 +999,9 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
           posicoes={posicoes}
           numPaginas={row.num_paginas}
           gpcUsers={gpcUsers}
+          signatoryUsers={signatoryUsers}
+          responsavelAssinatura={row.responsavel_assinatura}
+          responsavelAssinatura2={row.responsavel_assinatura_2}
           onRecordUpdated={onRecordUpdated}
         />
       )}
@@ -963,11 +1033,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   const [loadingFull, setLoadingFull] = useState(false);
   const [subModal, setSubModal] = useState<null | { type: string; data?: any }>(null);
   const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
+  const [signatoryUsers, setSignatoryUsers] = useState<{ id: string; name: string }[]>([]);
 
   const set = (k: keyof GpcRecebido, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   useEffect(() => {
     GpcService.getGpcUsers().then(setGpcUsers);
+    GpcService.getSignatoryUsers().then(setSignatoryUsers);
   }, []);
 
   useEffect(() => {
@@ -1226,6 +1298,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           posicoes={posicoes}
           numPaginas={form.num_paginas}
           gpcUsers={gpcUsers}
+          signatoryUsers={signatoryUsers}
+          responsavelAssinatura={form.responsavel_assinatura}
+          responsavelAssinatura2={form.responsavel_assinatura_2}
           onRecordUpdated={onRecordUpdated}
         />
       )}

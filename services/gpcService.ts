@@ -40,6 +40,17 @@ export const GpcService = {
     return (data ?? []) as { id: string; name: string }[];
   },
 
+  getSignatoryUsers: async (): Promise<{ id: string; name: string }[]> => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('active', true)
+      .eq('can_sign', true)
+      .order('name');
+    if (error) { console.error(error); return []; }
+    return (data ?? []) as { id: string; name: string }[];
+  },
+
   getClassificacoes: async (): Promise<GpcClassificacao[]> => {
     const { data, error } = await supabase
       .from('cgof_gpc_classificacao')
@@ -375,6 +386,8 @@ export const GpcService = {
       is_parcelamento: r.is_parcelamento ?? false,
       remessa: r.remessa ?? null,
       num_paginas: r.num_paginas ?? null,
+      responsavel_assinatura: r.responsavel_assinatura ?? null,
+      responsavel_assinatura_2: r.responsavel_assinatura_2 ?? null,
     };
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();
@@ -388,6 +401,14 @@ export const GpcService = {
 
   deleteRecebido: async (codigo: number): Promise<void> => {
     const { error } = await supabase.from('cgof_gpc_recebidos').delete().eq('codigo', codigo);
+    if (error) throw new Error(error.message);
+  },
+
+  updateAssinatura: async (codigo: number, responsavel_assinatura: string | null, responsavel_assinatura_2: string | null): Promise<void> => {
+    const { error } = await supabase
+      .from('cgof_gpc_recebidos')
+      .update({ responsavel_assinatura, responsavel_assinatura_2 })
+      .eq('codigo', codigo);
     if (error) throw new Error(error.message);
   },
 

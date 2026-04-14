@@ -29,6 +29,7 @@ export interface User {
   role: UserRole;
   active: boolean;
   areas?: UserArea[]; // Áreas que o usuário pode acessar
+  can_sign?: boolean; // Pode ser responsável pela assinatura de processos
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
 }
@@ -262,6 +263,8 @@ export interface GpcRecebido {
   is_parcelamento?: boolean | null;
   remessa?: 'ACIMA' | 'ABAIXO' | null;
   num_paginas?: number | null;
+  responsavel_assinatura?: string | null;
+  responsavel_assinatura_2?: string | null;
   created_at?: string;
 }
 
