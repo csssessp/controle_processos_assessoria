@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Process, PrestacaoConta, PRESTACAO_STATUS_OPTIONS } from '../types';
 import { DbService } from '../services/dbService';
+import { GpcService } from '../services/gpcService';
 import { toDisplayDate } from './ProcessManager';
 import {
   BarChart3, TrendingUp, Clock, AlertTriangle, FileText, ArrowRight,
   Calendar, Loader2, RefreshCw, CheckCircle2, Timer, Zap,
-  Building2, FolderOpen, Users
+  Building2, FolderOpen, Users, BookOpen
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -34,16 +35,19 @@ export const Dashboard = () => {
   const [prestacoes, setPrestacoes] = useState<PrestacaoConta[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [gpcData, setGpcData] = useState<Awaited<ReturnType<typeof GpcService.getRecebidosDashboard>>>(null);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [procResult, pcResult] = await Promise.all([
+      const [procResult, pcResult, gpcResult] = await Promise.all([
         DbService.getAllProcessesForDashboard(),
-        fetchPrestacaoContas()
+        fetchPrestacaoContas(),
+        GpcService.getRecebidosDashboard(),
       ]);
       setProcesses(procResult.data);
       setPrestacoes(pcResult);
+      setGpcData(gpcResult);
       setLastRefresh(new Date());
     } catch (err) {
       console.error('Erro ao carregar dados do dashboard:', err);
@@ -516,6 +520,235 @@ export const Dashboard = () => {
         </div>
       </div>
 
+      {/* ═══════════ ROW GPC: Processos GPC ═══════════ */}
+      {gpcData && (
+        <div className="space-y-4">
+          {/* GPC Header */}
+          <div className="flex items-center gap-3">
+            <div className="bg-teal-100 rounded-lg p-2">
+              <FolderOpen size={18} className="text-teal-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Processos GPC</h3>
+              <p className="text-xs text-slate-500">Visão geral dos processos recebidos pelo GPC</p>
+            </div>
+          </div>
+
+          {/* GPC KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-teal-50 rounded-xl p-3 border border-teal-100">
+              <div className="flex items-center gap-1.5 mb-2">
+                <FolderOpen size={14} className="text-teal-500" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Total Recebidos</span>
+              </div>
+              <p className="text-2xl font-black text-teal-700">{gpcData.total}</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Users size={14} className="text-amber-500" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Parcelamentos</span>
+              </div>
+              <p className="text-2xl font-black text-amber-700">{gpcData.comParcelamento}</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">{gpcData.semParcelamento} sem parcelamento</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+              <div className="flex items-center gap-1.5 mb-2">
+                <BarChart3 size={14} className="text-blue-500" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Acima Remessa</span>
+              </div>
+              <p className="text-2xl font-black text-blue-700">
+                {gpcData.byRemessa.find(r => r.remessa === 'Acima de Remessa')?.count ?? 0}
+              </p>
+              <p className="text-[10px] text-blue-600 mt-0.5">
+                {gpcData.byRemessa.find(r => r.remessa === 'Abaixo de Remessa')?.count ?? 0} abaixo
+              </p>
+            </div>
+            <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Building2 size={14} className="text-purple-500" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Posições Ativas</span>
+              </div>
+              <p className="text-2xl font-black text-purple-700">{gpcData.byPosicao.length}</p>
+              <p className="text-[10px] text-purple-600 mt-0.5">tipos de posição</p>
+            </div>
+          </div>
+
+          {/* GPC Charts Row 1 */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            {/* Por Posição */}
+            <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2 mb-4">
+                <BarChart3 size={16} className="text-teal-500" />
+                Distribuição por Posição Atual
+              </h3>
+              <div className="space-y-2">
+                {gpcData.byPosicao.slice(0, 8).map((item, i) => {
+                  const GPC_COLORS = ['#14b8a6','#3b82f6','#8b5cf6','#f59e0b','#ef4444','#10b981','#ec4899','#f97316'];
+                  const pct = gpcData.total > 0 ? ((item.count / gpcData.total) * 100).toFixed(1) : '0';
+                  return (
+                    <div key={item.posicao}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs text-slate-600 font-medium truncate max-w-[60%]">{item.posicao}</span>
+                        <span className="text-xs font-bold text-slate-800">{item.count} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: GPC_COLORS[i % GPC_COLORS.length] }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {gpcData.byPosicao.length === 0 && <p className="text-slate-400 text-xs text-center py-8">Sem dados</p>}
+            </div>
+
+            {/* Complexidade */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2 mb-4">
+                <BookOpen size={16} className="text-purple-500" />
+                Complexidade por Páginas
+              </h3>
+              <div className="space-y-2.5">
+                {gpcData.complexidade.map(item => {
+                  const pct = gpcData.total > 0 ? ((item.count / gpcData.total) * 100).toFixed(1) : '0';
+                  return (
+                    <div key={item.label}>
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="text-xs text-slate-600 font-medium">{item.label}</span>
+                        </div>
+                        <span className="text-xs font-bold">{item.count} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: item.color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {gpcData.complexidade.length === 0 && <p className="text-slate-400 text-xs text-center py-8">Sem dados</p>}
+            </div>
+          </div>
+
+          {/* GPC Charts Row 2 */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            {/* Por Responsável */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2 mb-4">
+                <Users size={16} className="text-blue-500" />
+                Processos por Responsável
+              </h3>
+              <div className="space-y-2">
+                {gpcData.byResponsavel.map((item, i) => {
+                  const maxR = gpcData.byResponsavel[0]?.count || 1;
+                  return (
+                    <div key={item.responsavel} className="flex items-center gap-3">
+                      <span className="text-[10px] text-slate-400 font-bold w-4 text-right">{i + 1}</span>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-baseline mb-0.5">
+                          <span className="text-xs text-slate-700 truncate max-w-[70%]" title={item.responsavel}>{item.responsavel}</span>
+                          <span className="text-xs font-bold text-slate-700">{item.count}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                          <div className="h-full rounded-full transition-all duration-500 bg-blue-400" style={{ width: `${(item.count / maxR) * 100}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {gpcData.byResponsavel.length === 0 && <p className="text-slate-400 text-xs text-center py-8">Sem dados</p>}
+            </div>
+
+            {/* Top Entidades */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2 mb-4">
+                <Building2 size={16} className="text-teal-500" />
+                Top Entidades / Municípios
+              </h3>
+              <div className="space-y-2">
+                {gpcData.topEntidades.map((item, i) => {
+                  const maxE = gpcData.topEntidades[0]?.count || 1;
+                  return (
+                    <div key={item.entidade} className="flex items-center gap-3">
+                      <span className="text-[10px] text-slate-400 font-bold w-4 text-right">{i + 1}</span>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-baseline mb-0.5">
+                          <span className="text-xs text-slate-700 truncate max-w-[70%]" title={item.entidade}>{item.entidade}</span>
+                          <span className="text-xs font-bold text-slate-700">{item.count}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                          <div className="h-full rounded-full transition-all duration-500 bg-teal-400" style={{ width: `${(item.count / maxE) * 100}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {gpcData.topEntidades.length === 0 && <p className="text-slate-400 text-xs text-center py-8">Sem dados</p>}
+            </div>
+
+            {/* GPC por mês + Remessa */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <div>
+                <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2 mb-3">
+                  <Calendar size={16} className="text-teal-500" />
+                  Cadastros GPC por Mês
+                </h3>
+                {gpcData.byMes.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {gpcData.byMes.map(({ mes, count }) => {
+                      const maxM = Math.max(...gpcData.byMes.map(m => m.count), 1);
+                      const label = /^\d{4}-\d{2}$/.test(mes) ? mes.split('-').reverse().join('/') : mes;
+                      return (
+                        <div key={mes} className="flex items-center gap-3">
+                          <span className="text-xs text-teal-600 font-bold font-mono w-14">{label}</span>
+                          <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden relative">
+                            <div className="h-full rounded-full transition-all bg-teal-400" style={{ width: `${(count / maxM) * 100}%` }} />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-teal-800">{count}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <p className="text-slate-400 text-xs text-center py-4">Sem dados</p>}
+              </div>
+              <div className="border-t border-slate-100 pt-3">
+                <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2 mb-3">
+                  <ArrowRight size={16} className="text-slate-500" />
+                  Remessa
+                </h3>
+                <div className="space-y-2">
+                  {gpcData.byRemessa.map((item, i) => {
+                    const REMESSA_COLORS: Record<string, string> = {
+                      'Acima de Remessa': '#3b82f6',
+                      'Abaixo de Remessa': '#10b981',
+                      'Não Informado': '#94a3b8',
+                    };
+                    const color = REMESSA_COLORS[item.remessa] ?? '#94a3b8';
+                    const pct = gpcData.total > 0 ? ((item.count / gpcData.total) * 100).toFixed(1) : '0';
+                    return (
+                      <div key={item.remessa}>
+                        <div className="flex justify-between items-center mb-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                            <span className="text-xs text-slate-600">{item.remessa}</span>
+                          </div>
+                          <span className="text-xs font-bold">{item.count} <span className="text-[10px] text-slate-400">({pct}%)</span></span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══════════ ROW 5: Banner Resumo ═══════════ */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-xl p-6 text-white shadow-lg">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -548,6 +781,15 @@ export const Dashboard = () => {
               <p className="text-3xl font-black">{pcStats.total}</p>
               <p className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">Prest. Contas</p>
             </div>
+            {gpcData && (
+              <>
+                <div className="w-px bg-white/20 hidden md:block" />
+                <div className="text-center">
+                  <p className="text-3xl font-black">{gpcData.total}</p>
+                  <p className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">GPC</p>
+                </div>
+              </>
+            )}
             <div className="w-px bg-white/20 hidden md:block" />
             <div className="text-center">
               <p className="text-3xl font-black">{processStats.avgDays}<span className="text-lg">d</span></p>

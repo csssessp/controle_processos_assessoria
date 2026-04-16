@@ -521,6 +521,84 @@ export const GpcService = {
     if (error) throw new Error(error.message);
   },
 
+  // ── DASHBOARD GPC ────────────────────────────────────────────────────────
+
+  getRecebidosDashboard: async (): Promise<{
+    total: number;
+    byPosicao: { posicao: string; count: number }[];
+    byRemessa: { remessa: string; count: number }[];
+    byResponsavel: { responsavel: string; count: number }[];
+    comParcelamento: number;
+    semParcelamento: number;
+    complexidade: { label: string; count: number; color: string }[];
+    topEntidades: { entidade: string; count: number }[];
+    byMes: { mes: string; count: number }[];
+  } | null> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_recebidos')
+      .select('posicao_id, remessa, responsavel, is_parcelamento, num_paginas, entidade, created_at, cgof_gpc_posicao(posicao)');
+    if (error) { console.error(error); return null; }
+
+    const rows = (data ?? []).map((r: any) => ({
+      ...r,
+      posicao: r.cgof_gpc_posicao?.posicao ?? null,
+    }));
+
+    const total = rows.length;
+
+    // By posição
+    const posMap: Record<string, number> = {};
+    rows.forEach((r: any) => { const k = r.posicao ?? 'Não definida'; posMap[k] = (posMap[k] || 0) + 1; });
+    const byPosicao = Object.entries(posMap).map(([posicao, count]) => ({ posicao, count })).sort((a, b) => b.count - a.count);
+
+    // By remessa
+    const remMap: Record<string, number> = {};
+    rows.forEach((r: any) => {
+      const k = r.remessa === 'ACIMA' ? 'Acima de Remessa' : r.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : 'Não Informado';
+      remMap[k] = (remMap[k] || 0) + 1;
+    });
+    const byRemessa = Object.entries(remMap).map(([remessa, count]) => ({ remessa, count })).filter(r => r.count > 0);
+
+    // By responsável (top 8)
+    const respMap: Record<string, number> = {};
+    rows.forEach((r: any) => { if (r.responsavel) { respMap[r.responsavel] = (respMap[r.responsavel] || 0) + 1; } });
+    const byResponsavel = Object.entries(respMap).map(([responsavel, count]) => ({ responsavel, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+
+    // Parcelamento
+    const comParcelamento = rows.filter((r: any) => r.is_parcelamento).length;
+    const semParcelamento = total - comParcelamento;
+
+    // Complexidade
+    const cxBuckets: { label: string; count: number; color: string }[] = [
+      { label: 'Baixa (≤50)', count: 0, color: '#22c55e' },
+      { label: 'Média (51-200)', count: 0, color: '#f59e0b' },
+      { label: 'Alta (201-500)', count: 0, color: '#f97316' },
+      { label: 'Muito Alta (>500)', count: 0, color: '#ef4444' },
+      { label: 'Não informado', count: 0, color: '#94a3b8' },
+    ];
+    rows.forEach((r: any) => {
+      const n = r.num_paginas;
+      if (!n || n === 0) cxBuckets[4].count++;
+      else if (n <= 50) cxBuckets[0].count++;
+      else if (n <= 200) cxBuckets[1].count++;
+      else if (n <= 500) cxBuckets[2].count++;
+      else cxBuckets[3].count++;
+    });
+    const complexidade = cxBuckets.filter(c => c.count > 0);
+
+    // Top entidades (top 8)
+    const entMap: Record<string, number> = {};
+    rows.forEach((r: any) => { if (r.entidade) { entMap[r.entidade] = (entMap[r.entidade] || 0) + 1; } });
+    const topEntidades = Object.entries(entMap).map(([entidade, count]) => ({ entidade, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+
+    // By mês (last 6 months)
+    const mesMap: Record<string, number> = {};
+    rows.forEach((r: any) => { if (r.created_at) { const mes = (r.created_at as string).slice(0, 7); mesMap[mes] = (mesMap[mes] || 0) + 1; } });
+    const byMes = Object.entries(mesMap).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([mes, count]) => ({ mes, count }));
+
+    return { total, byPosicao, byRemessa, byResponsavel, comParcelamento, semParcelamento, complexidade, topEntidades, byMes };
+  },
+
   getFluxoResumoTecnicos: async (): Promise<{
     tecnico: string;
     total_registros: number;

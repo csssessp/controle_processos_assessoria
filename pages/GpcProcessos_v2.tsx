@@ -362,6 +362,7 @@ const MOVIMENTOS = [
   'CONCLUÍDO',
   'DEVOLVIDO AO CONVENENTE',
   'PARECER EMITIDO',
+  'REANÁLISE',
 ];
 
 // ---- Fluxo Técnico Panel ----
@@ -379,6 +380,7 @@ const ACAO_OPTIONS = [
   'DEVOLUÇÃO',
   'ARQUIVAMENTO',
   'CONCLUSÃO',
+  'REANÁLISE',
 ];
 
 const ACAO_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -394,6 +396,7 @@ const ACAO_COLORS: Record<string, { bg: string; text: string; border: string; do
   'DEVOLUÇÃO':            { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' },
   'ARQUIVAMENTO':         { bg: 'bg-slate-50',   text: 'text-slate-600',   border: 'border-slate-200',   dot: 'bg-slate-400' },
   'CONCLUSÃO':            { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200',   dot: 'bg-green-500' },
+  'REANÁLISE':            { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  dot: 'bg-violet-500' },
 };
 const ACAO_DEF = { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' };
 
@@ -483,13 +486,14 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
   );
 };
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
   signatoryUsers: { id: string; name: string }[];
   responsavelAssinatura?: string | null;
   responsavelAssinatura2?: string | null;
   onRecordUpdated?: () => Promise<void> | void;
+  readOnly?: boolean;
 }) => {
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
   const [loading, setLoading] = useState(true);
@@ -559,47 +563,66 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   return (
     <div className="space-y-4">
       {/* Responsável pela Assinatura */}
-      <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <PenLine size={15} className="text-indigo-500" />
-          <span className="text-sm font-bold text-indigo-800">Responsável pela Assinatura</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className={LABEL}>1º Responsável</label>
-            <select className={INPUT} value={assinatura1} onChange={e => setAssinatura1(e.target.value)}>
-              <option value="">— selecione —</option>
-              {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-            </select>
+      {readOnly ? (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <PenLine size={15} className="text-indigo-500" />
+            <span className="text-sm font-bold text-indigo-800">Responsável pela Assinatura</span>
           </div>
-          <div>
-            <label className={LABEL}>2º Responsável <span className="text-slate-400 font-normal">(opcional)</span></label>
-            <select className={INPUT} value={assinatura2} onChange={e => setAssinatura2(e.target.value)}>
-              <option value="">— nenhum —</option>
-              {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-white border border-indigo-100 rounded-lg p-3">
+              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">1º Responsável</div>
+              <div className="text-sm font-medium text-slate-800">{assinatura1 || <span className="text-slate-300">—</span>}</div>
+            </div>
+            <div className="bg-white border border-indigo-100 rounded-lg p-3">
+              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">2º Responsável</div>
+              <div className="text-sm font-medium text-slate-800">{assinatura2 || <span className="text-slate-300">—</span>}</div>
+            </div>
           </div>
         </div>
-        {assinaturaMsg && (
-          <p className={`text-xs ${assinaturaMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{assinaturaMsg.text}</p>
-        )}
-        {signatoryUsers.length === 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-            Nenhum usuário habilitado para assinar processos. O administrador deve marcar usuários como "Pode assinar processos" no Gerenciamento de Usuários.
-          </p>
-        )}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleSaveAssinatura}
-            disabled={savingAssinatura}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
-          >
-            {savingAssinatura ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            Salvar Responsáveis
-          </button>
+      ) : (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <PenLine size={15} className="text-indigo-500" />
+            <span className="text-sm font-bold text-indigo-800">Responsável pela Assinatura</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL}>1º Responsável</label>
+              <select className={INPUT} value={assinatura1} onChange={e => setAssinatura1(e.target.value)}>
+                <option value="">— selecione —</option>
+                {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>2º Responsável <span className="text-slate-400 font-normal">(opcional)</span></label>
+              <select className={INPUT} value={assinatura2} onChange={e => setAssinatura2(e.target.value)}>
+                <option value="">— nenhum —</option>
+                {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+              </select>
+            </div>
+          </div>
+          {assinaturaMsg && (
+            <p className={`text-xs ${assinaturaMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{assinaturaMsg.text}</p>
+          )}
+          {signatoryUsers.length === 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+              Nenhum usuário habilitado para assinar processos. O administrador deve marcar usuários como "Pode assinar processos" no Gerenciamento de Usuários.
+            </p>
+          )}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveAssinatura}
+              disabled={savingAssinatura}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {savingAssinatura ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Salvar Responsáveis
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Metrics cards */}
       {metrics && (
@@ -656,20 +679,22 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
       )}
 
       {/* New entry form */}
-      <FluxoTecnicoFormInline
-        registroId={registroId}
-        posicoes={posicoes}
-        numPaginas={numPaginas}
-        gpcUsers={gpcUsers}
-        onSaved={async () => { await load(); onRecordUpdated?.(); }}
-      />
+      {!readOnly && (
+        <FluxoTecnicoFormInline
+          registroId={registroId}
+          posicoes={posicoes}
+          numPaginas={numPaginas}
+          gpcUsers={gpcUsers}
+          onSaved={async () => { await load(); onRecordUpdated?.(); }}
+        />
+      )}
 
       {/* Timeline */}
       {items.length === 0 ? (
         <div className="py-10 text-center text-slate-400 text-sm">
           <Activity size={36} className="mx-auto mb-2 opacity-30" />
           <p className="font-medium">Nenhum evento registrado no fluxo técnico</p>
-          <p className="text-xs mt-1">Use o formulário acima para registrar o primeiro evento.</p>
+          {!readOnly && <p className="text-xs mt-1">Use o formulário acima para registrar o primeiro evento.</p>}
         </div>
       ) : (
         <div className="space-y-0">
@@ -744,6 +769,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
                           <p className="mt-1.5 text-xs text-slate-500 italic">{it.obs}</p>
                         )}
                       </div>
+                      {!readOnly && (
                       <button
                         className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
                         onClick={() => handleDelete(it.id)}
@@ -751,6 +777,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
                       >
                         <Trash2 size={12} />
                       </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -871,6 +898,12 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
               <div className="col-span-2">
                 <InfoCard label="Cadastrado em" value={fmtTs(row.created_at)} />
               </div>
+            )}
+            {row.responsavel_assinatura && (
+              <InfoCard label="1º Resp. Assinatura" value={row.responsavel_assinatura} icon={<PenLine size={12} />} />
+            )}
+            {row.responsavel_assinatura_2 && (
+              <InfoCard label="2º Resp. Assinatura" value={row.responsavel_assinatura_2} icon={<PenLine size={12} />} />
             )}
           </div>
 
@@ -1003,6 +1036,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
           responsavelAssinatura={row.responsavel_assinatura}
           responsavelAssinatura2={row.responsavel_assinatura_2}
           onRecordUpdated={onRecordUpdated}
+          readOnly={true}
         />
       )}
 
