@@ -1853,7 +1853,7 @@ const TaForm = ({ processoId, initial, onSave, onClose }: {
 
 // ---- Productivity Page ----
 
-type ProdEvento = { registro_id: number; responsavel: string; evento: string; data_evento: string };
+type ProdEvento = { registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null };
 type Granularity = 'dia' | 'mes' | 'ano' | 'geral';
 
 interface TechStats {
@@ -1897,7 +1897,7 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
   })).sort((a, b) => b.total - a.total);
 }
 
-const ProdutividadePage = () => {
+const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
   const [events, setEvents] = useState<ProdEvento[]>([]);
   const [loading, setLoading] = useState(true);
   const [gran, setGran] = useState<Granularity>('mes');
@@ -1906,6 +1906,7 @@ const ProdutividadePage = () => {
     tecnico: string; total_registros: number; total_paginas: number;
     tempo_medio_dias: number; ultimo_evento: string;
   }[]>([]);
+  const [selectedTech, setSelectedTech] = useState<string | null>(null);
 
   useEffect(() => {
     GpcService.getProdutividadeDetalhado().then(d => { setEvents(d); setLoading(false); });
@@ -1928,7 +1929,6 @@ const ProdutividadePage = () => {
 
   const stats = useMemo(() => computeStats(events, gran, period), [events, gran, period]);
 
-  // Período anterior para comparação
   const prevPeriodStr = useMemo(() => {
     if (gran === 'geral' || !period || period === 'geral') return null;
     if (gran === 'mes') {
@@ -1961,14 +1961,74 @@ const ProdutividadePage = () => {
     total: acc.total + s.total,
   }), { analises: 0, posicoes: 0, movimentos: 0, total: 0 }), [prevStats]);
 
-  const topPerformer = stats[0] ?? null;
+  // Merge stats + fluxoResumo into unified technician objects
+  const technicians = useMemo(() => stats.map(s => {
+    const fluxo = fluxoResumo.find(f => f.tecnico === s.responsavel);
+    return {
+      ...s,
+      paginas: fluxo?.total_paginas ?? 0,
+      tempMedio: fluxo?.tempo_medio_dias ?? 0,
+      ultimoEvento: fluxo?.ultimo_evento ?? null,
+      fluxoRegistros: fluxo?.total_registros ?? 0,
+    };
+  }), [stats, fluxoResumo]);
 
-  if (loading) return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-400" /></div>;
+  // Events filtered to current period (for detail view)
+  const inPeriodEvents = useMemo(() =>
+    gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period),
+    [events, gran, period]);
+
+  // Processes worked by selected technician
+  const techProcesses = useMemo(() => {
+    if (!selectedTech) return [];
+    const techEvts = inPeriodEvents.filter(e => e.responsavel === selectedTech);
+    const map = new Map<number, ProdEvento[]>();
+    for (const e of techEvts) {
+      if (!map.has(e.registro_id)) map.set(e.registro_id, []);
+      map.get(e.registro_id)!.push(e);
+    }
+    return [...map.entries()].map(([rid, evts]) => ({
+      registro_id: rid,
+      rec: allRows.find(r => r.codigo === rid) ?? null,
+      events: evts.sort((a, b) => a.data_evento.localeCompare(b.data_evento)),
+    })).sort((a, b) =>
+      (b.events.at(-1)?.data_evento ?? '').localeCompare(a.events.at(-1)?.data_evento ?? ''));
+  }, [selectedTech, inPeriodEvents, allRows]);
+
+  // XLSX export: summary sheet + detail sheet
+  const exportXLSX = () => {
+    const wb = XLSX.utils.book_new();
+    // Sheet 1: Resumo por técnico
+    const h1 = ['Técnico', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento',
+      'Total de Ações', 'Ações no Fluxo', 'Páginas Analisadas', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
+    const b1 = technicians.map(t => [
+      t.responsavel, t.analises, t.posicoes, t.movimentos, t.total,
+      t.fluxoRegistros, t.paginas,
+      t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0,
+      t.tempMedio,
+      t.ultimoEvento ? fmtTs(t.ultimoEvento) : '',
+    ]);
+    const ws1 = XLSX.utils.aoa_to_sheet([h1, ...b1]);
+    ws1['!cols'] = [25, 20, 20, 24, 14, 14, 18, 16, 17, 20].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por Técnico');
+    // Sheet 2: Detalhamento de eventos
+    const h2 = ['Técnico', 'Data/Hora', 'Evento', 'Descrição', 'Processo', 'Entidade', 'Convênio', 'Exercício', 'Posição Atual'];
+    const evtLbl = (e: string) =>
+      e === 'INICIO_ANALISE' ? 'Início de Análise' : e === 'POSICAO' ? 'Avanço de Posição' : e === 'MOVIMENTO' ? 'Atualização de Movimento' : e;
+    const b2 = inPeriodEvents.map(e => {
+      const rec = allRows.find(r => r.codigo === e.registro_id);
+      return [e.responsavel, fmtTs(e.data_evento), evtLbl(e.evento), e.obs ?? '', rec?.processo ?? '', rec?.entidade ?? '', rec?.convenio ?? '', rec?.exercicio ?? '', rec?.posicao ?? ''];
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet([h2, ...b2]);
+    ws2['!cols'] = [25, 18, 22, 40, 32, 35, 18, 10, 25].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws2, 'Detalhamento de Eventos');
+    XLSX.writeFile(wb, `produtividade_gpc_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const Delta = ({ cur, prev }: { cur: number; prev: number }) => {
     if (!prev || gran === 'geral') return null;
     const d = cur - prev;
-    if (d === 0) return <span className="text-xs text-slate-400 ml-1 font-medium">= mesmo</span>;
+    if (d === 0) return <span className="text-xs text-slate-400 ml-1">= mesmo</span>;
     return (
       <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${d > 0 ? 'text-green-600' : 'text-red-500'}`}>
         {d > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
@@ -1977,6 +2037,19 @@ const ProdutividadePage = () => {
     );
   };
 
+  const evtInfo = (evento: string) => {
+    if (evento === 'INICIO_ANALISE') return { label: 'Início de Análise', cls: 'text-sky-700 bg-sky-50 border-sky-200', dot: 'bg-sky-400' };
+    if (evento === 'POSICAO')        return { label: 'Avanço de Posição', cls: 'text-amber-700 bg-amber-50 border-amber-200', dot: 'bg-amber-400' };
+    if (evento === 'MOVIMENTO')      return { label: 'Atualização de Movimento', cls: 'text-purple-700 bg-purple-50 border-purple-200', dot: 'bg-purple-400' };
+    return { label: evento, cls: 'text-slate-600 bg-slate-50 border-slate-200', dot: 'bg-slate-300' };
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 size={24} className="animate-spin text-blue-400" />
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* Filter bar */}
@@ -1984,98 +2057,68 @@ const ProdutividadePage = () => {
         <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
           {(['dia', 'mes', 'ano', 'geral'] as Granularity[]).map(g => (
             <button key={g} onClick={() => setGran(g)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all capitalize ${gran === g ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === g ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {g === 'dia' ? 'Dia' : g === 'mes' ? 'Mês' : g === 'ano' ? 'Ano' : 'Geral'}
             </button>
           ))}
         </div>
         {gran !== 'geral' && (
-          <select className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <select className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             value={period} onChange={e => setPeriod(e.target.value)}>
             {allPeriods.map(p => <option key={p} value={p}>{fmtPeriodo(p, gran)}</option>)}
           </select>
         )}
         {prevPeriodStr && prevTotals.total > 0 && (
           <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-500">
-            Período anterior: <strong className="text-slate-700">{fmtPeriodo(prevPeriodStr, gran)}</strong>
-            {' · '}<span className="text-slate-600">{prevTotals.total} ações</span>
+            Anterior: <strong className="text-slate-700">{fmtPeriodo(prevPeriodStr, gran)}</strong>
+            {' · '}{prevTotals.total} ações
           </div>
         )}
         <span className="ml-auto text-sm text-slate-400">
           {gran === 'geral' ? 'Todos os períodos' : fmtPeriodo(period, gran)}
           {' · '}<strong className="text-slate-600">{stats.length}</strong> técnico{stats.length !== 1 ? 's' : ''}
         </span>
+        <button
+          onClick={exportXLSX}
+          disabled={!technicians.length}
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm transition-colors disabled:opacity-50"
+        >
+          <Download size={14} />Exportar XLSX
+        </button>
       </div>
 
-      {/* Destaque do período */}
-      {topPerformer && (
-        <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-2xl p-5 flex items-center gap-5 text-white shadow-lg shadow-blue-200">
-          <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
-            <Award size={26} className="text-yellow-300" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[11px] text-blue-200 font-bold uppercase tracking-widest mb-0.5">🏆 Técnico Destaque do Período</div>
-            <div className="text-xl font-extrabold truncate">{topPerformer.responsavel}</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-              <span className="text-xs text-blue-200">{topPerformer.analises} processo{topPerformer.analises !== 1 ? 's' : ''} analisado{topPerformer.analises !== 1 ? 's' : ''}</span>
-              <span className="text-xs text-blue-200">{topPerformer.posicoes} avanço{topPerformer.posicoes !== 1 ? 's' : ''} de posição</span>
-              <span className="text-xs text-blue-200">{topPerformer.movimentos} atualização{topPerformer.movimentos !== 1 ? 'ões' : ''}</span>
-            </div>
-          </div>
-          <div className="text-right flex-shrink-0 border-l border-white/20 pl-5">
-            <div className="text-5xl font-black leading-none tracking-tight">
-              {totals.total > 0 ? `${Math.round((topPerformer.total / totals.total) * 100)}%` : '—'}
-            </div>
-            <div className="text-xs text-blue-200 mt-1">do total de ações</div>
-            <div className="text-sm font-bold mt-0.5 text-blue-100">{topPerformer.total} ações</div>
-          </div>
-        </div>
-      )}
-
-      {/* KPI cards */}
+      {/* KPI totals */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Processos Analisados */}
-        <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center">
-              <Search size={18} className="text-sky-600" />
-            </div>
+        <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4">
+          <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center mb-3">
+            <Search size={18} className="text-sky-600" />
           </div>
           <div className="text-3xl font-black text-sky-700">{totals.analises.toLocaleString('pt-BR')}</div>
           <div className="text-xs font-bold text-slate-600 mt-1">Processos Analisados</div>
           <div className="text-xs text-slate-400 mt-0.5">início de análise no período</div>
           <Delta cur={totals.analises} prev={prevTotals.analises} />
         </div>
-        {/* Avanços de Posição */}
-        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-              <TrendingUp size={18} className="text-amber-600" />
-            </div>
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm px-5 py-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center mb-3">
+            <TrendingUp size={18} className="text-amber-600" />
           </div>
           <div className="text-3xl font-black text-amber-700">{totals.posicoes.toLocaleString('pt-BR')}</div>
           <div className="text-xs font-bold text-slate-600 mt-1">Avanços de Posição</div>
           <div className="text-xs text-slate-400 mt-0.5">posições movimentadas</div>
           <Delta cur={totals.posicoes} prev={prevTotals.posicoes} />
         </div>
-        {/* Atualizações de Movimento */}
-        <div className="bg-white rounded-2xl border border-purple-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-              <Activity size={18} className="text-purple-600" />
-            </div>
+        <div className="bg-white rounded-2xl border border-purple-100 shadow-sm px-5 py-4">
+          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mb-3">
+            <Activity size={18} className="text-purple-600" />
           </div>
           <div className="text-3xl font-black text-purple-700">{totals.movimentos.toLocaleString('pt-BR')}</div>
           <div className="text-xs font-bold text-slate-600 mt-1">Atualizações de Movimento</div>
           <div className="text-xs text-slate-400 mt-0.5">estágios registrados</div>
           <Delta cur={totals.movimentos} prev={prevTotals.movimentos} />
         </div>
-        {/* Total de Ações */}
-        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <BarChart2 size={18} className="text-blue-600" />
-            </div>
+        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3">
+            <BarChart2 size={18} className="text-blue-600" />
           </div>
           <div className="text-3xl font-black text-blue-700">{totals.total.toLocaleString('pt-BR')}</div>
           <div className="text-xs font-bold text-slate-600 mt-1">Total de Ações</div>
@@ -2084,124 +2127,102 @@ const ProdutividadePage = () => {
         </div>
       </div>
 
-      {/* Tabela por técnico */}
-      {!stats.length ? (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
-          <TrendingUp size={40} className="mx-auto mb-3 text-slate-200" />
+      {/* Technician cards */}
+      {!technicians.length ? (
+        <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center">
+          <BarChart2 size={40} className="mx-auto mb-3 text-slate-200" />
           <p className="text-slate-400 text-sm font-medium">Nenhuma atividade registrada neste período.</p>
           <p className="text-slate-300 text-xs mt-1">Selecione outro período ou altere a granularidade.</p>
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-              <BarChart2 size={15} className="text-slate-400" />
-              <span className="text-sm font-bold text-slate-700">Atividade por Técnico</span>
-              <span className="ml-auto text-xs text-slate-400">{stats.length} técnico{stats.length !== 1 ? 's' : ''} ativos no período</span>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 w-10">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-sky-600 uppercase tracking-wider"
-                    title="Número de processos distintos onde o técnico registrou início de análise">
-                    <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />Analisados</span>
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider"
-                    title="Número de vezes que o técnico movimentou a posição de um processo">
-                    <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Posições</span>
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider"
-                    title="Número de movimentos/estágios registrados pelo técnico">
-                    <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />Movimentos</span>
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-blue-600 uppercase tracking-wider">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider min-w-[160px]"
-                    title="Distribuição percentual das atividades (azul=análises, laranja=posições, roxo=movimentos)">
-                    Composição
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {stats.map((s, idx) => {
-                  const pct = totals.total > 0 ? Math.round((s.total / totals.total) * 100) : 0;
-                  const total = s.analises + s.posicoes + s.movimentos;
-                  const rankClr = ['text-yellow-500', 'text-slate-400', 'text-amber-600'];
-                  const avatarGrad = idx === 0 ? 'from-yellow-400 to-amber-500' : idx === 1 ? 'from-slate-300 to-slate-400' : idx === 2 ? 'from-amber-500 to-amber-700' : 'from-blue-400 to-blue-600';
-                  return (
-                    <tr key={s.responsavel} className={`hover:bg-blue-50/30 transition-colors ${idx === 0 ? 'bg-yellow-50/30' : ''}`}>
-                      <td className="px-3 py-3 text-center">
-                        {idx < 3
-                          ? <span className={`text-sm font-black ${rankClr[idx]}`}>#{idx + 1}</span>
-                          : <span className="text-xs text-slate-400 font-medium">{idx + 1}</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGrad} text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0`}>
-                            {s.responsavel.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className={`font-semibold ${idx === 0 ? 'text-amber-800' : 'text-slate-800'}`}>{s.responsavel}</div>
-                            {idx === 0 && <div className="text-xs text-amber-600 flex items-center gap-1"><Award size={10} />Destaque do período</div>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-block px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-bold">{s.analises}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-block px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">{s.posicoes}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.movimentos}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">{s.total}</span>
-                          <span className="text-xs text-slate-400 font-semibold">{pct}%</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1.5">
-                          {total > 0 ? (
-                            <div className="flex h-3 rounded-full overflow-hidden gap-px" title={`${s.analises} análises · ${s.posicoes} posições · ${s.movimentos} movimentos`}>
-                              {s.analises   > 0 && <div style={{ width: `${(s.analises / total) * 100}%`   }} className="bg-sky-400" />}
-                              {s.posicoes   > 0 && <div style={{ width: `${(s.posicoes / total) * 100}%`   }} className="bg-amber-400" />}
-                              {s.movimentos > 0 && <div style={{ width: `${(s.movimentos / total) * 100}%` }} className="bg-purple-400" />}
-                            </div>
-                          ) : <div className="h-3 rounded-full bg-slate-100" />}
-                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600" style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="border-t-2 border-slate-200 bg-slate-50">
-                <tr>
-                  <td className="px-3 py-3" />
-                  <td className="px-4 py-3 text-sm font-bold text-slate-700">Total geral</td>
-                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-bold">{totals.analises}</span></td>
-                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">{totals.posicoes}</span></td>
-                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold">{totals.movimentos}</span></td>
-                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-bold">{totals.total}</span></td>
-                  <td className="px-4 py-3">
-                    <div className="flex h-3 rounded-full overflow-hidden gap-px">
-                      {totals.analises   > 0 && <div style={{ width: `${(totals.analises   / totals.total) * 100}%` }} className="bg-sky-400" />}
-                      {totals.posicoes   > 0 && <div style={{ width: `${(totals.posicoes   / totals.total) * 100}%` }} className="bg-amber-400" />}
-                      {totals.movimentos > 0 && <div style={{ width: `${(totals.movimentos / totals.total) * 100}%` }} className="bg-purple-400" />}
-                    </div>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+          <div className="flex items-center gap-2 px-1">
+            <User size={14} className="text-slate-400" />
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Atividade por Técnico</span>
+            <span className="text-xs text-slate-400 ml-1">— clique em um card para ver os processos detalhados</span>
           </div>
-          {/* Legenda */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {technicians.map(t => {
+              const totalComposition = t.analises + t.posicoes + t.movimentos;
+              const pct = totals.total > 0 ? Math.round((t.total / totals.total) * 100) : 0;
+              const efic = t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0;
+              const diasUltimo = t.ultimoEvento
+                ? Math.round((Date.now() - new Date(t.ultimoEvento).getTime()) / 86400000)
+                : null;
+              return (
+                <button
+                  key={t.responsavel}
+                  onClick={() => setSelectedTech(t.responsavel)}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md hover:border-blue-200 transition-all text-left group"
+                >
+                  {/* Card header */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-xl font-black flex-shrink-0 shadow-sm">
+                      {t.responsavel.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-slate-800 truncate">{t.responsavel}</div>
+                      {diasUltimo !== null && (
+                        <div className={`text-xs mt-0.5 ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
+                          {diasUltimo === 0 ? '● Ativo hoje' : `Ativo há ${diasUltimo} dia${diasUltimo !== 1 ? 's' : ''}`}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-slate-300 group-hover:text-blue-500 transition-colors flex-shrink-0">{pct}%</span>
+                  </div>
+                  {/* Main metrics */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-sky-50 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-black text-sky-700">{t.analises}</div>
+                      <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wide leading-tight mt-0.5">Analisados</div>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-black text-amber-700">{t.posicoes}</div>
+                      <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide leading-tight mt-0.5">Posições</div>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-2.5 text-center">
+                      <div className="text-lg font-black text-purple-700">{t.movimentos}</div>
+                      <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide leading-tight mt-0.5">Movimentos</div>
+                    </div>
+                  </div>
+                  {/* Secondary metrics */}
+                  <div className="grid grid-cols-3 gap-0 text-center border border-slate-100 rounded-xl overflow-hidden mb-3">
+                    <div className="py-2 px-1 border-r border-slate-100">
+                      <div className="text-sm font-black text-slate-700">{t.paginas > 0 ? t.paginas.toLocaleString('pt-BR') : '—'}</div>
+                      <div className="text-[10px] text-slate-400 leading-tight">Páginas</div>
+                    </div>
+                    <div className="py-2 px-1 border-r border-slate-100">
+                      <div className="text-sm font-black text-slate-700">{efic > 0 ? `${efic}` : '—'}</div>
+                      <div className="text-[10px] text-slate-400 leading-tight">pág/ação</div>
+                    </div>
+                    <div className="py-2 px-1">
+                      <div className={`text-sm font-black ${t.tempMedio === 0 ? 'text-slate-400' : t.tempMedio <= 5 ? 'text-green-600' : t.tempMedio <= 15 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {t.tempMedio > 0 ? `${t.tempMedio}d` : '—'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 leading-tight">tempo médio</div>
+                    </div>
+                  </div>
+                  {/* Composition bar */}
+                  {totalComposition > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
+                        {t.analises   > 0 && <div style={{ width: `${(t.analises   / totalComposition) * 100}%` }} className="bg-sky-400" />}
+                        {t.posicoes   > 0 && <div style={{ width: `${(t.posicoes   / totalComposition) * 100}%` }} className="bg-amber-400" />}
+                        {t.movimentos > 0 && <div style={{ width: `${(t.movimentos / totalComposition) * 100}%` }} className="bg-purple-400" />}
+                      </div>
+                      <div className="flex h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="text-[10px] text-slate-400">Participação no total do período</div>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {/* Legend */}
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 px-1">
-            <span className="font-semibold text-slate-500">Legenda da composição:</span>
+            <span className="font-semibold text-slate-500">Composição das barras:</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-sky-400 inline-block" />Processos analisados</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-amber-400 inline-block" />Avanços de posição</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-purple-400 inline-block" />Atualizações de movimento</span>
@@ -2209,118 +2230,139 @@ const ProdutividadePage = () => {
         </>
       )}
 
-      {/* Fluxo Técnico — Desempenho detalhado */}
-      {fluxoResumo.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-start gap-2">
-            <Activity size={16} className="text-indigo-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Fluxo Técnico — Desempenho Detalhado</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Baseado nos eventos registrados no fluxo técnico de cada processo individualmente</p>
+      {/* Technician detail drawer */}
+      {selectedTech && (() => {
+        const st = technicians.find(t => t.responsavel === selectedTech);
+        const efic = (st?.fluxoRegistros ?? 0) > 0 ? Math.round((st?.paginas ?? 0) / (st?.fluxoRegistros ?? 1)) : 0;
+        return (
+          <div className="fixed inset-0 z-50 flex">
+            <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedTech(null)} />
+            <div className="w-full max-w-2xl bg-white h-full flex flex-col overflow-hidden shadow-2xl">
+              {/* Drawer header */}
+              <div className="flex items-center gap-4 p-5 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-2xl font-black shadow-md flex-shrink-0">
+                  {selectedTech.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black text-slate-800 text-lg leading-tight truncate">{selectedTech}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{gran === 'geral' ? 'Todos os períodos' : fmtPeriodo(period, gran)}</div>
+                </div>
+                <button onClick={() => setSelectedTech(null)} className="p-2 rounded-xl hover:bg-white text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
+                  <X size={18} />
+                </button>
+              </div>
+              {/* Summary metrics */}
+              {st && (
+                <>
+                  <div className="grid grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 flex-shrink-0">
+                    {[
+                      { label: 'Analisados', value: st.analises, color: 'text-sky-700', bg: 'bg-sky-50' },
+                      { label: 'Posições', value: st.posicoes, color: 'text-amber-700', bg: 'bg-amber-50' },
+                      { label: 'Movimentos', value: st.movimentos, color: 'text-purple-700', bg: 'bg-purple-50' },
+                      { label: 'Total', value: st.total, color: 'text-blue-700', bg: 'bg-blue-50' },
+                    ].map(m => (
+                      <div key={m.label} className={`${m.bg} py-3 text-center`}>
+                        <div className={`text-2xl font-black ${m.color}`}>{m.value}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {(st.paginas > 0 || st.tempMedio > 0) && (
+                    <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 flex-shrink-0">
+                      <div className="py-3 text-center">
+                        <div className="text-lg font-black text-slate-700">{st.paginas.toLocaleString('pt-BR')}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Páginas Analisadas</div>
+                      </div>
+                      <div className="py-3 text-center">
+                        <div className="text-lg font-black text-slate-700">{efic > 0 ? `${efic}` : '—'}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Pág / Ação no Fluxo</div>
+                      </div>
+                      <div className="py-3 text-center">
+                        <div className={`text-lg font-black ${st.tempMedio === 0 ? 'text-slate-400' : st.tempMedio <= 5 ? 'text-green-600' : st.tempMedio <= 15 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {st.tempMedio === 0 ? '< 1 dia' : `${st.tempMedio} dia${st.tempMedio !== 1 ? 's' : ''}`}
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                          {st.tempMedio <= 5 ? '✓ Tempo Rápido' : st.tempMedio <= 15 ? '~ Tempo Regular' : '! Tempo Lento'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Process list */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {techProcesses.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Search size={32} className="mx-auto mb-3 text-slate-200" />
+                    <p className="text-slate-400 text-sm">Nenhum processo encontrado para este período.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      {techProcesses.length} processo{techProcesses.length !== 1 ? 's' : ''} trabalhado{techProcesses.length !== 1 ? 's' : ''} no período
+                    </div>
+                    {techProcesses.map(p => (
+                      <div key={p.registro_id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        {/* Process header */}
+                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100">
+                          <div className="flex items-start gap-3">
+                            <FileText size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-blue-700 font-mono text-sm leading-tight">
+                                {p.rec?.processo ?? `Registro #${p.registro_id}`}
+                              </div>
+                              {p.rec?.entidade && (
+                                <div className="text-xs text-slate-600 mt-0.5 truncate">{p.rec.entidade}</div>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-1.5">
+                                {p.rec?.convenio && (
+                                  <span className="text-xs text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">Conv. {p.rec.convenio}</span>
+                                )}
+                                {p.rec?.exercicio && (
+                                  <span className="text-xs text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">Exerc. {p.rec.exercicio}</span>
+                                )}
+                                {p.rec?.posicao && (
+                                  <span className="text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded px-1.5 py-0.5">{p.rec.posicao}</span>
+                                )}
+                                {p.rec?.responsavel && (
+                                  <span className="text-xs bg-slate-50 border border-slate-200 text-slate-600 rounded px-1.5 py-0.5">Resp: {p.rec.responsavel}</span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-xs text-slate-400 flex-shrink-0 bg-slate-100 rounded-lg px-2 py-1">
+                              {p.events.length} evento{p.events.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Events timeline */}
+                        <div className="px-4 py-3 space-y-2.5">
+                          {p.events.map((e, i) => {
+                            const { label, cls, dot } = evtInfo(e.evento);
+                            return (
+                              <div key={i} className="flex items-start gap-2.5">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dot}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md border ${cls}`}>{label}</span>
+                                    <span className="text-xs text-slate-400">{fmtTs(e.data_evento)}</span>
+                                  </div>
+                                  {e.obs && (
+                                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">{e.obs}</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider"
-                    title="Total de ações registradas no fluxo técnico dos processos">Ações no Fluxo</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider"
-                    title="Total de páginas processadas/analisadas nos eventos">Páginas Analisadas</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-cyan-600 uppercase tracking-wider"
-                    title="Média de páginas por ação registrada — indica a densidade de trabalho">Efic. (pág/ação)</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider"
-                    title="Média de dias entre eventos consecutivos. Verde ≤5 dias (rápido), Amarelo ≤15 (regular), Vermelho >15 (lento)">Tempo Médio</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Último Registro</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-36">Produtividade Rel.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {fluxoResumo.map((s, idx) => {
-                  const maxRegs = Math.max(...fluxoResumo.map(f => f.total_registros), 1);
-                  const pct = Math.round((s.total_registros / maxRegs) * 100);
-                  const efic = s.total_registros > 0 ? Math.round(s.total_paginas / s.total_registros) : 0;
-                  const diasUltimo = s.ultimo_evento
-                    ? Math.round((Date.now() - new Date(s.ultimo_evento).getTime()) / 86400000)
-                    : null;
-                  return (
-                    <tr key={s.tecnico} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0 ${idx === 0 ? 'bg-gradient-to-br from-indigo-500 to-indigo-700' : 'bg-gradient-to-br from-indigo-300 to-indigo-500'}`}>
-                            {s.tecnico.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-800">{s.tecnico}</div>
-                            {diasUltimo !== null && (
-                              <div className={`text-xs mt-0.5 ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
-                                {diasUltimo === 0 ? '● Ativo hoje' : `Ativo há ${diasUltimo} dia${diasUltimo !== 1 ? 's' : ''}`}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-block px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">{s.total_registros}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.total_paginas.toLocaleString('pt-BR')}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${efic >= 100 ? 'bg-cyan-100 text-cyan-700' : efic >= 30 ? 'bg-blue-100 text-blue-700' : efic > 0 ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-400'}`}>
-                          {efic > 0 ? `${efic} pág/ação` : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${s.tempo_medio_dias === 0 ? 'bg-slate-100 text-slate-500' : s.tempo_medio_dias <= 5 ? 'bg-green-100 text-green-700' : s.tempo_medio_dias <= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                            {s.tempo_medio_dias === 0 ? '< 1 dia' : `${s.tempo_medio_dias} dia${s.tempo_medio_dias !== 1 ? 's' : ''}`}
-                          </span>
-                          <span className={`text-xs ${s.tempo_medio_dias === 0 || s.tempo_medio_dias <= 5 ? 'text-green-500' : s.tempo_medio_dias <= 15 ? 'text-amber-500' : 'text-red-400'}`}>
-                            {s.tempo_medio_dias <= 5 ? 'Rápido' : s.tempo_medio_dias <= 15 ? 'Regular' : 'Lento'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{fmtTs(s.ultimo_evento)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-xs font-bold text-slate-500 w-9 text-right">{pct}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="border-t-2 border-slate-200 bg-slate-50">
-                <tr>
-                  <td className="px-4 py-3 text-sm font-bold text-slate-600">Total</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="inline-block px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">
-                      {fluxoResumo.reduce((s, r) => s + r.total_registros, 0)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold">
-                      {fluxoResumo.reduce((s, r) => s + r.total_paginas, 0).toLocaleString('pt-BR')}
-                    </span>
-                  </td>
-                  <td colSpan={4} className="px-4 py-3" />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 px-1">
-            <span className="font-semibold text-slate-500">Tempo Médio entre eventos:</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Rápido ≤5 dias</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />Regular ≤15 dias</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />Lento &gt;15 dias</span>
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
@@ -2811,7 +2853,7 @@ export const GpcProcessos = () => {
         </button>
       </div>
 
-      {mainTab === 'produtividade' && <ProdutividadePage />}
+      {mainTab === 'produtividade' && <ProdutividadePage rows={rows} />}
 
       {(mainTab === 'registros' || mainTab === 'parcelamentos') && (
         <>

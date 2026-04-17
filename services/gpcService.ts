@@ -494,10 +494,10 @@ export const GpcService = {
     }).sort((a, b) => b.mes.localeCompare(a.mes) || b.count - a.count);
   },
 
-  getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string }[]> => {
+  getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null }[]> => {
     const { data, error } = await supabase
       .from('cgof_gpc_produtividade')
-      .select('registro_id, responsavel, evento, data_evento')
+      .select('registro_id, responsavel, evento, data_evento, obs')
       .not('responsavel', 'is', null)
       .in('evento', ['INICIO_ANALISE', 'POSICAO', 'MOVIMENTO'])
       .order('data_evento', { ascending: true });
