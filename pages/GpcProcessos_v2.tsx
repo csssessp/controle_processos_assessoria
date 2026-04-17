@@ -514,7 +514,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
   );
 };
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
   signatoryUsers: { id: string; name: string }[];
@@ -522,6 +522,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   responsavelAssinatura2?: string | null;
   onRecordUpdated?: () => Promise<void> | void;
   readOnly?: boolean;
+  hideAssinatura?: boolean;
 }) => {
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
   const [loading, setLoading] = useState(true);
@@ -591,7 +592,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   return (
     <div className="space-y-4">
       {/* Responsável pela Assinatura */}
-      {readOnly ? (
+      {readOnly && !hideAssinatura ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
           <div className="flex items-center gap-2 mb-3">
             <PenLine size={15} className="text-indigo-500" />
@@ -608,7 +609,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
             </div>
           </div>
         </div>
-      ) : (
+      ) : !readOnly ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <PenLine size={15} className="text-indigo-500" />
@@ -650,7 +651,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Metrics cards */}
       {metrics && (
@@ -828,7 +829,6 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
   prevPositions: string[];
   onRecordUpdated?: () => Promise<void> | void;
 }) => {
-  const [tab, setTab] = useState<'dados' | 'tecnico' | 'prod'>('dados');
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
@@ -845,75 +845,56 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
     GpcService.getSignatoryUsers().then(setSignatoryUsers);
   }, []);
 
+  // Compact section header helper
+  const Sec = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="text-slate-400">{icon}</span>
+      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</span>
+      <div className="flex-1 h-px bg-slate-100" />
+    </div>
+  );
+
   return (
     <Modal
       title={row.processo ?? `#${row.codigo}`}
       subtitle={row.entidade ?? undefined}
       onClose={onClose}
-      size="lg"
+      size="xl"
     >
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-slate-100 mb-5 -mt-2">
-        <button
-          onClick={() => setTab('dados')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${tab === 'dados' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          <FileText size={12} />Detalhes
+      {/* Edit button */}
+      <div className="flex justify-end -mt-2 mb-4">
+        <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={onEdit}>
+          <Edit size={13} />Editar
         </button>
-        <button
-          onClick={() => setTab('tecnico')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${tab === 'tecnico' ? 'border-indigo-500 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          <Activity size={12} />Fluxo Técnico
-        </button>
-        <button
-          onClick={() => setTab('prod')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${tab === 'prod' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          <TrendingUp size={12} />Produtividade
-        </button>
-        <div className="ml-auto flex items-center pb-1">
-          <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={onEdit}>
-            <Edit size={13} />Editar
-          </button>
-        </div>
       </div>
 
-      {tab === 'dados' && (
-        <div className="space-y-4">
-          {/* Process number full highlight */}
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-            <div className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-1">
-              Número do Processo
-            </div>
-            <div className="text-lg font-bold text-blue-800 font-mono break-all">
-              {row.processo ?? '-'}
-            </div>
-          </div>
+      <div className="space-y-5 max-h-[72vh] overflow-y-auto pr-1">
 
-          {/* Info grid — all fields */}
-          <div className="grid grid-cols-2 gap-3">
+        {/* ── Identificação ── */}
+        <section>
+          <Sec icon={<FileText size={13} />} title="Identificação" />
+          <div className="font-mono text-sm font-bold text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-3 break-all select-all">
+            {row.processo ?? '-'}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <InfoCard label="Convênio" value={row.convenio} />
             <InfoCard label="Exercício" value={row.exercicio} />
             <InfoCard label="DRS" value={row.drs != null ? String(row.drs) : null} />
-            <InfoCard label="Data Recebimento" value={fmtDate(row.data)} />
+            <InfoCard label="Recebimento" value={fmtDate(row.data)} />
             <InfoCard label="Responsável" value={row.responsavel} icon={<User size={12} />} />
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-1.5">
-                Posição Atual
-              </div>
+              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-1.5">Posição</div>
               <PosicaoBadge id={row.posicao_id} label={row.posicao ?? null} />
             </div>
             <InfoCard label="Movimento" value={row.movimento} />
             <InfoCard label="Entidade" value={row.entidade} />
-            <InfoCard
-              label="Remessa"
-              value={row.remessa === 'ACIMA' ? 'Acima de Remessa' : row.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : null}
-            />
+            {row.remessa && (
+              <InfoCard label="Remessa" value={row.remessa === 'ACIMA' ? 'Acima de Remessa' : 'Abaixo de Remessa'} />
+            )}
             <InfoCard label="Parcelamento" value={row.is_parcelamento ? 'Sim' : 'Não'} />
             {(row.num_paginas ?? 0) > 0 && (
               <InfoCard
-                label="Nº de Páginas"
+                label="Páginas"
                 value={`${row.num_paginas} — ${
                   (row.num_paginas ?? 0) <= 50 ? 'Complexidade Baixa' :
                   (row.num_paginas ?? 0) <= 200 ? 'Complexidade Média' :
@@ -922,71 +903,74 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                 icon={<BookOpen size={12} />}
               />
             )}
-            {row.created_at && (
-              <div className="col-span-2">
-                <InfoCard label="Cadastrado em" value={fmtTs(row.created_at)} />
-              </div>
-            )}
-            {row.responsavel_assinatura && (
-              <InfoCard label="1º Resp. Assinatura" value={row.responsavel_assinatura} icon={<PenLine size={12} />} />
-            )}
-            {row.responsavel_assinatura_2 && (
-              <InfoCard label="2º Resp. Assinatura" value={row.responsavel_assinatura_2} icon={<PenLine size={12} />} />
-            )}
+            {row.created_at && <InfoCard label="Cadastrado em" value={fmtTs(row.created_at)} />}
           </div>
+        </section>
 
-          {/* Situação do Processo */}
+        {/* ── Responsáveis pela Assinatura ── */}
+        <section>
+          <Sec icon={<PenLine size={13} />} title="Responsáveis pela Assinatura" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
+              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">1º Responsável</div>
+              <div className="text-sm font-medium text-slate-800">
+                {row.responsavel_assinatura || <span className="text-slate-300">—</span>}
+              </div>
+            </div>
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
+              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">2º Responsável</div>
+              <div className="text-sm font-medium text-slate-800">
+                {row.responsavel_assinatura_2 || <span className="text-slate-300">—</span>}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Situação do Processo ── */}
+        <section>
+          <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
           {row.situacao ? (
             <div className={`rounded-xl p-4 border ${
               row.situacao === 'REGULAR' ? 'bg-green-50 border-green-200' :
               row.situacao === 'IRREGULAR' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
             }`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  {row.situacao === 'REGULAR'
-                    ? <ShieldCheck size={16} className="text-green-600" />
-                    : row.situacao === 'IRREGULAR'
-                      ? <ShieldAlert size={16} className="text-red-600" />
-                      : <ShieldOff size={16} className="text-amber-600" />}
-                  <span className={`font-bold text-sm ${
-                    row.situacao === 'REGULAR' ? 'text-green-800' :
-                    row.situacao === 'IRREGULAR' ? 'text-red-800' : 'text-amber-800'
-                  }`}>Situação do Processo</span>
-                </div>
+              <div className="flex items-center gap-2 mb-2">
+                {row.situacao === 'REGULAR'
+                  ? <ShieldCheck size={15} className="text-green-600" />
+                  : row.situacao === 'IRREGULAR'
+                    ? <ShieldAlert size={15} className="text-red-600" />
+                    : <ShieldOff size={15} className="text-amber-600" />}
                 <SituacaoBadge situacao={row.situacao} />
               </div>
               {row.situacao === 'REGULAR' && (
-                <p className="text-sm text-green-700">Processo sem pendências financeiras — prestação de contas regular.</p>
+                <p className="text-sm text-green-700">Processo sem pendências financeiras.</p>
               )}
               {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  <div className="bg-white/70 rounded-lg p-3 border border-current/10">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-1">Valor a Devolver</div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div className="bg-white/70 rounded-lg p-2.5 border border-current/10">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-0.5">Valor a Devolver</div>
                     <div className="text-sm font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : '—'}</div>
                   </div>
-                  <div className="bg-white/70 rounded-lg p-3 border border-current/10">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-green-600 mb-1">Valor já Devolvido</div>
+                  <div className="bg-white/70 rounded-lg p-2.5 border border-current/10">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-green-600 mb-0.5">Já Devolvido</div>
                     <div className="text-sm font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : '—'}</div>
                   </div>
-                  {(row.valor_a_devolver ?? 0) > 0 && (
-                    <div className="col-span-2 bg-white/70 rounded-lg p-3 border border-current/10">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Saldo Pendente</div>
-                      {(() => {
-                        const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
-                        return (
-                          <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {fmt(saldo)}
-                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">✓ Quitado</span>}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
+                  {(row.valor_a_devolver ?? 0) > 0 && (() => {
+                    const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
+                    return (
+                      <div className="col-span-2 bg-white/70 rounded-lg p-2.5 border border-current/10 flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Pendente</span>
+                        <span className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          {fmt(saldo)}{saldo <= 0 && <span className="ml-1.5 text-xs text-green-600 font-normal">✓ Quitado</span>}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {row.situacao_obs && (
                 <div className="mt-3 pt-3 border-t border-current/10">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Observações</div>
+                  <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Observações</p>
                   <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
                 </div>
               )}
@@ -998,141 +982,130 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
               <button className="ml-auto text-xs text-blue-500 hover:text-blue-700 font-semibold" onClick={onEdit}>Avaliar agora →</button>
             </div>
           )}
+        </section>
 
-          {/* Link */}
-          {row.link_processo && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-              <div className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-1 flex items-center gap-1">
-                <LinkIcon size={11} />Link do Processo
-              </div>
-              <a
-                href={row.link_processo}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-700 hover:text-blue-900 font-medium flex items-center gap-1.5 break-all text-sm"
-              >
-                <ExternalLink size={14} className="flex-shrink-0" />{row.link_processo}
-              </a>
+        {/* ── Fluxo Técnico ── */}
+        <section>
+          <Sec icon={<Activity size={13} />} title="Fluxo Técnico" />
+          <FluxoTecnicoPanel
+            registroId={row.codigo}
+            posicoes={posicoes}
+            numPaginas={row.num_paginas}
+            gpcUsers={gpcUsers}
+            signatoryUsers={signatoryUsers}
+            responsavelAssinatura={row.responsavel_assinatura}
+            responsavelAssinatura2={row.responsavel_assinatura_2}
+            onRecordUpdated={onRecordUpdated}
+            readOnly={true}
+            hideAssinatura={true}
+          />
+        </section>
+
+        {/* ── Histórico de Atribuições ── */}
+        <section>
+          <Sec icon={<TrendingUp size={13} />} title="Histórico de Atribuições" />
+          <ProdPanel registroId={row.codigo} />
+        </section>
+
+        {/* ── Link ── */}
+        {row.link_processo && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <div className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-1 flex items-center gap-1">
+              <LinkIcon size={11} />Link do Processo
             </div>
-          )}
+            <a
+              href={row.link_processo}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 hover:text-blue-900 font-medium flex items-center gap-1.5 break-all text-sm"
+            >
+              <ExternalLink size={14} className="flex-shrink-0" />{row.link_processo}
+            </a>
+          </div>
+        )}
 
-          {/* Full processo data */}
-          {loadingFull && (
-            <div className="flex items-center gap-2 py-3 text-slate-400 text-xs">
-              <Loader2 size={13} className="animate-spin" />Carregando dados adicionais...
-            </div>
-          )}
-          {full && (
-            <div className="space-y-3">
-              {/* Exercícios */}
-              {(full.exercicios?.length ?? 0) > 0 && (
-                <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-                  <div className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2 flex items-center gap-1">
-                    <Calendar size={11} />Exercícios ({full.exercicios!.length})
-                  </div>
-                  <div className="space-y-1">
-                    {full.exercicios!.map(ex => (
-                      <div key={ex.codigo} className="grid grid-cols-4 gap-2 text-xs">
-                        <span className="font-bold text-slate-700">{ex.exercicio}</span>
-                        <span className="text-slate-500">Rep: <span className="text-green-700 font-medium">{fmt(ex.repasse)}</span></span>
-                        <span className="text-slate-500">Apl: <span className="font-medium">{fmt(ex.aplicacao)}</span></span>
-                        <span className="text-slate-500">Dev: <span className="font-medium">{fmt(ex.devolvido)}</span></span>
-                      </div>
-                    ))}
-                    <div className="border-t border-green-200 pt-1 flex justify-between text-xs font-bold">
-                      <span className="text-slate-600">Total Repasse</span>
-                      <span className="text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Histórico (últimos 3) */}
-              {(full.historicos?.length ?? 0) > 0 && (
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-                    <Activity size={11} />Histórico — {full.historicos!.length} movimento{full.historicos!.length !== 1 ? 's' : ''}
-                  </div>
-                  <div className="space-y-1">
-                    {full.historicos!.slice(-5).map(h => (
-                      <div key={h.codigo} className="flex items-center gap-2 text-xs py-0.5">
-                        <span className="text-slate-400 whitespace-nowrap w-20 flex-shrink-0">{fmtDate(h.data)}</span>
-                        <span className="text-slate-700 font-medium truncate">{h.movimento ?? '-'}</span>
-                        {h.posicao && (
-                          <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-medium">{h.posicao}</span>
-                        )}
-                        {h.responsavel && (
-                          <span className="flex-shrink-0 text-slate-400 flex items-center gap-0.5"><User size={9} />{h.responsavel}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Objetos, Parcelamentos, TAs summary */}
+        {/* ── Dados do Processo (assíncronos) ── */}
+        {loadingFull && (
+          <div className="flex items-center gap-2 py-3 text-slate-400 text-xs">
+            <Loader2 size={13} className="animate-spin" />Carregando dados adicionais...
+          </div>
+        )}
+        {full && (
+          <div className="space-y-4">
+            <section>
+              <Sec icon={<BookOpen size={13} />} title="Resumo Financeiro" />
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
                   <div className="text-xl font-bold text-blue-700">{full.objetos?.length ?? 0}</div>
                   <div className="text-xs text-blue-500 mt-0.5">Objetos</div>
-                  {(full.objetos?.length ?? 0) > 0 && (
-                    <div className="text-xs text-blue-600 font-semibold mt-1">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>
-                  )}
+                  {(full.objetos?.length ?? 0) > 0 && <div className="text-xs text-blue-600 font-semibold mt-0.5">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>}
                 </div>
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                   <div className="text-xl font-bold text-amber-700">{full.parcelamentos?.length ?? 0}</div>
                   <div className="text-xs text-amber-500 mt-0.5">Parcelamentos</div>
-                  {(full.parcelamentos?.length ?? 0) > 0 && (
-                    <div className="text-xs text-amber-600 font-semibold mt-1">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>
-                  )}
+                  {(full.parcelamentos?.length ?? 0) > 0 && <div className="text-xs text-amber-600 font-semibold mt-0.5">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>}
                 </div>
                 <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
                   <div className="text-xl font-bold text-purple-700">{full.tas?.length ?? 0}</div>
                   <div className="text-xs text-purple-500 mt-0.5">TAs</div>
-                  {(full.tas?.length ?? 0) > 0 && (
-                    <div className="text-xs text-purple-600 font-semibold mt-1">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>
-                  )}
+                  {(full.tas?.length ?? 0) > 0 && <div className="text-xs text-purple-600 font-semibold mt-0.5">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>}
                 </div>
               </div>
+            </section>
+
+            {(full.exercicios?.length ?? 0) > 0 && (
+              <section>
+                <Sec icon={<Calendar size={13} />} title={`Exercícios (${full.exercicios!.length})`} />
+                <div className="bg-green-50 border border-green-100 rounded-xl p-3 space-y-1">
+                  {full.exercicios!.map(ex => (
+                    <div key={ex.codigo} className="grid grid-cols-4 gap-2 text-xs">
+                      <span className="font-bold text-slate-700">{ex.exercicio}</span>
+                      <span className="text-slate-500">Rep: <span className="text-green-700 font-medium">{fmt(ex.repasse)}</span></span>
+                      <span className="text-slate-500">Apl: <span className="font-medium">{fmt(ex.aplicacao)}</span></span>
+                      <span className="text-slate-500">Dev: <span className="font-medium">{fmt(ex.devolvido)}</span></span>
+                    </div>
+                  ))}
+                  <div className="border-t border-green-200 pt-1 flex justify-between text-xs font-bold">
+                    <span className="text-slate-600">Total Repasse</span>
+                    <span className="text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</span>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {(full.historicos?.length ?? 0) > 0 && (
+              <section>
+                <Sec icon={<Clock size={13} />} title={`Histórico de Movimentos (${full.historicos!.length})`} />
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1">
+                  {full.historicos!.slice(-5).map(h => (
+                    <div key={h.codigo} className="flex items-center gap-2 text-xs py-0.5">
+                      <span className="text-slate-400 whitespace-nowrap w-20 flex-shrink-0">{fmtDate(h.data)}</span>
+                      <span className="text-slate-700 font-medium truncate">{h.movimento ?? '-'}</span>
+                      {h.posicao && <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-medium">{h.posicao}</span>}
+                      {h.responsavel && <span className="flex-shrink-0 text-slate-400 flex items-center gap-0.5"><User size={9} />{h.responsavel}</span>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+
+        {/* ── Posições Duplicadas ── */}
+        {prevPositions.length > 0 && (
+          <section>
+            <Sec icon={<Info size={13} />} title="Processo duplicado — outras posições" />
+            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 flex flex-wrap gap-1.5">
+              {prevPositions.map((p, i) => (
+                <span key={i} className="inline-flex items-center gap-1 text-xs bg-white border border-purple-200 text-purple-700 rounded-full px-2 py-0.5">
+                  <Clock size={10} />{p}
+                </span>
+              ))}
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Duplicate positions */}
-          {prevPositions.length > 0 && (
-            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
-              <div className="text-xs text-purple-600 font-semibold uppercase tracking-wide mb-2 flex items-center gap-1">
-                <Info size={11} />Processo duplicado — outras posições registradas
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {prevPositions.map((p, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1 text-xs bg-white border border-purple-200 text-purple-700 rounded-full px-2 py-0.5"
-                  >
-                    <Clock size={10} />{p}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'tecnico' && (
-        <FluxoTecnicoPanel
-          registroId={row.codigo}
-          posicoes={posicoes}
-          numPaginas={row.num_paginas}
-          gpcUsers={gpcUsers}
-          signatoryUsers={signatoryUsers}
-          responsavelAssinatura={row.responsavel_assinatura}
-          responsavelAssinatura2={row.responsavel_assinatura_2}
-          onRecordUpdated={onRecordUpdated}
-          readOnly={true}
-        />
-      )}
-
-      {tab === 'prod' && <ProdPanel registroId={row.codigo} />}
+      </div>
     </Modal>
   );
 };
