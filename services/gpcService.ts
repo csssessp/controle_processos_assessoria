@@ -392,6 +392,16 @@ export const GpcService = {
     return { data: rows, count: count ?? 0 };
   },
 
+  getRecebidoByCode: async (codigo: number): Promise<GpcRecebido | null> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_recebidos')
+      .select('*, cgof_gpc_posicao(posicao)')
+      .eq('codigo', codigo)
+      .single();
+    if (error) { console.error(error); return null; }
+    return { ...(data as any), posicao: (data as any).cgof_gpc_posicao?.posicao ?? null } as GpcRecebido;
+  },
+
   saveRecebido: async (r: Partial<GpcRecebido>): Promise<GpcRecebido> => {
     const payload = {
       processo_codigo: r.processo_codigo ?? null,
@@ -410,6 +420,10 @@ export const GpcService = {
       num_paginas: r.num_paginas ?? null,
       responsavel_assinatura: r.responsavel_assinatura ?? null,
       responsavel_assinatura_2: r.responsavel_assinatura_2 ?? null,
+      situacao: r.situacao ?? null,
+      valor_a_devolver: r.valor_a_devolver ?? null,
+      valor_devolvido: r.valor_devolvido ?? null,
+      situacao_obs: r.situacao_obs ?? null,
     };
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();

@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, Check,
   Loader2, AlertCircle, FileText, Calendar, Activity,
   ClipboardList, GitBranch, Download, ArrowUp, ArrowDown,
-  ArrowUpDown, ExternalLink, Link as LinkIcon, TrendingUp,
+  ArrowUpDown, ExternalLink, Link as LinkIcon, TrendingUp, TrendingDown,
   User, Search, AlertTriangle, Clock, DollarSign, Info,
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine,
+  ShieldCheck, ShieldAlert, ShieldOff, Award,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
@@ -132,6 +133,33 @@ const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }
       {label}
     </span>
   );
+};
+
+// ---- Situacao Badge ----
+
+type Situacao = 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR';
+
+const SituacaoBadge = ({ situacao, compact = false }: { situacao: Situacao | string | null | undefined; compact?: boolean }) => {
+  if (!situacao) return <span className="text-slate-300 text-xs">—</span>;
+  if (situacao === 'REGULAR')
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-green-50 text-green-700 border-green-200`}>
+        <ShieldCheck size={10} />{compact ? 'Regular' : 'Regular'}
+      </span>
+    );
+  if (situacao === 'IRREGULAR')
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-red-50 text-red-700 border-red-200`}>
+        <ShieldAlert size={10} />{compact ? 'Irregular' : 'Irregular'}
+      </span>
+    );
+  if (situacao === 'PARCIALMENTE_REGULAR')
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200`}>
+        <ShieldOff size={10} />{compact ? 'Parcial' : 'Parcialmente Regular'}
+      </span>
+    );
+  return <span className="text-slate-300 text-xs">—</span>;
 };
 
 // ---- SortTh ----
@@ -907,6 +935,70 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
             )}
           </div>
 
+          {/* Situação do Processo */}
+          {row.situacao ? (
+            <div className={`rounded-xl p-4 border ${
+              row.situacao === 'REGULAR' ? 'bg-green-50 border-green-200' :
+              row.situacao === 'IRREGULAR' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {row.situacao === 'REGULAR'
+                    ? <ShieldCheck size={16} className="text-green-600" />
+                    : row.situacao === 'IRREGULAR'
+                      ? <ShieldAlert size={16} className="text-red-600" />
+                      : <ShieldOff size={16} className="text-amber-600" />}
+                  <span className={`font-bold text-sm ${
+                    row.situacao === 'REGULAR' ? 'text-green-800' :
+                    row.situacao === 'IRREGULAR' ? 'text-red-800' : 'text-amber-800'
+                  }`}>Situação do Processo</span>
+                </div>
+                <SituacaoBadge situacao={row.situacao} />
+              </div>
+              {row.situacao === 'REGULAR' && (
+                <p className="text-sm text-green-700">Processo sem pendências financeiras — prestação de contas regular.</p>
+              )}
+              {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="bg-white/70 rounded-lg p-3 border border-current/10">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-1">Valor a Devolver</div>
+                    <div className="text-sm font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : '—'}</div>
+                  </div>
+                  <div className="bg-white/70 rounded-lg p-3 border border-current/10">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-green-600 mb-1">Valor já Devolvido</div>
+                    <div className="text-sm font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : '—'}</div>
+                  </div>
+                  {(row.valor_a_devolver ?? 0) > 0 && (
+                    <div className="col-span-2 bg-white/70 rounded-lg p-3 border border-current/10">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Saldo Pendente</div>
+                      {(() => {
+                        const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
+                        return (
+                          <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {fmt(saldo)}
+                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">✓ Quitado</span>}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+              {row.situacao_obs && (
+                <div className="mt-3 pt-3 border-t border-current/10">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Observações</div>
+                  <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl p-3 border border-dashed border-slate-200 flex items-center gap-2 text-slate-400">
+              <ShieldOff size={14} />
+              <span className="text-xs">Situação ainda não avaliada</span>
+              <button className="ml-auto text-xs text-blue-500 hover:text-blue-700 font-semibold" onClick={onEdit}>Avaliar agora →</button>
+            </div>
+          )}
+
           {/* Link */}
           {row.link_processo && (
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
@@ -1297,6 +1389,63 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               </div>
             </div>
           </div>
+
+          {/* Situação do Processo */}
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-gradient-to-br from-slate-50 to-white">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={15} className="text-slate-500" />
+              <span className="text-sm font-bold text-slate-700">Situação do Processo</span>
+              {form.situacao && <SituacaoBadge situacao={form.situacao} />}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className={LABEL}>Situação</label>
+                <select className={INPUT} value={form.situacao ?? ''} onChange={e => set('situacao', e.target.value || null)}>
+                  <option value="">— não avaliada —</option>
+                  <option value="REGULAR">✅ Regular — sem pendências financeiras</option>
+                  <option value="PARCIALMENTE_REGULAR">⚠️ Parcialmente Regular — pendências parciais</option>
+                  <option value="IRREGULAR">❌ Irregular — com pendências / valores a devolver</option>
+                </select>
+              </div>
+              {(form.situacao === 'IRREGULAR' || form.situacao === 'PARCIALMENTE_REGULAR') && (
+                <>
+                  <div>
+                    <label className={LABEL}>Valor a Devolver (R$)</label>
+                    <CurrencyInput value={form.valor_a_devolver} onChange={v => set('valor_a_devolver', v)} />
+                    <p className="mt-1 text-xs text-slate-400">Total que deve ser restituído ao erário</p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Valor já Devolvido (R$)</label>
+                    <CurrencyInput value={form.valor_devolvido} onChange={v => set('valor_devolvido', v)} />
+                    <p className="mt-1 text-xs text-slate-400">Valor efetivamente já restituído</p>
+                  </div>
+                  {(form.valor_a_devolver ?? 0) > 0 && (() => {
+                    const saldo = (form.valor_a_devolver ?? 0) - (form.valor_devolvido ?? 0);
+                    return (
+                      <div className={`sm:col-span-2 rounded-lg p-3 border ${saldo <= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Saldo Pendente</div>
+                        <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          {fmt(saldo)}
+                          {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">✓ Totalmente quitado</span>}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+              <div className="sm:col-span-2">
+                <label className={LABEL}>Observações / Fundamentação</label>
+                <textarea
+                  className={INPUT}
+                  rows={3}
+                  value={form.situacao_obs ?? ''}
+                  onChange={e => set('situacao_obs', e.target.value || null)}
+                  placeholder="Descreva os motivos, irregularidades encontradas, diligências realizadas..."
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
             <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
             <button type="submit" className={BTN_PRI} disabled={saving}>
@@ -1694,7 +1843,6 @@ const ProdutividadePage = () => {
     GpcService.getFluxoResumoTecnicos().then(setFluxoResumo);
   }, []);
 
-  // Periods available for selected granularity
   const allPeriods = useMemo(() => {
     if (gran === 'geral') return ['geral'];
     const set = new Set<string>();
@@ -1702,7 +1850,6 @@ const ProdutividadePage = () => {
     return [...set].sort().reverse();
   }, [events, gran]);
 
-  // Keep period in sync when granularity changes
   useEffect(() => {
     if (gran === 'geral') { setPeriod('geral'); return; }
     const now = new Date().toISOString();
@@ -1711,178 +1858,317 @@ const ProdutividadePage = () => {
   }, [gran, allPeriods]);
 
   const stats = useMemo(() => computeStats(events, gran, period), [events, gran, period]);
+
+  // Período anterior para comparação
+  const prevPeriodStr = useMemo(() => {
+    if (gran === 'geral' || !period || period === 'geral') return null;
+    if (gran === 'mes') {
+      const [y, m] = period.split('-').map(Number);
+      if (m === 1) return `${y - 1}-12`;
+      return `${y}-${String(m - 1).padStart(2, '0')}`;
+    }
+    if (gran === 'dia') {
+      const d = new Date(period); d.setDate(d.getDate() - 1);
+      return d.toISOString().slice(0, 10);
+    }
+    if (gran === 'ano') return String(Number(period) - 1);
+    return null;
+  }, [period, gran]);
+
+  const prevStats = useMemo(() =>
+    prevPeriodStr ? computeStats(events, gran, prevPeriodStr) : [], [events, gran, prevPeriodStr]);
+
   const totals = useMemo(() => stats.reduce((acc, s) => ({
-    analises:   acc.analises + s.analises,
-    posicoes:   acc.posicoes + s.posicoes,
+    analises: acc.analises + s.analises,
+    posicoes: acc.posicoes + s.posicoes,
     movimentos: acc.movimentos + s.movimentos,
-    total:      acc.total + s.total,
+    total: acc.total + s.total,
   }), { analises: 0, posicoes: 0, movimentos: 0, total: 0 }), [stats]);
+
+  const prevTotals = useMemo(() => prevStats.reduce((acc, s) => ({
+    analises: acc.analises + s.analises,
+    posicoes: acc.posicoes + s.posicoes,
+    movimentos: acc.movimentos + s.movimentos,
+    total: acc.total + s.total,
+  }), { analises: 0, posicoes: 0, movimentos: 0, total: 0 }), [prevStats]);
+
+  const topPerformer = stats[0] ?? null;
 
   if (loading) return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-400" /></div>;
 
+  const Delta = ({ cur, prev }: { cur: number; prev: number }) => {
+    if (!prev || gran === 'geral') return null;
+    const d = cur - prev;
+    if (d === 0) return <span className="text-xs text-slate-400 ml-1 font-medium">= mesmo</span>;
+    return (
+      <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${d > 0 ? 'text-green-600' : 'text-red-500'}`}>
+        {d > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+        {d > 0 ? '+' : ''}{d} vs anterior
+      </span>
+    );
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Filter bar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-4">
-        {/* Granularity */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
           {(['dia', 'mes', 'ano', 'geral'] as Granularity[]).map(g => (
-            <button
-              key={g}
-              onClick={() => setGran(g)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors capitalize ${gran === g ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
+            <button key={g} onClick={() => setGran(g)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors capitalize ${gran === g ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {g === 'dia' ? 'Dia' : g === 'mes' ? 'Mês' : g === 'ano' ? 'Ano' : 'Geral'}
             </button>
           ))}
         </div>
-
-        {/* Period selector */}
         {gran !== 'geral' && (
-          <select
-            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={period}
-            onChange={e => setPeriod(e.target.value)}
-          >
+          <select className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={period} onChange={e => setPeriod(e.target.value)}>
             {allPeriods.map(p => <option key={p} value={p}>{fmtPeriodo(p, gran)}</option>)}
           </select>
         )}
-
-        <span className="text-sm text-slate-400 ml-auto">
+        {prevPeriodStr && prevTotals.total > 0 && (
+          <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-500">
+            Período anterior: <strong className="text-slate-700">{fmtPeriodo(prevPeriodStr, gran)}</strong>
+            {' · '}<span className="text-slate-600">{prevTotals.total} ações</span>
+          </div>
+        )}
+        <span className="ml-auto text-sm text-slate-400">
           {gran === 'geral' ? 'Todos os períodos' : fmtPeriodo(period, gran)}
-          {' · '}{stats.length} técnico{stats.length !== 1 ? 's' : ''}
+          {' · '}<strong className="text-slate-600">{stats.length}</strong> técnico{stats.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      {/* KPI summary cards */}
+      {/* Destaque do período */}
+      {topPerformer && (
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-4 flex items-center gap-4 text-white shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <Award size={22} className="text-yellow-300" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-blue-200 font-bold uppercase tracking-wider">🏆 Técnico destaque do período</div>
+            <div className="text-lg font-extrabold mt-0.5 truncate">{topPerformer.responsavel}</div>
+            <div className="text-xs text-blue-200 mt-0.5 flex flex-wrap gap-x-3">
+              <span>{topPerformer.analises} processo{topPerformer.analises !== 1 ? 's' : ''} analisado{topPerformer.analises !== 1 ? 's' : ''}</span>
+              <span>{topPerformer.posicoes} avanço{topPerformer.posicoes !== 1 ? 's' : ''} de posição</span>
+              <span>{topPerformer.movimentos} atualização{topPerformer.movimentos !== 1 ? 'ões' : ''}</span>
+            </div>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <div className="text-4xl font-black leading-none">
+              {totals.total > 0 ? `${Math.round((topPerformer.total / totals.total) * 100)}%` : '—'}
+            </div>
+            <div className="text-xs text-blue-200 mt-1">do total de ações</div>
+            <div className="text-sm font-bold mt-0.5">{topPerformer.total} ações</div>
+          </div>
+        </div>
+      )}
+
+      {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Análises Iniciadas',   value: totals.analises,   bg: 'bg-sky-50 border-sky-100',       text: 'text-sky-700',     dot: 'bg-sky-500' },
-          { label: 'Mudanças de Posição',  value: totals.posicoes,   bg: 'bg-amber-50 border-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500' },
-          { label: 'Mudanças de Movimento',value: totals.movimentos, bg: 'bg-purple-50 border-purple-100', text: 'text-purple-700',  dot: 'bg-purple-500' },
-          { label: 'Total de Ações',        value: totals.total,      bg: 'bg-blue-50 border-blue-100',     text: 'text-blue-700',    dot: 'bg-blue-500' },
+          {
+            label: 'Processos Analisados', sub: 'Processos que receberam início de análise no período',
+            value: totals.analises, prev: prevTotals.analises,
+            bg: 'bg-sky-50 border-sky-100', text: 'text-sky-700', dot: 'bg-sky-500',
+          }, {
+            label: 'Avanços de Posição', sub: 'Vezes que a posição de um processo foi movimentada',
+            value: totals.posicoes, prev: prevTotals.posicoes,
+            bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700', dot: 'bg-amber-500',
+          }, {
+            label: 'Atualizações de Movimento', sub: 'Novos estágios registrados nos processos',
+            value: totals.movimentos, prev: prevTotals.movimentos,
+            bg: 'bg-purple-50 border-purple-100', text: 'text-purple-700', dot: 'bg-purple-500',
+          }, {
+            label: 'Total de Ações', sub: 'Soma de todas as atividades registradas no período',
+            value: totals.total, prev: prevTotals.total,
+            bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700', dot: 'bg-blue-500',
+          },
         ].map(k => (
-          <div key={k.label} className={`${k.bg} rounded-xl border p-4 flex items-center gap-3`}>
-            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${k.dot}`} />
-            <div>
-              <div className={`text-2xl font-bold ${k.text}`}>{k.value.toLocaleString('pt-BR')}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{k.label}</div>
-            </div>
+          <div key={k.label} className={`${k.bg} rounded-xl border p-4 flex flex-col gap-1`}>
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${k.dot}`} />
+            <div className={`text-2xl font-extrabold mt-1 ${k.text}`}>{k.value.toLocaleString('pt-BR')}</div>
+            <div className="text-xs font-bold text-slate-700 leading-tight">{k.label}</div>
+            <div className="text-xs text-slate-400 leading-tight">{k.sub}</div>
+            <Delta cur={k.value} prev={k.prev} />
           </div>
         ))}
       </div>
 
+      {/* Tabela por técnico */}
       {!stats.length ? (
         <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
           <TrendingUp size={40} className="mx-auto mb-3 text-slate-200" />
-          <p className="text-slate-400 text-sm">Nenhum dado para o período selecionado.</p>
+          <p className="text-slate-400 text-sm font-medium">Nenhuma atividade registrada neste período.</p>
+          <p className="text-slate-300 text-xs mt-1">Selecione outro período ou altere a granularidade.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-sky-600 uppercase tracking-wider">
-                  <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />Análises</span>
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">
-                  <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Posições</span>
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider">
-                  <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />Movimentos</span>
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-blue-600 uppercase tracking-wider">Total</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-40">Participação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {stats.map(s => {
-                const pct = totals.total > 0 ? Math.round((s.total / totals.total) * 100) : 0;
-                return (
-                  <tr key={s.responsavel} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0">
-                          {s.responsavel.charAt(0).toUpperCase()}
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+              <BarChart2 size={15} className="text-slate-400" />
+              <span className="text-sm font-bold text-slate-700">Atividade por Técnico</span>
+              <span className="ml-auto text-xs text-slate-400">{stats.length} técnico{stats.length !== 1 ? 's' : ''} ativos no período</span>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 w-10">#</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-sky-600 uppercase tracking-wider"
+                    title="Número de processos distintos onde o técnico registrou início de análise">
+                    <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />Analisados</span>
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider"
+                    title="Número de vezes que o técnico movimentou a posição de um processo">
+                    <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Posições</span>
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider"
+                    title="Número de movimentos/estágios registrados pelo técnico">
+                    <span className="flex items-center justify-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />Movimentos</span>
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-blue-600 uppercase tracking-wider">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider min-w-[160px]"
+                    title="Distribuição percentual das atividades (azul=análises, laranja=posições, roxo=movimentos)">
+                    Composição
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {stats.map((s, idx) => {
+                  const pct = totals.total > 0 ? Math.round((s.total / totals.total) * 100) : 0;
+                  const total = s.analises + s.posicoes + s.movimentos;
+                  const rankClr = ['text-yellow-500', 'text-slate-400', 'text-amber-600'];
+                  const avatarGrad = idx === 0 ? 'from-yellow-400 to-amber-500' : idx === 1 ? 'from-slate-300 to-slate-400' : idx === 2 ? 'from-amber-500 to-amber-700' : 'from-blue-400 to-blue-600';
+                  return (
+                    <tr key={s.responsavel} className={`hover:bg-blue-50/30 transition-colors ${idx === 0 ? 'bg-yellow-50/30' : ''}`}>
+                      <td className="px-3 py-3 text-center">
+                        {idx < 3
+                          ? <span className={`text-sm font-black ${rankClr[idx]}`}>#{idx + 1}</span>
+                          : <span className="text-xs text-slate-400 font-medium">{idx + 1}</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGrad} text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0`}>
+                            {s.responsavel.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className={`font-semibold ${idx === 0 ? 'text-amber-800' : 'text-slate-800'}`}>{s.responsavel}</div>
+                            {idx === 0 && <div className="text-xs text-amber-600 flex items-center gap-1"><Award size={10} />Destaque do período</div>}
+                          </div>
                         </div>
-                        <span className="font-semibold text-slate-800">{s.responsavel}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-block px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-bold">{s.analises}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-block px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">{s.posicoes}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.movimentos}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">{s.total}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                          <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all" style={{ width: `${pct}%` }} />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-block px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-bold">{s.analises}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-block px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">{s.posicoes}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.movimentos}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">{s.total}</span>
+                          <span className="text-xs text-slate-400 font-semibold">{pct}%</span>
                         </div>
-                        <span className="text-xs text-slate-500 w-9 text-right font-semibold">{pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot className="border-t-2 border-slate-200 bg-slate-50">
-              <tr>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700">Total</td>
-                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-bold">{totals.analises}</span></td>
-                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">{totals.posicoes}</span></td>
-                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold">{totals.movimentos}</span></td>
-                <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-bold">{totals.total}</span></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-blue-500 rounded-full h-2.5" />
-                    <span className="text-xs text-slate-500 w-9 text-right font-semibold">100%</span>
-                  </div>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="space-y-1.5">
+                          {total > 0 ? (
+                            <div className="flex h-3 rounded-full overflow-hidden gap-px" title={`${s.analises} análises · ${s.posicoes} posições · ${s.movimentos} movimentos`}>
+                              {s.analises   > 0 && <div style={{ width: `${(s.analises / total) * 100}%`   }} className="bg-sky-400" />}
+                              {s.posicoes   > 0 && <div style={{ width: `${(s.posicoes / total) * 100}%`   }} className="bg-amber-400" />}
+                              {s.movimentos > 0 && <div style={{ width: `${(s.movimentos / total) * 100}%` }} className="bg-purple-400" />}
+                            </div>
+                          ) : <div className="h-3 rounded-full bg-slate-100" />}
+                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                <tr>
+                  <td className="px-3 py-3" />
+                  <td className="px-4 py-3 text-sm font-bold text-slate-700">Total geral</td>
+                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-bold">{totals.analises}</span></td>
+                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">{totals.posicoes}</span></td>
+                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold">{totals.movimentos}</span></td>
+                  <td className="px-4 py-3 text-center"><span className="inline-block px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-bold">{totals.total}</span></td>
+                  <td className="px-4 py-3">
+                    <div className="flex h-3 rounded-full overflow-hidden gap-px">
+                      {totals.analises   > 0 && <div style={{ width: `${(totals.analises   / totals.total) * 100}%` }} className="bg-sky-400" />}
+                      {totals.posicoes   > 0 && <div style={{ width: `${(totals.posicoes   / totals.total) * 100}%` }} className="bg-amber-400" />}
+                      {totals.movimentos > 0 && <div style={{ width: `${(totals.movimentos / totals.total) * 100}%` }} className="bg-purple-400" />}
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {/* Legenda */}
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 px-1">
+            <span className="font-semibold text-slate-500">Legenda da composição:</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-sky-400 inline-block" />Processos analisados</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-amber-400 inline-block" />Avanços de posição</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-purple-400 inline-block" />Atualizações de movimento</span>
+          </div>
+        </>
       )}
 
-      {/* Fluxo Técnico - Resumo por Técnico */}
+      {/* Fluxo Técnico — Desempenho detalhado */}
       {fluxoResumo.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Activity size={16} className="text-indigo-600" />
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Fluxo Técnico — Desempenho por Técnico</h3>
+          <div className="flex items-start gap-2">
+            <Activity size={16} className="text-indigo-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Fluxo Técnico — Desempenho Detalhado</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Baseado nos eventos registrados no fluxo técnico de cada processo individualmente</p>
+            </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Técnico</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider">Eventos</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider">Páginas</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">Tempo Médio (dias)</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Último Evento</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-40">Produtividade</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider"
+                    title="Total de ações registradas no fluxo técnico dos processos">Ações no Fluxo</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-purple-600 uppercase tracking-wider"
+                    title="Total de páginas processadas/analisadas nos eventos">Páginas Analisadas</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-cyan-600 uppercase tracking-wider"
+                    title="Média de páginas por ação registrada — indica a densidade de trabalho">Efic. (pág/ação)</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-amber-600 uppercase tracking-wider"
+                    title="Média de dias entre eventos consecutivos. Verde ≤5 dias (rápido), Amarelo ≤15 (regular), Vermelho >15 (lento)">Tempo Médio</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Último Registro</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-36">Produtividade Rel.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {fluxoResumo.map(s => {
+                {fluxoResumo.map((s, idx) => {
                   const maxRegs = Math.max(...fluxoResumo.map(f => f.total_registros), 1);
                   const pct = Math.round((s.total_registros / maxRegs) * 100);
+                  const efic = s.total_registros > 0 ? Math.round(s.total_paginas / s.total_registros) : 0;
+                  const diasUltimo = s.ultimo_evento
+                    ? Math.round((Date.now() - new Date(s.ultimo_evento).getTime()) / 86400000)
+                    : null;
                   return (
                     <tr key={s.tecnico} className="hover:bg-blue-50/30 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0">
+                          <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-bold shadow-sm flex-shrink-0 ${idx === 0 ? 'bg-gradient-to-br from-indigo-500 to-indigo-700' : 'bg-gradient-to-br from-indigo-300 to-indigo-500'}`}>
                             {s.tecnico.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-semibold text-slate-800">{s.tecnico}</span>
+                          <div>
+                            <div className="font-semibold text-slate-800">{s.tecnico}</div>
+                            {diasUltimo !== null && (
+                              <div className={`text-xs mt-0.5 ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
+                                {diasUltimo === 0 ? '● Ativo hoje' : `Ativo há ${diasUltimo} dia${diasUltimo !== 1 ? 's' : ''}`}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -1892,10 +2178,19 @@ const ProdutividadePage = () => {
                         <span className="inline-block px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">{s.total_paginas.toLocaleString('pt-BR')}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
-                          s.tempo_medio_dias <= 5 ? 'bg-green-100 text-green-700' :
-                          s.tempo_medio_dias <= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
-                        }`}>{s.tempo_medio_dias}</span>
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${efic >= 100 ? 'bg-cyan-100 text-cyan-700' : efic >= 30 ? 'bg-blue-100 text-blue-700' : efic > 0 ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-400'}`}>
+                          {efic > 0 ? `${efic} pág/ação` : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${s.tempo_medio_dias === 0 ? 'bg-slate-100 text-slate-500' : s.tempo_medio_dias <= 5 ? 'bg-green-100 text-green-700' : s.tempo_medio_dias <= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                            {s.tempo_medio_dias === 0 ? '< 1 dia' : `${s.tempo_medio_dias} dia${s.tempo_medio_dias !== 1 ? 's' : ''}`}
+                          </span>
+                          <span className={`text-xs ${s.tempo_medio_dias === 0 || s.tempo_medio_dias <= 5 ? 'text-green-500' : s.tempo_medio_dias <= 15 ? 'text-amber-500' : 'text-red-400'}`}>
+                            {s.tempo_medio_dias <= 5 ? 'Rápido' : s.tempo_medio_dias <= 15 ? 'Regular' : 'Lento'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{fmtTs(s.ultimo_evento)}</td>
                       <td className="px-4 py-3">
@@ -1903,14 +2198,36 @@ const ProdutividadePage = () => {
                           <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
                             <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-xs text-slate-500 w-9 text-right font-semibold">{pct}%</span>
+                          <span className="text-xs font-bold text-slate-500 w-9 text-right">{pct}%</span>
                         </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
+              <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                <tr>
+                  <td className="px-4 py-3 text-sm font-bold text-slate-600">Total</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-block px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">
+                      {fluxoResumo.reduce((s, r) => s + r.total_registros, 0)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-bold">
+                      {fluxoResumo.reduce((s, r) => s + r.total_paginas, 0).toLocaleString('pt-BR')}
+                    </span>
+                  </td>
+                  <td colSpan={4} className="px-4 py-3" />
+                </tr>
+              </tfoot>
             </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 px-1">
+            <span className="font-semibold text-slate-500">Tempo Médio entre eventos:</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" />Rápido ≤5 dias</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />Regular ≤15 dias</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />Lento &gt;15 dias</span>
           </div>
         </div>
       )}
@@ -1928,7 +2245,7 @@ export const GpcProcessos = () => {
   const [posicoes, setPosicoes] = useState<GpcPosicao[]>([]);
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
-  const [filters, setFilters] = useState({ processo: '', convenio: '', entidade: '', exercicio: '', drs: '', responsavel: '', posicao_id: '', movimento: '', remessa: '' });
+  const [filters, setFilters] = useState({ processo: '', convenio: '', entidade: '', exercicio: '', drs: '', responsavel: '', posicao_id: '', movimento: '', remessa: '', situacao: '' });
   const [page, setPage] = useState(1);
   const [viewRow, setViewRow] = useState<GpcRecebido | null>(null);
   const [modal, setModal] = useState<null | { data?: GpcRecebido }>(null);
@@ -1968,7 +2285,8 @@ export const GpcProcessos = () => {
       (!f.responsavel || sv(r.responsavel).includes(sv(f.responsavel))) &&
       (!f.posicao_id  || sv(r.posicao_id) === sv(f.posicao_id)) &&
       (!f.movimento   || sv(r.movimento).includes(sv(f.movimento))) &&
-      (!f.remessa     || sv(r.remessa) === sv(f.remessa))
+      (!f.remessa     || sv(r.remessa) === sv(f.remessa)) &&
+      (!f.situacao    || sv(r.situacao) === sv(f.situacao))
     ), sort);
   }, [rows, filters, sort, mainTab]);
 
@@ -2115,6 +2433,10 @@ export const GpcProcessos = () => {
     comLink: rows.filter(r => r.link_processo).length,
     semResponsavel: rows.filter(r => !r.responsavel).length,
     duplicados: Object.values(duplicateMap).filter(v => v.length > 1).length,
+    regulares: rows.filter(r => r.situacao === 'REGULAR').length,
+    irregulares: rows.filter(r => r.situacao === 'IRREGULAR').length,
+    parcialmente: rows.filter(r => r.situacao === 'PARCIALMENTE_REGULAR').length,
+    semSituacao: rows.filter(r => !r.situacao).length,
   }), [rows, duplicateMap]);
 
   return (
@@ -2146,21 +2468,74 @@ export const GpcProcessos = () => {
 
       {/* KPI cards */}
       {mainTab === 'registros' && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Total',           value: stats.total,          color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200',   icon: <FileText size={16} className="text-slate-400" /> },
-            { label: 'Com Link',        value: stats.comLink,        color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-100',     icon: <ExternalLink size={16} className="text-blue-400" /> },
-            { label: 'Sem Responsável', value: stats.semResponsavel, color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-100',   icon: <AlertTriangle size={16} className="text-amber-400" /> },
-            { label: 'Nº Duplicados',   value: stats.duplicados,     color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100', icon: <Info size={16} className="text-purple-400" /> },
-          ].map(k => (
-            <div key={k.label} className={`${k.bg} rounded-xl border px-4 py-3 flex items-center gap-3`}>
-              {k.icon}
-              <div>
-                <div className={`text-xl font-bold ${k.color}`}>{k.value.toLocaleString('pt-BR')}</div>
-                <div className="text-xs text-slate-500">{k.label}</div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Total',           value: stats.total,          color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200',   icon: <FileText size={16} className="text-slate-400" /> },
+              { label: 'Com Link',        value: stats.comLink,        color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-100',     icon: <ExternalLink size={16} className="text-blue-400" /> },
+              { label: 'Sem Responsável', value: stats.semResponsavel, color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-100',   icon: <AlertTriangle size={16} className="text-amber-400" /> },
+              { label: 'Nº Duplicados',   value: stats.duplicados,     color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100', icon: <Info size={16} className="text-purple-400" /> },
+            ].map(k => (
+              <div key={k.label} className={`${k.bg} rounded-xl border px-4 py-3 flex items-center gap-3`}>
+                {k.icon}
+                <div>
+                  <div className={`text-xl font-bold ${k.color}`}>{k.value.toLocaleString('pt-BR')}</div>
+                  <div className="text-xs text-slate-500">{k.label}</div>
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* Situação breakdown */}
+          {(stats.regulares + stats.irregulares + stats.parcialmente) > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
+              <div className="flex items-center gap-2 mb-2.5">
+                <ShieldCheck size={14} className="text-slate-500" />
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Situação dos Processos Avaliados</span>
+                <span className="ml-auto text-xs text-slate-400">
+                  {stats.semSituacao > 0 && `${stats.semSituacao} sem avaliação · `}
+                  {(stats.regulares + stats.irregulares + stats.parcialmente)} avaliados
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <ShieldCheck size={18} className="text-green-600 flex-shrink-0" />
+                  <div>
+                    <div className="text-lg font-bold text-green-700">{stats.regulares}</div>
+                    <div className="text-xs text-green-600 font-semibold">Regulares</div>
+                    <div className="text-xs text-slate-400">Sem pendências</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <ShieldOff size={18} className="text-amber-600 flex-shrink-0" />
+                  <div>
+                    <div className="text-lg font-bold text-amber-700">{stats.parcialmente}</div>
+                    <div className="text-xs text-amber-600 font-semibold">Parcialmente Regulares</div>
+                    <div className="text-xs text-slate-400">Pendências parciais</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <ShieldAlert size={18} className="text-red-600 flex-shrink-0" />
+                  <div>
+                    <div className="text-lg font-bold text-red-700">{stats.irregulares}</div>
+                    <div className="text-xs text-red-600 font-semibold">Irregulares</div>
+                    <div className="text-xs text-slate-400">Pendências totais</div>
+                  </div>
+                </div>
+              </div>
+              {/* Visual bar */}
+              {(() => {
+                const total = stats.regulares + stats.irregulares + stats.parcialmente;
+                return total > 0 ? (
+                  <div className="mt-2.5 flex h-2 rounded-full overflow-hidden gap-px">
+                    {stats.regulares > 0 && <div style={{ width: `${(stats.regulares / total) * 100}%` }} className="bg-green-400" title={`${stats.regulares} regulares`} />}
+                    {stats.parcialmente > 0 && <div style={{ width: `${(stats.parcialmente / total) * 100}%` }} className="bg-amber-400" title={`${stats.parcialmente} parcialmente regulares`} />}
+                    {stats.irregulares > 0 && <div style={{ width: `${(stats.irregulares / total) * 100}%` }} className="bg-red-400" title={`${stats.irregulares} irregulares`} />}
+                  </div>
+                ) : null;
+              })()}
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -2212,6 +2587,7 @@ export const GpcProcessos = () => {
                       <SortTh label="Posição"     col="posicao"     sort={sort} onSort={toggleSort} />
                       <SortTh label="Movimento"   col="movimento"   sort={sort} onSort={toggleSort} />
                       <SortTh label="Remessa"     col="remessa"     sort={sort} onSort={toggleSort} cls="w-24" />
+                      <SortTh label="Situação"    col="situacao"    sort={sort} onSort={toggleSort} />
                       <FThX />
                     </tr>
                     <tr>
@@ -2232,6 +2608,15 @@ export const GpcProcessos = () => {
                         v={filters.remessa}
                         onChange={v => setF('remessa', v)}
                         opts={[{ value: 'ACIMA', label: 'Acima' }, { value: 'ABAIXO', label: 'Abaixo' }]}
+                      />
+                      <FThSel
+                        v={filters.situacao}
+                        onChange={v => setF('situacao', v)}
+                        opts={[
+                          { value: 'REGULAR', label: 'Regular' },
+                          { value: 'PARCIALMENTE_REGULAR', label: 'Parcialmente Regular' },
+                          { value: 'IRREGULAR', label: 'Irregular' },
+                        ]}
                       />
                       <FThX />
                     </tr>
@@ -2321,6 +2706,16 @@ export const GpcProcessos = () => {
                             {!r.remessa && <span className="text-slate-300">-</span>}
                           </td>
                           <td className="px-3 py-3">
+                            <SituacaoBadge situacao={r.situacao} compact />
+                            {(r.situacao === 'IRREGULAR' || r.situacao === 'PARCIALMENTE_REGULAR') && (r.valor_a_devolver ?? 0) > 0 && (
+                              <div className="mt-0.5 text-xs text-red-600 font-medium">
+                                {r.valor_devolvido != null && r.valor_devolvido >= (r.valor_a_devolver ?? 0)
+                                  ? <span className="text-green-600">✓ Quitado</span>
+                                  : <span>Pend: {fmt((r.valor_a_devolver ?? 0) - (r.valor_devolvido ?? 0))}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
                             <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
                               <button
                                 className="p-1.5 rounded-lg hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
@@ -2350,7 +2745,7 @@ export const GpcProcessos = () => {
                     })}
                     {!paged.length && (
                       <tr>
-                        <td colSpan={11} className="py-20 text-center">
+                        <td colSpan={12} className="py-20 text-center">
                           <Search size={32} className="mx-auto mb-3 text-slate-200" />
                           <p className="text-slate-400 text-sm">Nenhum registro encontrado</p>
                           <p className="text-slate-300 text-xs mt-1">Tente ajustar os filtros</p>
@@ -2392,7 +2787,7 @@ export const GpcProcessos = () => {
           onClose={() => setViewRow(null)}
           onRecordUpdated={async () => {
             await load();
-            const updated = (await GpcService.getRecebidos('', 1, 9999)).data.find(r => r.codigo === viewRow.codigo);
+            const updated = await GpcService.getRecebidoByCode(viewRow.codigo);
             if (updated) setViewRow(updated);
           }}
         />

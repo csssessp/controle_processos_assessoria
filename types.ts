@@ -265,6 +265,11 @@ export interface GpcRecebido {
   num_paginas?: number | null;
   responsavel_assinatura?: string | null;
   responsavel_assinatura_2?: string | null;
+  // Situação do processo
+  situacao?: 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR' | null;
+  valor_a_devolver?: number | null;
+  valor_devolvido?: number | null;
+  situacao_obs?: string | null;
   created_at?: string;
 }
 
