@@ -346,6 +346,28 @@ export const GpcService = {
 
   // ── RECEBIDOS ────────────────────────────────────────────────────────────
 
+  getAllRecebidos: async (): Promise<GpcRecebido[]> => {
+    const BATCH = 1000;
+    let all: GpcRecebido[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('cgof_gpc_recebidos')
+        .select('*, cgof_gpc_posicao(posicao)')
+        .order('data', { ascending: false })
+        .range(from, from + BATCH - 1);
+      if (error) { console.error(error); break; }
+      const rows = ((data ?? []) as any[]).map((r) => ({
+        ...r,
+        posicao: r.cgof_gpc_posicao?.posicao ?? null,
+      })) as GpcRecebido[];
+      all = all.concat(rows);
+      if (rows.length < BATCH) break;
+      from += BATCH;
+    }
+    return all;
+  },
+
   getRecebidos: async (search = '', page = 1, pageSize = 25): Promise<{ data: GpcRecebido[]; count: number }> => {
     let query = supabase
       .from('cgof_gpc_recebidos')

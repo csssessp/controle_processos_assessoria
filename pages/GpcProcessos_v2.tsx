@@ -1936,8 +1936,8 @@ export const GpcProcessos = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await GpcService.getRecebidos('', 1, 9999);
-    setRows(r.data);
+    const data = await GpcService.getAllRecebidos();
+    setRows(data);
     setLoading(false);
   }, []);
 
