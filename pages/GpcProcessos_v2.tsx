@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, Check,
@@ -1129,7 +1129,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [savedOk, setSavedOk] = useState(false);
-  const [tab, setTab] = useState<'dados' | 'tecnico' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas'>('dados');
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [subModal, setSubModal] = useState<null | { type: string; data?: any }>(null);
@@ -1137,6 +1136,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   const [signatoryUsers, setSignatoryUsers] = useState<{ id: string; name: string }[]>([]);
 
   const set = (k: keyof GpcRecebido, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const isEditing = !!(liveRecord?.codigo);
 
   useEffect(() => {
     GpcService.getGpcUsers().then(setGpcUsers);
@@ -1161,7 +1161,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
     try {
       const saved = await onSave(form, liveRecord);
       if (!liveRecord?.codigo) {
-        // First save — stay open in edit mode so user can add sub-items
         setLiveRecord(saved);
         setForm(saved);
         setSavedOk(true);
@@ -1179,17 +1178,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
     catch (ex: any) { alert(ex.message); }
   };
 
-  const isEditing = !!(liveRecord?.codigo);
-
-  type TabId = 'dados' | 'tecnico' | 'exercicios' | 'objetos' | 'parcelamentos' | 'tas';
-  const tabItems: { id: TabId; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'dados',         label: 'Dados Gerais',  icon: <FileText size={13} /> },
-    { id: 'tecnico',       label: 'Técnico',       icon: <Activity size={13} /> },
-    { id: 'exercicios',    label: 'Exercícios',    icon: <Calendar size={13} />,      count: full?.exercicios?.length },
-    { id: 'objetos',       label: 'Objetos',       icon: <ClipboardList size={13} />, count: full?.objetos?.length },
-    { id: 'parcelamentos', label: 'Parcelamentos', icon: <DollarSign size={13} />,    count: full?.parcelamentos?.length },
-    { id: 'tas',           label: 'TAs',           icon: <GitBranch size={13} />,     count: full?.tas?.length },
-  ];
+  const Sec = ({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) => (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="text-slate-400">{icon}</span>
+      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</span>
+      <div className="flex-1 h-px bg-slate-100" />
+      {action}
+    </div>
+  );
 
   return (
     <Modal
@@ -1198,290 +1194,274 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       onClose={onClose}
       size="xl"
     >
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-100 mb-5 overflow-x-auto -mx-1 px-1">
-        {tabItems.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id as TabId)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t whitespace-nowrap border-b-2 transition-colors ${tab === t.id ? 'border-blue-600 text-blue-700 bg-blue-50/60' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-          >
-            {t.icon}{t.label}
-            {t.count != null && (
-              <span className={`px-1.5 py-0.5 rounded-full text-xs ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <div className="max-h-[78vh] overflow-y-auto pr-0.5 space-y-5">
 
-      {/* TAB: Dados Gerais */}
-      {tab === 'dados' && (
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-5">
           {err && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
-              <AlertCircle size={16} className="flex-shrink-0" />{err}
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle size={15} className="flex-shrink-0" />{err}
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={LABEL}>Número do Processo *</label>
-              <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
+          {savedOk && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+              <Check size={15} className="flex-shrink-0" />Registro cadastrado! Complete as informações adicionais abaixo.
             </div>
-            <div>
-              <label className={LABEL}>Convênio</label>
-              <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={LABEL}>Entidade / Município</label>
-              <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
-            </div>
-            <div>
-              <label className={LABEL}>Exercício (ano)</label>
-              <input className={INPUT} value={form.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} placeholder="ex: 2024" />
-            </div>
-            <div>
-              <label className={LABEL}>DRS</label>
-              <select className={INPUT} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}>
-                <option value="">— selecione —</option>
-                {Array.from({ length: 17 }, (_, i) => i + 1).map(n => (
-                  <option key={n} value={n}>DRS {n.toString().padStart(2, '0')}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={LABEL + ' flex items-center gap-1'}>
-                Data de Recebimento
-                {!!initial?.data && !isAdmin && <Lock size={11} className="text-slate-400" />}
-              </label>
-              {!!initial?.data && !isAdmin ? (
-                <div className={INPUT + ' bg-slate-50 text-slate-500 flex items-center gap-2 cursor-not-allowed select-none'}>
-                  <Lock size={13} className="text-slate-400 flex-shrink-0" />
-                  <span>{form.data ?? '—'}</span>
-                  <span className="ml-auto text-xs text-slate-400">Somente ADMIN</span>
-                </div>
-              ) : (
-                <input className={INPUT} type="date" value={form.data ?? ''} onChange={e => set('data', e.target.value || null)} />
-              )}
-            </div>
-            <div>
-              <label className={LABEL}>Responsável pelo Cadastro</label>
-              <select className={INPUT} value={form.responsavel ?? ''} onChange={e => set('responsavel', e.target.value || null)}>
-                <option value="">— selecione —</option>
-                {gpcUsers.map(u => (
-                  <option key={u.id} value={u.name}>{u.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={LABEL}>Posição Atual</label>
-              <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
-                <option value="">— selecione —</option>
-                {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
-              </select>
-              {isEditing && initial?.posicao && form.posicao_id !== initial?.posicao_id && (
-                <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
-                  <Clock size={11} />Anterior: <strong>{initial.posicao}</strong>
-                </p>
-              )}
-            </div>
-            <div>
-              <label className={LABEL}>Movimento</label>
-              <select className={INPUT} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
-                <option value="">— selecione —</option>
-                {MOVIMENTOS.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={LABEL}>Remessa</label>
-              <select className={INPUT} value={form.remessa ?? ''} onChange={e => set('remessa', (e.target.value || null) as 'ACIMA' | 'ABAIXO' | null)}>
-                <option value="">— selecione —</option>
-                <option value="ACIMA">Acima de Remessa</option>
-                <option value="ABAIXO">Abaixo de Remessa</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2 flex items-center gap-3 pt-1">
-              <input
-                id="is_parcelamento"
-                type="checkbox"
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer"
-                checked={!!form.is_parcelamento}
-                onChange={e => set('is_parcelamento', e.target.checked || null)}
-              />
-              <label htmlFor="is_parcelamento" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
-                Este processo é de <strong>Parcelamento</strong>
-              </label>
-            </div>
-            <div>
-              <label className={LABEL}>
-                <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
-              </label>
-              <input
-                className={INPUT}
-                type="number"
-                min={0}
-                placeholder="ex: 150"
-                value={form.num_paginas ?? ''}
-                onChange={e => set('num_paginas', e.target.value ? Number(e.target.value) : null)}
-              />
-              {(form.num_paginas ?? 0) > 0 && (
-                <p className="mt-1 text-xs text-slate-400 flex items-center gap-1">
-                  <Gauge size={10} />
-                  Complexidade: {' '}
-                  <span className={`font-semibold ${
-                    (form.num_paginas ?? 0) <= 50 ? 'text-green-600' :
-                    (form.num_paginas ?? 0) <= 200 ? 'text-amber-600' :
-                    (form.num_paginas ?? 0) <= 500 ? 'text-orange-600' : 'text-red-600'
-                  }`}>
-                    {(form.num_paginas ?? 0) <= 50 ? 'Baixa' :
-                     (form.num_paginas ?? 0) <= 200 ? 'Média' :
-                     (form.num_paginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
-                  </span>
-                </p>
-              )}
-            </div>
-            <div className="sm:col-span-2">
-              <label className={LABEL}>
-                <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
-              </label>
-              <div className="relative">
-                <input
-                  className={INPUT + ' pr-10'}
-                  type="url"
-                  placeholder="https://..."
-                  value={form.link_processo ?? ''}
-                  onChange={e => set('link_processo', e.target.value || null)}
-                />
-                {form.link_processo && (
-                  <a href={form.link_processo} target="_blank" rel="noopener noreferrer"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700">
-                    <ExternalLink size={14} />
-                  </a>
-                )}
+          )}
+
+          {/* ── Identificação do Processo ── */}
+          <section>
+            <Sec icon={<FileText size={13} />} title="Identificação do Processo" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL}>Número do Processo *</label>
+                <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
+              </div>
+              <div>
+                <label className={LABEL}>Convênio</label>
+                <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL}>Entidade / Município</label>
+                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Situação do Processo */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-gradient-to-br from-slate-50 to-white">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={15} className="text-slate-500" />
-              <span className="text-sm font-bold text-slate-700">Situação do Processo</span>
-              {form.situacao && <SituacaoBadge situacao={form.situacao} />}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className={LABEL}>Situação</label>
-                <select className={INPUT} value={form.situacao ?? ''} onChange={e => set('situacao', e.target.value || null)}>
-                  <option value="">— não avaliada —</option>
-                  <option value="REGULAR">✅ Regular — sem pendências financeiras</option>
-                  <option value="PARCIALMENTE_REGULAR">⚠️ Parcialmente Regular — pendências parciais</option>
-                  <option value="IRREGULAR">❌ Irregular — com pendências / valores a devolver</option>
+          {/* ── Classificação ── */}
+          <section>
+            <Sec icon={<ClipboardList size={13} />} title="Classificação e Posição" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className={LABEL}>Exercício (ano)</label>
+                <input className={INPUT} value={form.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} placeholder="ex: 2024" />
+              </div>
+              <div>
+                <label className={LABEL}>DRS</label>
+                <select className={INPUT} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">— sel. —</option>
+                  {Array.from({ length: 17 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n}>DRS {n.toString().padStart(2, '0')}</option>
+                  ))}
                 </select>
               </div>
-              {(form.situacao === 'IRREGULAR' || form.situacao === 'PARCIALMENTE_REGULAR') && (
-                <>
-                  <div>
-                    <label className={LABEL}>Valor a Devolver (R$)</label>
-                    <CurrencyInput value={form.valor_a_devolver} onChange={v => set('valor_a_devolver', v)} />
-                    <p className="mt-1 text-xs text-slate-400">Total que deve ser restituído ao erário</p>
+              <div>
+                <label className={LABEL + ' flex items-center gap-1'}>
+                  Data de Recebimento
+                  {!!initial?.data && !isAdmin && <Lock size={11} className="text-slate-400" />}
+                </label>
+                {!!initial?.data && !isAdmin ? (
+                  <div className={INPUT + ' bg-slate-50 text-slate-500 flex items-center gap-1 cursor-not-allowed select-none'}>
+                    <Lock size={12} className="text-slate-400 flex-shrink-0" />
+                    <span className="text-xs">{form.data ?? '—'}</span>
                   </div>
-                  <div>
-                    <label className={LABEL}>Valor já Devolvido (R$)</label>
-                    <CurrencyInput value={form.valor_devolvido} onChange={v => set('valor_devolvido', v)} />
-                    <p className="mt-1 text-xs text-slate-400">Valor efetivamente já restituído</p>
-                  </div>
-                  {(form.valor_a_devolver ?? 0) > 0 && (() => {
-                    const saldo = (form.valor_a_devolver ?? 0) - (form.valor_devolvido ?? 0);
-                    return (
-                      <div className={`sm:col-span-2 rounded-lg p-3 border ${saldo <= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Saldo Pendente</div>
-                        <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                          {fmt(saldo)}
-                          {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">✓ Totalmente quitado</span>}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
-              <div className="sm:col-span-2">
-                <label className={LABEL}>Observações / Fundamentação</label>
-                <textarea
-                  className={INPUT}
-                  rows={3}
-                  value={form.situacao_obs ?? ''}
-                  onChange={e => set('situacao_obs', e.target.value || null)}
-                  placeholder="Descreva os motivos, irregularidades encontradas, diligências realizadas..."
-                />
+                ) : (
+                  <input className={INPUT} type="date" value={form.data ?? ''} onChange={e => set('data', e.target.value || null)} />
+                )}
+              </div>
+              <div>
+                <label className={LABEL}>Responsável pelo Cadastro</label>
+                <select className={INPUT} value={form.responsavel ?? ''} onChange={e => set('responsavel', e.target.value || null)}>
+                  <option value="">— selecione —</option>
+                  {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LABEL}>Posição Atual</label>
+                <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">— selecione —</option>
+                  {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
+                </select>
+                {isEditing && initial?.posicao && form.posicao_id !== initial?.posicao_id && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                    <Clock size={11} />Ant: <strong>{initial.posicao}</strong>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className={LABEL}>Movimento</label>
+                <select className={INPUT} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
+                  <option value="">— selecione —</option>
+                  {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LABEL}>Remessa</label>
+                <select className={INPUT} value={form.remessa ?? ''} onChange={e => set('remessa', (e.target.value || null) as 'ACIMA' | 'ABAIXO' | null)}>
+                  <option value="">— selecione —</option>
+                  <option value="ACIMA">Acima de Remessa</option>
+                  <option value="ABAIXO">Abaixo de Remessa</option>
+                </select>
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer"
+                    checked={!!form.is_parcelamento}
+                    onChange={e => set('is_parcelamento', e.target.checked || null)}
+                  />
+                  <strong>Parcelamento</strong>
+                </label>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+          {/* ── Análise ── */}
+          <section>
+            <Sec icon={<BookOpen size={13} />} title="Análise do Processo" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL}>
+                  <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
+                </label>
+                <input
+                  className={INPUT}
+                  type="number"
+                  min={0}
+                  placeholder="ex: 150"
+                  value={form.num_paginas ?? ''}
+                  onChange={e => set('num_paginas', e.target.value ? Number(e.target.value) : null)}
+                />
+                {(form.num_paginas ?? 0) > 0 && (
+                  <p className="mt-1 text-xs text-slate-400 flex items-center gap-1">
+                    <Gauge size={10} />Complexidade:{' '}
+                    <span className={`font-semibold ${
+                      (form.num_paginas ?? 0) <= 50 ? 'text-green-600' :
+                      (form.num_paginas ?? 0) <= 200 ? 'text-amber-600' :
+                      (form.num_paginas ?? 0) <= 500 ? 'text-orange-600' : 'text-red-600'
+                    }`}>
+                      {(form.num_paginas ?? 0) <= 50 ? 'Baixa' :
+                       (form.num_paginas ?? 0) <= 200 ? 'Média' :
+                       (form.num_paginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className={LABEL}>
+                  <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    className={INPUT + ' pr-9'}
+                    type="url"
+                    placeholder="https://..."
+                    value={form.link_processo ?? ''}
+                    onChange={e => set('link_processo', e.target.value || null)}
+                  />
+                  {form.link_processo && (
+                    <a href={form.link_processo} target="_blank" rel="noopener noreferrer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700">
+                      <ExternalLink size={14} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Situação do Processo ── */}
+          <section>
+            <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
+            <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>Situação</label>
+                  <select className={INPUT} value={form.situacao ?? ''} onChange={e => set('situacao', e.target.value || null)}>
+                    <option value="">— não avaliada —</option>
+                    <option value="REGULAR">✅ Regular — sem pendências financeiras</option>
+                    <option value="PARCIALMENTE_REGULAR">⚠️ Parcialmente Regular — pendências parciais</option>
+                    <option value="IRREGULAR">❌ Irregular — com pendências / valores a devolver</option>
+                  </select>
+                </div>
+                {(form.situacao === 'IRREGULAR' || form.situacao === 'PARCIALMENTE_REGULAR') && (
+                  <>
+                    <div>
+                      <label className={LABEL}>Valor a Devolver (R$)</label>
+                      <CurrencyInput value={form.valor_a_devolver} onChange={v => set('valor_a_devolver', v)} />
+                      <p className="mt-1 text-xs text-slate-400">Total que deve ser restituído ao erário</p>
+                    </div>
+                    <div>
+                      <label className={LABEL}>Valor já Devolvido (R$)</label>
+                      <CurrencyInput value={form.valor_devolvido} onChange={v => set('valor_devolvido', v)} />
+                      <p className="mt-1 text-xs text-slate-400">Valor efetivamente já restituído</p>
+                    </div>
+                    {(form.valor_a_devolver ?? 0) > 0 && (() => {
+                      const saldo = (form.valor_a_devolver ?? 0) - (form.valor_devolvido ?? 0);
+                      return (
+                        <div className={`sm:col-span-2 rounded-lg p-3 border ${saldo <= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Saldo Pendente</div>
+                          <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {fmt(saldo)}
+                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">✓ Totalmente quitado</span>}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>Observações / Fundamentação</label>
+                  <textarea
+                    className={INPUT}
+                    rows={3}
+                    value={form.situacao_obs ?? ''}
+                    onChange={e => set('situacao_obs', e.target.value || null)}
+                    placeholder="Descreva os motivos, irregularidades encontradas, diligências realizadas..."
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Save bar ── */}
+          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100 sticky bottom-0 bg-white/95 backdrop-blur-sm py-3">
             <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
             <button type="submit" className={BTN_PRI} disabled={saving}>
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              {isEditing ? 'Atualizar' : 'Cadastrar'}
+              {isEditing ? 'Salvar Alterações' : 'Cadastrar Processo'}
             </button>
           </div>
-          {savedOk && (
-            <div className="mt-3 flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-              <Check size={16} className="flex-shrink-0" />
-              Registro cadastrado! Agora você pode adicionar Exercícios, Histórico e outros dados nas abas acima.
-            </div>
-          )}
         </form>
-      )}
 
-      {/* Sub-tabs */}
-      {tab !== 'dados' && !isEditing && (
-        <div className="py-14 text-center space-y-3">
-          <Save size={36} className="mx-auto text-slate-300" />
-          <p className="text-slate-600 text-sm font-semibold">Salve os Dados Gerais primeiro</p>
-          <p className="text-slate-400 text-xs">Após cadastrar o registro você poderá adicionar itens nesta aba.</p>
-          <button type="button" className={BTN_SEC + ' mx-auto mt-2'} onClick={() => setTab('dados')}>
-            Voltar para Dados Gerais
-          </button>
-        </div>
-      )}
+        {/* ── Sections visible only when a record exists ── */}
+        {isEditing && (
+          <div className="space-y-5 pb-2">
 
-      {/* Técnico tab - standalone (doesn't require full processo linkage) */}
-      {tab === 'tecnico' && isEditing && (
-        <FluxoTecnicoPanel
-          registroId={liveRecord!.codigo}
-          posicoes={posicoes}
-          numPaginas={form.num_paginas}
-          gpcUsers={gpcUsers}
-          signatoryUsers={signatoryUsers}
-          responsavelAssinatura={form.responsavel_assinatura}
-          responsavelAssinatura2={form.responsavel_assinatura_2}
-          onRecordUpdated={onRecordUpdated}
-        />
-      )}
+            {/* Fluxo Técnico */}
+            <section>
+              <Sec icon={<Activity size={13} />} title="Fluxo Técnico e Responsáveis pela Assinatura" />
+              <FluxoTecnicoPanel
+                registroId={liveRecord!.codigo}
+                posicoes={posicoes}
+                numPaginas={form.num_paginas}
+                gpcUsers={gpcUsers}
+                signatoryUsers={signatoryUsers}
+                responsavelAssinatura={form.responsavel_assinatura}
+                responsavelAssinatura2={form.responsavel_assinatura_2}
+                onRecordUpdated={onRecordUpdated}
+              />
+            </section>
 
-      {tab !== 'dados' && tab !== 'tecnico' && isEditing && (
-        <div>
-          {loadingFull && (
-            <div className="flex items-center gap-2 py-8 justify-center text-slate-400">
-              <Loader2 size={18} className="animate-spin" />Carregando dados do processo...
-            </div>
-          )}
-          {!loadingFull && !full && (
-            <div className="py-8 text-center text-slate-400 text-sm">Processo relacionado não encontrado.</div>
-          )}
-          {!loadingFull && full && (
-            <>
-              {tab === 'exercicios' && (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={() => setSubModal({ type: 'exercicio' })}>
-                      <Plus size={13} />Novo Exercício
-                    </button>
-                  </div>
+            {loadingFull && (
+              <div className="flex items-center gap-2 py-5 justify-center text-slate-400 text-sm">
+                <Loader2 size={16} className="animate-spin" />Carregando dados vinculados...
+              </div>
+            )}
+
+            {!loadingFull && full && (
+              <>
+                {/* Exercícios */}
+                <section>
+                  <Sec
+                    icon={<Calendar size={13} />}
+                    title={`Exercícios (${full.exercicios?.length ?? 0})`}
+                    action={
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'exercicio' })}>
+                        <Plus size={12} />Adicionar
+                      </button>
+                    }
+                  />
                   <InlineTable
                     cols={[
                       { label: 'Ano',       render: (r: GpcExercicio) => <span className="font-bold text-slate-700">{r.exercicio}</span> },
@@ -1496,15 +1476,19 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     onDelete={r => confirmDeleteSub(() => GpcService.deleteExercicio(r.codigo))}
                     emptyMsg="Nenhum exercício cadastrado"
                   />
-                </div>
-              )}
-              {tab === 'objetos' && (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={() => setSubModal({ type: 'objeto' })}>
-                      <Plus size={13} />Novo Objeto
-                    </button>
-                  </div>
+                </section>
+
+                {/* Objetos */}
+                <section>
+                  <Sec
+                    icon={<ClipboardList size={13} />}
+                    title={`Objetos (${full.objetos?.length ?? 0})`}
+                    action={
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
+                        <Plus size={12} />Adicionar
+                      </button>
+                    }
+                  />
                   <InlineTable
                     cols={[
                       { label: 'Descrição', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
@@ -1515,15 +1499,19 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     onDelete={r => confirmDeleteSub(() => GpcService.deleteObjeto(r.codigo))}
                     emptyMsg="Nenhum objeto cadastrado"
                   />
-                </div>
-              )}
-              {tab === 'parcelamentos' && (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={() => setSubModal({ type: 'parcelamento' })}>
-                      <Plus size={13} />Novo Parcelamento
-                    </button>
-                  </div>
+                </section>
+
+                {/* Parcelamentos */}
+                <section>
+                  <Sec
+                    icon={<DollarSign size={13} />}
+                    title={`Parcelamentos (${full.parcelamentos?.length ?? 0})`}
+                    action={
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento' })}>
+                        <Plus size={12} />Adicionar
+                      </button>
+                    }
+                  />
                   <InlineTable
                     cols={[
                       { label: 'Proc. Parcela', render: (r: GpcParcelamento) => <span className="font-medium">{r.proc_parcela ?? '-'}</span> },
@@ -1539,15 +1527,19 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
                     emptyMsg="Nenhum parcelamento cadastrado"
                   />
-                </div>
-              )}
-              {tab === 'tas' && (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={() => setSubModal({ type: 'ta' })}>
-                      <Plus size={13} />Novo Termo Aditivo
-                    </button>
-                  </div>
+                </section>
+
+                {/* TAs */}
+                <section>
+                  <Sec
+                    icon={<GitBranch size={13} />}
+                    title={`Termos Aditivos (${full.tas?.length ?? 0})`}
+                    action={
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
+                        <Plus size={12} />Adicionar
+                      </button>
+                    }
+                  />
                   <InlineTable
                     cols={[
                       { label: 'Número', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
@@ -1559,12 +1551,12 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     onDelete={r => confirmDeleteSub(() => GpcService.deleteTa(r.codigo))}
                     emptyMsg="Nenhum TA cadastrado"
                   />
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+                </section>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Sub-modals */}
       {subModal && full && (
