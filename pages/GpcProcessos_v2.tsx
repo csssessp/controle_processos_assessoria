@@ -61,10 +61,10 @@ const fmtMes = (ym: string) => {
 
 // ---- Design tokens ----
 
-const INPUT = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow placeholder:text-slate-300';
-const LABEL = 'block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1';
-const BTN_PRI = 'inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
-const BTN_SEC = 'inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-700 text-sm font-medium rounded-lg border border-slate-200 hover:bg-slate-50 active:scale-95 transition-all';
+const INPUT = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all shadow-sm placeholder:text-slate-300';
+const LABEL = 'block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5';
+const BTN_PRI = 'inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
+const BTN_SEC = 'inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-600 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all shadow-sm';
 
 // ---- CurrencyInput (BRL masked input) ----
 const CurrencyInput = ({ value, onChange, placeholder = '0,00' }: {
@@ -229,19 +229,19 @@ const Modal = ({ title, subtitle, onClose, children, size = 'lg' }: {
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-2xl shadow-2xl w-full ${widths[size]} max-h-[92vh] flex flex-col`}
+        className={`bg-slate-50/95 rounded-2xl shadow-2xl ring-1 ring-black/5 w-full ${widths[size]} max-h-[92vh] flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+            <h3 className="text-base font-bold text-slate-800">{title}</h3>
             {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
         <div className="overflow-y-auto flex-1 px-6 py-5">{children}</div>
@@ -304,10 +304,10 @@ function InlineTable<T extends { codigo: number }>({ cols, rows, onEdit, onDelet
 // ---- InfoCard ----
 
 const InfoCard = ({ label, value, icon }: { label: string; value: string | null | undefined; icon?: React.ReactNode }) => (
-  <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-1">{label}</div>
-    <div className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
-      {icon}{value || '-'}
+  <div className="bg-white border border-slate-100 rounded-xl p-3.5 hover:border-slate-200 hover:shadow-sm transition-all">
+    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
+    <div className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+      {icon}{value != null && value !== '' ? value : <span className="text-slate-300 font-normal">—</span>}
     </div>
   </div>
 );
@@ -847,14 +847,24 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
     GpcService.getSignatoryUsers().then(setSignatoryUsers);
   }, []);
 
-  // Compact section header helper
   const Sec = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
-    <div className="flex items-center gap-2 mb-3">
-      <span className="text-slate-400">{icon}</span>
-      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</span>
+    <div className="flex items-center gap-2.5 mb-4">
+      <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+        {icon}
+      </span>
+      <span className="text-sm font-bold text-slate-700">{title}</span>
       <div className="flex-1 h-px bg-slate-100" />
     </div>
   );
+
+  const cpxLabel = (n: number | null | undefined) => {
+    if (!n) return null;
+    if (n <= 50)  return { label: 'Baixa',     color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-100',  ring: 'bg-green-100',  icon: 'text-green-600' };
+    if (n <= 200) return { label: 'Média',     color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-100',  ring: 'bg-amber-100',  icon: 'text-amber-600' };
+    if (n <= 500) return { label: 'Alta',      color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-100', ring: 'bg-orange-100', icon: 'text-orange-600' };
+    return        { label: 'Muito Alta', color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-100',    ring: 'bg-red-100',    icon: 'text-red-600' };
+  };
+  const cpx = cpxLabel(row.num_paginas);
 
   return (
     <Modal
@@ -863,131 +873,205 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
       onClose={onClose}
       size="xl"
     >
-      {/* Edit button */}
-      <div className="flex justify-end -mt-2 mb-4">
-        <button className={BTN_PRI + ' text-xs px-3 py-1.5'} onClick={onEdit}>
-          <Edit size={13} />Editar
+      {/* Action bar */}
+      <div className="flex items-center justify-between -mt-1 mb-5">
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          Registro <span className="font-bold text-slate-600">#{row.codigo}</span>
+          {row.created_at && <span className="text-slate-300">·</span>}
+          {row.created_at && <span>Cadastrado em {fmtDate(row.created_at)}</span>}
+        </div>
+        <button className={BTN_PRI} onClick={onEdit}>
+          <Edit size={13} />Editar Registro
         </button>
       </div>
 
-      <div className="space-y-5 max-h-[72vh] overflow-y-auto pr-1">
+      <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
 
-        {/* ── Identificação ── */}
-        <section>
-          <Sec icon={<FileText size={13} />} title="Identificação" />
-          <div className="font-mono text-sm font-bold text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-3 break-all select-all">
-            {row.processo ?? '-'}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <InfoCard label="Convênio" value={row.convenio} />
-            <InfoCard label="Exercício" value={row.exercicio} />
-            <InfoCard label="DRS" value={row.drs != null ? String(row.drs) : null} />
-            <InfoCard label="Recebimento" value={fmtDate(row.data)} />
-            <InfoCard label="Responsável" value={row.responsavel} icon={<User size={12} />} />
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-1.5">Posição</div>
+        {/* ── HERO CARD ── */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 rounded-2xl p-6 text-white shadow-xl">
+          <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-8 left-4 w-36 h-36 rounded-full bg-indigo-500/10 blur-2xl" />
+
+          <div className="relative flex items-start justify-between gap-4 mb-5">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span className="inline-flex items-center gap-1 bg-white/10 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-md tracking-widest uppercase">
+                  <FileText size={9} />Processo #{row.codigo}
+                </span>
+                {row.is_parcelamento && (
+                  <span className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md">Parcelamento</span>
+                )}
+                {row.remessa && (
+                  <span className="inline-flex items-center gap-1 bg-purple-500/20 text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                    {row.remessa === 'ACIMA' ? 'Acima de Remessa' : 'Abaixo de Remessa'}
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-xl font-bold text-white tracking-tight break-all leading-snug">
+                {row.processo ?? '—'}
+              </div>
+              {row.convenio && <div className="text-slate-400 text-sm mt-1.5">Convênio {row.convenio}</div>}
+            </div>
+            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+              <SituacaoBadge situacao={row.situacao} />
               <PosicaoBadge id={row.posicao_id} label={row.posicao ?? null} />
             </div>
-            <InfoCard label="Movimento" value={row.movimento} />
-            <InfoCard label="Entidade" value={row.entidade} />
-            {row.remessa && (
-              <InfoCard label="Remessa" value={row.remessa === 'ACIMA' ? 'Acima de Remessa' : 'Abaixo de Remessa'} />
-            )}
-            <InfoCard label="Parcelamento" value={row.is_parcelamento ? 'Sim' : 'Não'} />
-            {(row.num_paginas ?? 0) > 0 && (
-              <InfoCard
-                label="Páginas"
-                value={`${row.num_paginas} — ${
-                  (row.num_paginas ?? 0) <= 50 ? 'Complexidade Baixa' :
-                  (row.num_paginas ?? 0) <= 200 ? 'Complexidade Média' :
-                  (row.num_paginas ?? 0) <= 500 ? 'Complexidade Alta' : 'Complexidade Muito Alta'
-                }`}
-                icon={<BookOpen size={12} />}
-              />
-            )}
-            {row.created_at && <InfoCard label="Cadastrado em" value={fmtTs(row.created_at)} />}
           </div>
-        </section>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 relative">
+            {[
+              { label: 'Exercício',    value: row.exercicio ?? '—' },
+              { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : '—' },
+              { label: 'Recebimento',  value: fmtDate(row.data) },
+              { label: 'Entidade',     value: row.entidade ?? '—' },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/10">
+                <div className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-0.5">{label}</div>
+                <div className="text-white text-xs font-semibold truncate">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Indicadores chave ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+              <User size={17} className="text-slate-500" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Responsável</div>
+              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.responsavel || <span className="text-slate-300 font-normal">—</span>}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+              <Activity size={17} className="text-purple-500" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Movimento</div>
+              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.movimento || <span className="text-slate-300 font-normal">—</span>}</div>
+            </div>
+          </div>
+          <div className={`flex items-center gap-3 rounded-2xl p-4 border shadow-sm ${cpx ? `${cpx.bg} ${cpx.border}` : 'bg-white border-slate-100'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${cpx ? cpx.ring : 'bg-slate-100'}`}>
+              <BookOpen size={17} className={cpx ? cpx.icon : 'text-slate-400'} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Complexidade</div>
+              {cpx
+                ? <div className="mt-0.5"><span className={`text-sm font-bold ${cpx.color}`}>{cpx.label}</span><span className="text-xs text-slate-500 ml-1.5">({row.num_paginas} pág.)</span></div>
+                : <div className="text-sm text-slate-300 font-normal mt-0.5">Não informado</div>}
+            </div>
+          </div>
+        </div>
 
         {/* ── Responsáveis pela Assinatura ── */}
-        <section>
+        <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
           <Sec icon={<PenLine size={13} />} title="Responsáveis pela Assinatura" />
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
-              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">1º Responsável</div>
-              <div className="text-sm font-medium text-slate-800">
-                {row.responsavel_assinatura || <span className="text-slate-300">—</span>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { label: '1º Responsável', value: row.responsavel_assinatura, initials: '1°' },
+              { label: '2º Responsável', value: row.responsavel_assinatura_2, initials: '2°' },
+            ].map(({ label, value, initials }) => (
+              <div key={label} className="flex items-center gap-3 bg-indigo-50/60 border border-indigo-100 rounded-xl p-4">
+                <div className="w-11 h-11 rounded-full bg-indigo-100 border-2 border-indigo-200 flex items-center justify-center flex-shrink-0">
+                  <span className="text-indigo-600 text-sm font-bold">
+                    {value ? value.trim().split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() : initials}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">{label}</div>
+                  <div className="text-sm font-semibold text-slate-800 mt-0.5 truncate">
+                    {value || <span className="text-slate-400 font-normal italic">Não atribuído</span>}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
-              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">2º Responsável</div>
-              <div className="text-sm font-medium text-slate-800">
-                {row.responsavel_assinatura_2 || <span className="text-slate-300">—</span>}
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 
         {/* ── Situação do Processo ── */}
-        <section>
+        <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
           <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
           {row.situacao ? (
-            <div className={`rounded-xl p-4 border ${
-              row.situacao === 'REGULAR' ? 'bg-green-50 border-green-200' :
-              row.situacao === 'IRREGULAR' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+            <div className={`rounded-2xl overflow-hidden border-2 shadow-sm ${
+              row.situacao === 'REGULAR' ? 'border-green-200' :
+              row.situacao === 'IRREGULAR' ? 'border-red-300' : 'border-amber-300'
             }`}>
-              <div className="flex items-center gap-2 mb-2">
+              <div className={`px-5 py-3.5 flex items-center gap-3 ${
+                row.situacao === 'REGULAR' ? 'bg-green-600' :
+                row.situacao === 'IRREGULAR' ? 'bg-red-600' : 'bg-amber-500'
+              }`}>
                 {row.situacao === 'REGULAR'
-                  ? <ShieldCheck size={15} className="text-green-600" />
+                  ? <ShieldCheck size={18} className="text-white" />
                   : row.situacao === 'IRREGULAR'
-                    ? <ShieldAlert size={15} className="text-red-600" />
-                    : <ShieldOff size={15} className="text-amber-600" />}
-                <SituacaoBadge situacao={row.situacao} />
+                    ? <ShieldAlert size={18} className="text-white" />
+                    : <ShieldOff size={18} className="text-white" />}
+                <span className="text-white font-bold text-sm">
+                  {row.situacao === 'REGULAR' ? 'Processo Regular — sem pendências financeiras'
+                    : row.situacao === 'IRREGULAR' ? 'Processo Irregular — com pendências financeiras'
+                    : 'Parcialmente Regular — pendências parciais'}
+                </span>
               </div>
-              {row.situacao === 'REGULAR' && (
-                <p className="text-sm text-green-700">Processo sem pendências financeiras.</p>
-              )}
-              {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div className="bg-white/70 rounded-lg p-2.5 border border-current/10">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-0.5">Valor a Devolver</div>
-                    <div className="text-sm font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : '—'}</div>
+              <div className={`px-5 py-4 space-y-3 ${
+                row.situacao === 'REGULAR' ? 'bg-green-50' :
+                row.situacao === 'IRREGULAR' ? 'bg-red-50' : 'bg-amber-50'
+              }`}>
+                {row.situacao === 'REGULAR' && (
+                  <p className="text-sm text-green-700 flex items-center gap-2">
+                    <Check size={14} className="text-green-600 flex-shrink-0" />Processo sem pendências financeiras identificadas.
+                  </p>
+                )}
+                {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white rounded-xl p-3.5 border border-red-200 text-center shadow-sm">
+                      <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider mb-1">A Devolver</div>
+                      <div className="text-lg font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : '—'}</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3.5 border border-green-200 text-center shadow-sm">
+                      <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">Já Devolvido</div>
+                      <div className="text-lg font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : '—'}</div>
+                    </div>
+                    {(row.valor_a_devolver ?? 0) > 0 && (() => {
+                      const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
+                      return (
+                        <div className={`bg-white rounded-xl p-3.5 border text-center shadow-sm ${saldo <= 0 ? 'border-green-200' : 'border-red-200'}`}>
+                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Saldo</div>
+                          <div className={`text-lg font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {saldo <= 0 ? '✓ Quitado' : fmt(saldo)}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <div className="bg-white/70 rounded-lg p-2.5 border border-current/10">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-green-600 mb-0.5">Já Devolvido</div>
-                    <div className="text-sm font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : '—'}</div>
+                )}
+                {row.situacao_obs && (
+                  <div className="bg-white/80 rounded-xl p-4 border border-current/10">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Observações</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
                   </div>
-                  {(row.valor_a_devolver ?? 0) > 0 && (() => {
-                    const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
-                    return (
-                      <div className="col-span-2 bg-white/70 rounded-lg p-2.5 border border-current/10 flex items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Pendente</span>
-                        <span className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                          {fmt(saldo)}{saldo <= 0 && <span className="ml-1.5 text-xs text-green-600 font-normal">✓ Quitado</span>}
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {row.situacao_obs && (
-                <div className="mt-3 pt-3 border-t border-current/10">
-                  <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Observações</p>
-                  <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : (
-            <div className="rounded-xl p-3 border border-dashed border-slate-200 flex items-center gap-2 text-slate-400">
-              <ShieldOff size={14} />
-              <span className="text-xs">Situação ainda não avaliada</span>
-              <button className="ml-auto text-xs text-blue-500 hover:text-blue-700 font-semibold" onClick={onEdit}>Avaliar agora →</button>
+            <div className="rounded-2xl p-5 border-2 border-dashed border-slate-200 flex items-center gap-4 bg-slate-50/50">
+              <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <ShieldOff size={20} className="text-slate-400" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-600">Situação não avaliada</div>
+                <div className="text-xs text-slate-400 mt-0.5">O processo ainda não foi analisado financeiramente</div>
+              </div>
+              <button className="ml-auto text-sm text-blue-600 hover:text-blue-700 font-semibold whitespace-nowrap" onClick={onEdit}>
+                Avaliar →
+              </button>
             </div>
           )}
         </section>
 
         {/* ── Fluxo Técnico ── */}
-        <section>
+        <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
           <Sec icon={<Activity size={13} />} title="Fluxo Técnico" />
           <FluxoTecnicoPanel
             registroId={row.codigo}
@@ -1004,86 +1088,98 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
         </section>
 
         {/* ── Histórico de Atribuições ── */}
-        <section>
+        <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
           <Sec icon={<TrendingUp size={13} />} title="Histórico de Atribuições" />
           <ProdPanel registroId={row.codigo} />
         </section>
 
         {/* ── Link ── */}
         {row.link_processo && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <div className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-1 flex items-center gap-1">
-              <LinkIcon size={11} />Link do Processo
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <ExternalLink size={17} className="text-blue-600" />
             </div>
-            <a
-              href={row.link_processo}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-700 hover:text-blue-900 font-medium flex items-center gap-1.5 break-all text-sm"
-            >
-              <ExternalLink size={14} className="flex-shrink-0" />{row.link_processo}
-            </a>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mb-0.5">Link do Processo</div>
+              <a href={row.link_processo} target="_blank" rel="noopener noreferrer"
+                className="text-blue-700 hover:text-blue-900 text-sm font-medium break-all flex items-center gap-1.5">
+                <span className="truncate">{row.link_processo}</span>
+              </a>
+            </div>
           </div>
         )}
 
-        {/* ── Dados do Processo (assíncronos) ── */}
+        {/* ── Dados assíncronos ── */}
         {loadingFull && (
-          <div className="flex items-center gap-2 py-3 text-slate-400 text-xs">
+          <div className="flex items-center gap-2 py-4 justify-center text-slate-400 text-xs">
             <Loader2 size={13} className="animate-spin" />Carregando dados adicionais...
           </div>
         )}
         {full && (
           <div className="space-y-4">
-            <section>
-              <Sec icon={<BookOpen size={13} />} title="Resumo Financeiro" />
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-                  <div className="text-xl font-bold text-blue-700">{full.objetos?.length ?? 0}</div>
-                  <div className="text-xs text-blue-500 mt-0.5">Objetos</div>
-                  {(full.objetos?.length ?? 0) > 0 && <div className="text-xs text-blue-600 font-semibold mt-0.5">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>}
+            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+              <Sec icon={<BarChart2 size={13} />} title="Resumo Financeiro" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
+                  <ClipboardList size={20} className="text-blue-300 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-blue-700">{full.objetos?.length ?? 0}</div>
+                  <div className="text-xs text-blue-500 font-semibold mt-0.5">Objetos</div>
+                  {(full.objetos?.length ?? 0) > 0 && <div className="text-xs text-blue-600 font-bold mt-1.5">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>}
                 </div>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
-                  <div className="text-xl font-bold text-amber-700">{full.parcelamentos?.length ?? 0}</div>
-                  <div className="text-xs text-amber-500 mt-0.5">Parcelamentos</div>
-                  {(full.parcelamentos?.length ?? 0) > 0 && <div className="text-xs text-amber-600 font-semibold mt-0.5">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>}
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center">
+                  <DollarSign size={20} className="text-amber-300 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-amber-700">{full.parcelamentos?.length ?? 0}</div>
+                  <div className="text-xs text-amber-500 font-semibold mt-0.5">Parcelamentos</div>
+                  {(full.parcelamentos?.length ?? 0) > 0 && <div className="text-xs text-amber-600 font-bold mt-1.5">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>}
                 </div>
-                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
-                  <div className="text-xl font-bold text-purple-700">{full.tas?.length ?? 0}</div>
-                  <div className="text-xs text-purple-500 mt-0.5">TAs</div>
-                  {(full.tas?.length ?? 0) > 0 && <div className="text-xs text-purple-600 font-semibold mt-0.5">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>}
+                <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 text-center">
+                  <GitBranch size={20} className="text-purple-300 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-purple-700">{full.tas?.length ?? 0}</div>
+                  <div className="text-xs text-purple-500 font-semibold mt-0.5">Termos Aditivos</div>
+                  {(full.tas?.length ?? 0) > 0 && <div className="text-xs text-purple-600 font-bold mt-1.5">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>}
                 </div>
               </div>
             </section>
 
             {(full.exercicios?.length ?? 0) > 0 && (
-              <section>
-                <Sec icon={<Calendar size={13} />} title={`Exercícios (${full.exercicios!.length})`} />
-                <div className="bg-green-50 border border-green-100 rounded-xl p-3 space-y-1">
+              <section className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-2.5">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                    <Calendar size={13} />
+                  </span>
+                  <span className="text-sm font-bold text-slate-700">Exercícios ({full.exercicios!.length})</span>
+                </div>
+                <div className="divide-y divide-slate-50">
                   {full.exercicios!.map(ex => (
-                    <div key={ex.codigo} className="grid grid-cols-4 gap-2 text-xs">
+                    <div key={ex.codigo} className="grid grid-cols-4 gap-3 px-5 py-3 text-xs hover:bg-slate-50/50 transition-colors">
                       <span className="font-bold text-slate-700">{ex.exercicio}</span>
-                      <span className="text-slate-500">Rep: <span className="text-green-700 font-medium">{fmt(ex.repasse)}</span></span>
+                      <span className="text-slate-500">Rep: <span className="text-green-700 font-semibold">{fmt(ex.repasse)}</span></span>
                       <span className="text-slate-500">Apl: <span className="font-medium">{fmt(ex.aplicacao)}</span></span>
                       <span className="text-slate-500">Dev: <span className="font-medium">{fmt(ex.devolvido)}</span></span>
                     </div>
                   ))}
-                  <div className="border-t border-green-200 pt-1 flex justify-between text-xs font-bold">
-                    <span className="text-slate-600">Total Repasse</span>
-                    <span className="text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</span>
-                  </div>
+                </div>
+                <div className="px-5 py-2.5 bg-green-50 border-t border-green-100 flex justify-between text-xs font-bold">
+                  <span className="text-slate-600">Total Repasse</span>
+                  <span className="text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</span>
                 </div>
               </section>
             )}
 
             {(full.historicos?.length ?? 0) > 0 && (
-              <section>
-                <Sec icon={<Clock size={13} />} title={`Histórico de Movimentos (${full.historicos!.length})`} />
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1">
+              <section className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-2.5">
+                  <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                    <Clock size={13} />
+                  </span>
+                  <span className="text-sm font-bold text-slate-700">Histórico de Movimentos ({full.historicos!.length})</span>
+                </div>
+                <div className="divide-y divide-slate-50">
                   {full.historicos!.slice(-5).map(h => (
-                    <div key={h.codigo} className="flex items-center gap-2 text-xs py-0.5">
+                    <div key={h.codigo} className="flex items-center gap-3 px-5 py-2.5 text-xs hover:bg-slate-50/50 transition-colors">
                       <span className="text-slate-400 whitespace-nowrap w-20 flex-shrink-0">{fmtDate(h.data)}</span>
-                      <span className="text-slate-700 font-medium truncate">{h.movimento ?? '-'}</span>
-                      {h.posicao && <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-medium">{h.posicao}</span>}
+                      <span className="text-slate-700 font-medium truncate flex-1">{h.movimento ?? '-'}</span>
+                      {h.posicao && <span className="flex-shrink-0 px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">{h.posicao}</span>}
                       {h.responsavel && <span className="flex-shrink-0 text-slate-400 flex items-center gap-0.5"><User size={9} />{h.responsavel}</span>}
                     </div>
                   ))}
@@ -1093,13 +1189,12 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
           </div>
         )}
 
-        {/* ── Posições Duplicadas ── */}
         {prevPositions.length > 0 && (
-          <section>
-            <Sec icon={<Info size={13} />} title="Processo duplicado — outras posições" />
-            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 flex flex-wrap gap-1.5">
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <Sec icon={<Info size={13} />} title="Processo com múltiplas posições" />
+            <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex flex-wrap gap-2">
               {prevPositions.map((p, i) => (
-                <span key={i} className="inline-flex items-center gap-1 text-xs bg-white border border-purple-200 text-purple-700 rounded-full px-2 py-0.5">
+                <span key={i} className="inline-flex items-center gap-1 text-xs bg-white border border-purple-200 text-purple-700 rounded-full px-3 py-1 shadow-sm">
                   <Clock size={10} />{p}
                 </span>
               ))}
@@ -1179,9 +1274,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   };
 
   const Sec = ({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) => (
-    <div className="flex items-center gap-2 mb-3">
-      <span className="text-slate-400">{icon}</span>
-      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</span>
+    <div className="flex items-center gap-3 mb-4">
+      <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500">
+        {icon}
+      </span>
+      <span className="text-sm font-bold text-slate-700">{title}</span>
       <div className="flex-1 h-px bg-slate-100" />
       {action}
     </div>
@@ -1194,9 +1291,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       onClose={onClose}
       size="xl"
     >
-      <div className="max-h-[78vh] overflow-y-auto pr-0.5 space-y-5">
+      <div className="max-h-[78vh] overflow-y-auto pr-1 space-y-4">
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {err && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               <AlertCircle size={15} className="flex-shrink-0" />{err}
@@ -1209,7 +1306,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           )}
 
           {/* ── Identificação do Processo ── */}
-          <section>
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <Sec icon={<FileText size={13} />} title="Identificação do Processo" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -1228,7 +1325,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           </section>
 
           {/* ── Classificação ── */}
-          <section>
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <Sec icon={<ClipboardList size={13} />} title="Classificação e Posição" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
@@ -1307,7 +1404,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           </section>
 
           {/* ── Análise ── */}
-          <section>
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <Sec icon={<BookOpen size={13} />} title="Análise do Processo" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -1361,9 +1458,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           </section>
 
           {/* ── Situação do Processo ── */}
-          <section>
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
-            <div className="bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
                   <label className={LABEL}>Situação</label>
@@ -1415,21 +1512,26 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           </section>
 
           {/* ── Save bar ── */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100 sticky bottom-0 bg-white/95 backdrop-blur-sm py-3">
-            <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
-            <button type="submit" className={BTN_PRI} disabled={saving}>
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              {isEditing ? 'Salvar Alterações' : 'Cadastrar Processo'}
-            </button>
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white/97 backdrop-blur-sm py-3">
+            <div className="text-xs text-slate-400">
+              {isEditing ? <span>Editando registro <span className="font-semibold text-slate-600">#{liveRecord!.codigo}</span></span> : <span className="text-slate-400">Novo registro</span>}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
+              <button type="submit" className={BTN_PRI} disabled={saving}>
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {isEditing ? 'Salvar Alterações' : 'Cadastrar Processo'}
+              </button>
+            </div>
           </div>
         </form>
 
         {/* ── Sections visible only when a record exists ── */}
         {isEditing && (
-          <div className="space-y-5 pb-2">
+          <div className="space-y-4 pb-4">
 
             {/* Fluxo Técnico */}
-            <section>
+            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
               <Sec icon={<Activity size={13} />} title="Fluxo Técnico e Responsáveis pela Assinatura" />
               <FluxoTecnicoPanel
                 registroId={liveRecord!.codigo}
@@ -1452,7 +1554,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
             {!loadingFull && full && (
               <>
                 {/* Exercícios */}
-                <section>
+                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <Sec
                     icon={<Calendar size={13} />}
                     title={`Exercícios (${full.exercicios?.length ?? 0})`}
@@ -1479,7 +1581,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 </section>
 
                 {/* Objetos */}
-                <section>
+                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <Sec
                     icon={<ClipboardList size={13} />}
                     title={`Objetos (${full.objetos?.length ?? 0})`}
@@ -1502,7 +1604,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 </section>
 
                 {/* Parcelamentos */}
-                <section>
+                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <Sec
                     icon={<DollarSign size={13} />}
                     title={`Parcelamentos (${full.parcelamentos?.length ?? 0})`}
@@ -1530,7 +1632,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 </section>
 
                 {/* TAs */}
-                <section>
+                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <Sec
                     icon={<GitBranch size={13} />}
                     title={`Termos Aditivos (${full.tas?.length ?? 0})`}
