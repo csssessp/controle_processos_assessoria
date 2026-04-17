@@ -1980,11 +1980,11 @@ const ProdutividadePage = () => {
   return (
     <div className="space-y-5">
       {/* Filter bar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
           {(['dia', 'mes', 'ano', 'geral'] as Granularity[]).map(g => (
             <button key={g} onClick={() => setGran(g)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors capitalize ${gran === g ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all capitalize ${gran === g ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {g === 'dia' ? 'Dia' : g === 'mes' ? 'Mês' : g === 'ano' ? 'Ano' : 'Geral'}
             </button>
           ))}
@@ -2009,58 +2009,79 @@ const ProdutividadePage = () => {
 
       {/* Destaque do período */}
       {topPerformer && (
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-4 flex items-center gap-4 text-white shadow-lg">
-          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-            <Award size={22} className="text-yellow-300" />
+        <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-2xl p-5 flex items-center gap-5 text-white shadow-lg shadow-blue-200">
+          <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
+            <Award size={26} className="text-yellow-300" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-blue-200 font-bold uppercase tracking-wider">🏆 Técnico destaque do período</div>
-            <div className="text-lg font-extrabold mt-0.5 truncate">{topPerformer.responsavel}</div>
-            <div className="text-xs text-blue-200 mt-0.5 flex flex-wrap gap-x-3">
-              <span>{topPerformer.analises} processo{topPerformer.analises !== 1 ? 's' : ''} analisado{topPerformer.analises !== 1 ? 's' : ''}</span>
-              <span>{topPerformer.posicoes} avanço{topPerformer.posicoes !== 1 ? 's' : ''} de posição</span>
-              <span>{topPerformer.movimentos} atualização{topPerformer.movimentos !== 1 ? 'ões' : ''}</span>
+            <div className="text-[11px] text-blue-200 font-bold uppercase tracking-widest mb-0.5">🏆 Técnico Destaque do Período</div>
+            <div className="text-xl font-extrabold truncate">{topPerformer.responsavel}</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+              <span className="text-xs text-blue-200">{topPerformer.analises} processo{topPerformer.analises !== 1 ? 's' : ''} analisado{topPerformer.analises !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-blue-200">{topPerformer.posicoes} avanço{topPerformer.posicoes !== 1 ? 's' : ''} de posição</span>
+              <span className="text-xs text-blue-200">{topPerformer.movimentos} atualização{topPerformer.movimentos !== 1 ? 'ões' : ''}</span>
             </div>
           </div>
-          <div className="text-right flex-shrink-0">
-            <div className="text-4xl font-black leading-none">
+          <div className="text-right flex-shrink-0 border-l border-white/20 pl-5">
+            <div className="text-5xl font-black leading-none tracking-tight">
               {totals.total > 0 ? `${Math.round((topPerformer.total / totals.total) * 100)}%` : '—'}
             </div>
             <div className="text-xs text-blue-200 mt-1">do total de ações</div>
-            <div className="text-sm font-bold mt-0.5">{topPerformer.total} ações</div>
+            <div className="text-sm font-bold mt-0.5 text-blue-100">{topPerformer.total} ações</div>
           </div>
         </div>
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {
-            label: 'Processos Analisados', sub: 'Processos que receberam início de análise no período',
-            value: totals.analises, prev: prevTotals.analises,
-            bg: 'bg-sky-50 border-sky-100', text: 'text-sky-700', dot: 'bg-sky-500',
-          }, {
-            label: 'Avanços de Posição', sub: 'Vezes que a posição de um processo foi movimentada',
-            value: totals.posicoes, prev: prevTotals.posicoes,
-            bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700', dot: 'bg-amber-500',
-          }, {
-            label: 'Atualizações de Movimento', sub: 'Novos estágios registrados nos processos',
-            value: totals.movimentos, prev: prevTotals.movimentos,
-            bg: 'bg-purple-50 border-purple-100', text: 'text-purple-700', dot: 'bg-purple-500',
-          }, {
-            label: 'Total de Ações', sub: 'Soma de todas as atividades registradas no período',
-            value: totals.total, prev: prevTotals.total,
-            bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700', dot: 'bg-blue-500',
-          },
-        ].map(k => (
-          <div key={k.label} className={`${k.bg} rounded-xl border p-4 flex flex-col gap-1`}>
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${k.dot}`} />
-            <div className={`text-2xl font-extrabold mt-1 ${k.text}`}>{k.value.toLocaleString('pt-BR')}</div>
-            <div className="text-xs font-bold text-slate-700 leading-tight">{k.label}</div>
-            <div className="text-xs text-slate-400 leading-tight">{k.sub}</div>
-            <Delta cur={k.value} prev={k.prev} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {/* Processos Analisados */}
+        <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center">
+              <Search size={18} className="text-sky-600" />
+            </div>
           </div>
-        ))}
+          <div className="text-3xl font-black text-sky-700">{totals.analises.toLocaleString('pt-BR')}</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">Processos Analisados</div>
+          <div className="text-xs text-slate-400 mt-0.5">início de análise no período</div>
+          <Delta cur={totals.analises} prev={prevTotals.analises} />
+        </div>
+        {/* Avanços de Posição */}
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+              <TrendingUp size={18} className="text-amber-600" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-amber-700">{totals.posicoes.toLocaleString('pt-BR')}</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">Avanços de Posição</div>
+          <div className="text-xs text-slate-400 mt-0.5">posições movimentadas</div>
+          <Delta cur={totals.posicoes} prev={prevTotals.posicoes} />
+        </div>
+        {/* Atualizações de Movimento */}
+        <div className="bg-white rounded-2xl border border-purple-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+              <Activity size={18} className="text-purple-600" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-purple-700">{totals.movimentos.toLocaleString('pt-BR')}</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">Atualizações de Movimento</div>
+          <div className="text-xs text-slate-400 mt-0.5">estágios registrados</div>
+          <Delta cur={totals.movimentos} prev={prevTotals.movimentos} />
+        </div>
+        {/* Total de Ações */}
+        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+              <BarChart2 size={18} className="text-blue-600" />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-blue-700">{totals.total.toLocaleString('pt-BR')}</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">Total de Ações</div>
+          <div className="text-xs text-slate-400 mt-0.5">todas as atividades</div>
+          <Delta cur={totals.total} prev={prevTotals.total} />
+        </div>
       </div>
 
       {/* Tabela por técnico */}
@@ -2654,71 +2675,109 @@ export const GpcProcessos = () => {
 
       {/* KPI cards */}
       {mainTab === 'registros' && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Total',           value: stats.total,          color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200',   icon: <FileText size={16} className="text-slate-400" /> },
-              { label: 'Com Link',        value: stats.comLink,        color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-100',     icon: <ExternalLink size={16} className="text-blue-400" /> },
-              { label: 'Sem Responsável', value: stats.semResponsavel, color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-100',   icon: <AlertTriangle size={16} className="text-amber-400" /> },
-              { label: 'Nº Duplicados',   value: stats.duplicados,     color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100', icon: <Info size={16} className="text-purple-400" /> },
-            ].map(k => (
-              <div key={k.label} className={`${k.bg} rounded-xl border px-4 py-3 flex items-center gap-3`}>
-                {k.icon}
-                <div>
-                  <div className={`text-xl font-bold ${k.color}`}>{k.value.toLocaleString('pt-BR')}</div>
-                  <div className="text-xs text-slate-500">{k.label}</div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Total */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                  <FileText size={18} className="text-slate-500" />
                 </div>
+                <span className="text-xs font-bold text-slate-300">100%</span>
               </div>
-            ))}
+              <div className="text-3xl font-black text-slate-700">{stats.total.toLocaleString('pt-BR')}</div>
+              <div className="text-xs font-bold text-slate-600 mt-1">Total de Processos</div>
+              <div className="text-xs text-slate-400 mt-0.5">registros cadastrados</div>
+            </div>
+            {/* Com Link */}
+            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <ExternalLink size={18} className="text-blue-600" />
+                </div>
+                <span className="text-xs font-bold text-blue-300">{stats.total > 0 ? Math.round((stats.comLink / stats.total) * 100) : 0}%</span>
+              </div>
+              <div className="text-3xl font-black text-blue-700">{stats.comLink.toLocaleString('pt-BR')}</div>
+              <div className="text-xs font-bold text-slate-600 mt-1">Com Link</div>
+              <div className="text-xs text-slate-400 mt-0.5">com processo digital</div>
+            </div>
+            {/* Sem Responsável */}
+            <div className="bg-white rounded-2xl border border-amber-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                  <AlertTriangle size={18} className="text-amber-600" />
+                </div>
+                <span className="text-xs font-bold text-amber-300">{stats.total > 0 ? Math.round((stats.semResponsavel / stats.total) * 100) : 0}%</span>
+              </div>
+              <div className="text-3xl font-black text-amber-700">{stats.semResponsavel.toLocaleString('pt-BR')}</div>
+              <div className="text-xs font-bold text-slate-600 mt-1">Sem Responsável</div>
+              <div className="text-xs text-slate-400 mt-0.5">aguardando atribuição</div>
+            </div>
+            {/* Nº Duplicados */}
+            <div className="bg-white rounded-2xl border border-purple-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                  <Info size={18} className="text-purple-600" />
+                </div>
+                <span className="text-xs font-bold text-purple-300">{stats.total > 0 ? Math.round((stats.duplicados / stats.total) * 100) : 0}%</span>
+              </div>
+              <div className="text-3xl font-black text-purple-700">{stats.duplicados.toLocaleString('pt-BR')}</div>
+              <div className="text-xs font-bold text-slate-600 mt-1">Nº Duplicados</div>
+              <div className="text-xs text-slate-400 mt-0.5">processos com duplicatas</div>
+            </div>
           </div>
 
           {/* Situação breakdown */}
           {(stats.regulares + stats.irregulares + stats.parcialmente) > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
-              <div className="flex items-center gap-2 mb-2.5">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
+              <div className="flex items-center gap-2 mb-3">
                 <ShieldCheck size={14} className="text-slate-500" />
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Situação dos Processos Avaliados</span>
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Situação dos Processos Avaliados</span>
                 <span className="ml-auto text-xs text-slate-400">
                   {stats.semSituacao > 0 && `${stats.semSituacao} sem avaliação · `}
                   {(stats.regulares + stats.irregulares + stats.parcialmente)} avaliados
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <ShieldCheck size={18} className="text-green-600 flex-shrink-0" />
-                  <div>
-                    <div className="text-lg font-bold text-green-700">{stats.regulares}</div>
-                    <div className="text-xs text-green-600 font-semibold">Regulares</div>
-                    <div className="text-xs text-slate-400">Sem pendências</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  <ShieldOff size={18} className="text-amber-600 flex-shrink-0" />
-                  <div>
-                    <div className="text-lg font-bold text-amber-700">{stats.parcialmente}</div>
-                    <div className="text-xs text-amber-600 font-semibold">Parcialmente Regulares</div>
-                    <div className="text-xs text-slate-400">Pendências parciais</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <ShieldAlert size={18} className="text-red-600 flex-shrink-0" />
-                  <div>
-                    <div className="text-lg font-bold text-red-700">{stats.irregulares}</div>
-                    <div className="text-xs text-red-600 font-semibold">Irregulares</div>
-                    <div className="text-xs text-slate-400">Pendências totais</div>
-                  </div>
-                </div>
-              </div>
-              {/* Visual bar */}
               {(() => {
-                const total = stats.regulares + stats.irregulares + stats.parcialmente;
-                return total > 0 ? (
-                  <div className="mt-2.5 flex h-2 rounded-full overflow-hidden gap-px">
-                    {stats.regulares > 0 && <div style={{ width: `${(stats.regulares / total) * 100}%` }} className="bg-green-400" title={`${stats.regulares} regulares`} />}
-                    {stats.parcialmente > 0 && <div style={{ width: `${(stats.parcialmente / total) * 100}%` }} className="bg-amber-400" title={`${stats.parcialmente} parcialmente regulares`} />}
-                    {stats.irregulares > 0 && <div style={{ width: `${(stats.irregulares / total) * 100}%` }} className="bg-red-400" title={`${stats.irregulares} irregulares`} />}
-                  </div>
-                ) : null;
+                const totalAval = stats.regulares + stats.irregulares + stats.parcialmente;
+                const regPct = totalAval > 0 ? Math.round((stats.regulares / totalAval) * 100) : 0;
+                const parPct = totalAval > 0 ? Math.round((stats.parcialmente / totalAval) * 100) : 0;
+                const irrPct = totalAval > 0 ? Math.round((stats.irregulares / totalAval) * 100) : 0;
+                return (
+                  <>
+                    <div className="flex h-3 rounded-full overflow-hidden gap-px mb-3">
+                      {stats.regulares > 0 && <div style={{ width: `${regPct}%` }} className="bg-green-400" title={`${stats.regulares} regulares`} />}
+                      {stats.parcialmente > 0 && <div style={{ width: `${parPct}%` }} className="bg-amber-400" title={`${stats.parcialmente} parcialmente regulares`} />}
+                      {stats.irregulares > 0 && <div style={{ width: `${irrPct}%` }} className="bg-red-400" title={`${stats.irregulares} irregulares`} />}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-200">
+                        <ShieldCheck size={22} className="text-green-600 flex-shrink-0" />
+                        <div>
+                          <div className="text-2xl font-black text-green-700">{stats.regulares}</div>
+                          <div className="text-[11px] font-bold text-green-700 uppercase tracking-wide">Regulares</div>
+                          <div className="text-xs text-slate-400">{regPct}% dos avaliados</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <ShieldOff size={22} className="text-amber-600 flex-shrink-0" />
+                        <div>
+                          <div className="text-2xl font-black text-amber-700">{stats.parcialmente}</div>
+                          <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">Parcialmente Reg.</div>
+                          <div className="text-xs text-slate-400">{parPct}% dos avaliados</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-200">
+                        <ShieldAlert size={22} className="text-red-600 flex-shrink-0" />
+                        <div>
+                          <div className="text-2xl font-black text-red-700">{stats.irregulares}</div>
+                          <div className="text-[11px] font-bold text-red-700 uppercase tracking-wide">Irregulares</div>
+                          <div className="text-xs text-slate-400">{irrPct}% dos avaliados</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
               })()}
             </div>
           )}
@@ -2726,26 +2785,29 @@ export const GpcProcessos = () => {
       )}
 
       {/* Main tabs */}
-      <div className="flex border-b border-slate-200 gap-1">
+      <div className="flex items-center gap-0 bg-slate-100 rounded-2xl p-1">
         <button
           onClick={() => setMainTab('registros')}
-          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'registros' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'registros' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          <FileText size={15} />Processos
-          <span className={`px-1.5 py-0.5 rounded-full text-xs ${mainTab === 'registros' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{rows.length}</span>
+          <FileText size={14} className={mainTab === 'registros' ? 'text-blue-600' : 'text-slate-400'} />
+          Processos
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${mainTab === 'registros' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>{rows.length}</span>
         </button>
         <button
           onClick={() => setMainTab('parcelamentos')}
-          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'parcelamentos' ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'parcelamentos' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          <DollarSign size={15} />Parcelamentos
-          <span className={`px-1.5 py-0.5 rounded-full text-xs ${mainTab === 'parcelamentos' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{rows.filter(r => !!r.is_parcelamento).length}</span>
+          <DollarSign size={14} className={mainTab === 'parcelamentos' ? 'text-green-600' : 'text-slate-400'} />
+          Parcelamentos
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${mainTab === 'parcelamentos' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>{rows.filter(r => !!r.is_parcelamento).length}</span>
         </button>
         <button
           onClick={() => setMainTab('produtividade')}
-          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${mainTab === 'produtividade' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'produtividade' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          <BarChart2 size={15} />Produtividade
+          <BarChart2 size={14} className={mainTab === 'produtividade' ? 'text-amber-600' : 'text-slate-400'} />
+          Produtividade
         </button>
       </div>
 
@@ -2753,6 +2815,20 @@ export const GpcProcessos = () => {
 
       {(mainTab === 'registros' || mainTab === 'parcelamentos') && (
         <>
+          {/* Active filters bar */}
+          {Object.values(filters).some(Boolean) && (
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="text-xs text-slate-500 font-medium">
+                <strong className="text-slate-800">{filtered.length}</strong> resultado{filtered.length !== 1 ? 's' : ''} com filtros ativos
+              </span>
+              <button
+                onClick={() => setFilters({ processo: '', convenio: '', entidade: '', exercicio: '', drs: '', responsavel: '', posicao_id: '', movimento: '', remessa: '', situacao: '' })}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                <X size={12} />Limpar Filtros
+              </button>
+            </div>
+          )}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             {loading ? (
               <div className="flex items-center justify-center py-20">
@@ -2818,11 +2894,11 @@ export const GpcProcessos = () => {
                           key={r.codigo}
                           className={`transition-colors cursor-pointer group ${
                             rowIdx % 2 === 0 ? 'bg-white hover:bg-blue-50/60' : 'bg-slate-50/70 hover:bg-blue-50/60'
-                          } ${r.situacao === 'IRREGULAR' ? 'border-l-2 border-l-red-400' : r.situacao === 'PARCIALMENTE_REGULAR' ? 'border-l-2 border-l-amber-400' : r.situacao === 'REGULAR' ? 'border-l-2 border-l-green-400' : ''}`}
+                          } ${r.situacao === 'IRREGULAR' ? 'border-l-[3px] border-l-red-400' : r.situacao === 'PARCIALMENTE_REGULAR' ? 'border-l-[3px] border-l-amber-400' : r.situacao === 'REGULAR' ? 'border-l-[3px] border-l-green-400' : ''}`}
                           onClick={() => setViewRow(r)}
                         >
                           {/* Processo - full number, no truncation */}
-                          <td className="px-3 py-3 min-w-[160px]">
+                          <td className="px-3 py-3.5 min-w-[160px]">
                             <div className="flex flex-col gap-0.5">
                               <span className="font-semibold text-blue-700 text-xs font-mono">
                                 {r.processo ?? '-'}
@@ -2903,8 +2979,8 @@ export const GpcProcessos = () => {
                               </div>
                             )}
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                          <td className="px-3 py-3.5">
+                            <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                               <button
                                 className="p-1.5 rounded-lg hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
                                 title="Ver detalhes"
@@ -2913,7 +2989,7 @@ export const GpcProcessos = () => {
                                 <Eye size={14} />
                               </button>
                               <button
-                                className="p-1.5 rounded-lg hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
                                 title="Editar"
                                 onClick={() => setModal({ data: r })}
                               >
