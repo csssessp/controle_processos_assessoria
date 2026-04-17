@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, Check,
   Loader2, AlertCircle, FileText, Calendar, Activity,
@@ -6,11 +7,12 @@ import {
   ArrowUpDown, ExternalLink, Link as LinkIcon, TrendingUp, TrendingDown,
   User, Search, AlertTriangle, Clock, DollarSign, Info,
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine,
-  ShieldCheck, ShieldAlert, ShieldOff, Award,
+  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { GpcService } from '../services/gpcService';
+import { DbService } from '../services/dbService';
 import {
   GpcProcessoFull, GpcExercicio, GpcHistorico, GpcObjeto,
   GpcParcelamento, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
@@ -2208,6 +2210,83 @@ const ProdutividadePage = () => {
   );
 };
 
+// ---- Delete Password Modal ----
+
+const DeletePasswordModal = ({ processo, onCancel, onConfirm }: {
+  processo: string | null;
+  onCancel: () => void;
+  onConfirm: (password: string) => Promise<string | null>;
+}) => {
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) { setErr('Digite sua senha'); return; }
+    setLoading(true); setErr('');
+    const error = await onConfirm(password);
+    if (error) { setErr(error); setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+        <div className="bg-red-50 border-b border-red-100 px-5 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <Trash2 size={18} className="text-red-600" />
+          </div>
+          <div>
+            <div className="font-bold text-slate-800 text-sm">Confirmar Exclusão</div>
+            {processo && <div className="text-xs text-slate-500 font-mono mt-0.5">{processo}</div>}
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+          <p className="text-sm text-slate-600">
+            Esta ação é <strong className="text-red-600">irreversível</strong>. Digite sua senha para confirmar a exclusão do registro.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+              <span className="flex items-center gap-1"><KeyRound size={11} />Sua senha</span>
+            </label>
+            <input
+              type="password"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setErr(''); }}
+              autoFocus
+            />
+          </div>
+          {err && (
+            <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <AlertCircle size={13} />{err}
+            </div>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              className="flex-1 px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              disabled={loading}
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              Excluir
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // ---- Main Page ----
 
 export const GpcProcessos = () => {
@@ -2222,6 +2301,7 @@ export const GpcProcessos = () => {
   const [page, setPage] = useState(1);
   const [viewRow, setViewRow] = useState<GpcRecebido | null>(null);
   const [modal, setModal] = useState<null | { data?: GpcRecebido }>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ codigo: number; processo: string | null } | null>(null);
   const PAGE = 25;
 
   const load = useCallback(async () => {
@@ -2380,25 +2460,64 @@ export const GpcProcessos = () => {
     return saved;
   };
 
-  const handleDelete = async (codigo: number) => {
-    if (!confirm('Confirma a exclusão?')) return;
-    try { await GpcService.deleteRecebido(codigo); setViewRow(null); await load(); }
-    catch (ex: any) { alert(ex.message); }
+  const handleDelete = (codigo: number) => {
+    const r = rows.find(x => x.codigo === codigo);
+    setDeleteConfirm({ codigo, processo: r?.processo ?? null });
   };
 
-  const exportCSV = () => {
-    const posMap = Object.fromEntries(posicoes.map(p => [p.codigo, p.posicao]));
-    const cols = ['Processo', 'Convenio', 'Entidade', 'Exercicio', 'DRS', 'Data', 'Responsavel', 'Posicao', 'Movimento', 'Link'];
-    const body = filtered.map(r =>
-      [r.processo, r.convenio, r.entidade, r.exercicio, r.drs, fmtDate(r.data), r.responsavel,
-        r.posicao_id ? (posMap[r.posicao_id] ?? r.posicao_id) : '', r.movimento, r.link_processo ?? '']
-        .map(v => { const s = String(v ?? ''); return s.includes(';') ? `"${s}"` : s; }).join(';')
-    );
-    const csv = '\uFEFF' + [cols.join(';'), ...body].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'gpc_processos.csv'; a.click();
-    URL.revokeObjectURL(url);
+  const confirmDeleteWithPassword = async (password: string): Promise<string | null> => {
+    if (!currentUser?.id) return 'Usuário não autenticado';
+    const valid = await DbService.verifyPassword(currentUser.id, password);
+    if (!valid) return 'Senha incorreta';
+    try {
+      await GpcService.deleteRecebido(deleteConfirm!.codigo);
+      setViewRow(null);
+      setDeleteConfirm(null);
+      await load();
+      return null;
+    } catch (ex: any) {
+      return ex.message ?? 'Erro ao excluir';
+    }
+  };
+
+  const exportXLSX = () => {
+    const situacaoLabel = (s: string | null | undefined) =>
+      s === 'REGULAR' ? 'Regular' : s === 'IRREGULAR' ? 'Irregular' : s === 'PARCIALMENTE_REGULAR' ? 'Parcialmente Regular' : '';
+    const headers = [
+      'Processo', 'Convênio', 'Entidade', 'Exercício', 'DRS', 'Data Recebimento',
+      'Responsável', 'Posição', 'Movimento', 'Remessa', 'Parcelamento',
+      'Situação', 'Valor a Devolver (R$)', 'Valor Devolvido (R$)', 'Saldo Pendente (R$)',
+      '1º Resp. Assinatura', '2º Resp. Assinatura',
+      'Nº Páginas', 'Link', 'Cadastrado em',
+    ];
+    const body = filtered.map(r => [
+      r.processo ?? '',
+      r.convenio ?? '',
+      r.entidade ?? '',
+      r.exercicio ?? '',
+      r.drs ?? '',
+      fmtDate(r.data),
+      r.responsavel ?? '',
+      r.posicao ?? '',
+      r.movimento ?? '',
+      r.remessa === 'ACIMA' ? 'Acima de Remessa' : r.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : '',
+      r.is_parcelamento ? 'Sim' : 'Não',
+      situacaoLabel(r.situacao),
+      r.valor_a_devolver ?? '',
+      r.valor_devolvido ?? '',
+      r.valor_a_devolver != null ? (r.valor_a_devolver - (r.valor_devolvido ?? 0)) : '',
+      r.responsavel_assinatura ?? '',
+      r.responsavel_assinatura_2 ?? '',
+      r.num_paginas ?? '',
+      r.link_processo ?? '',
+      r.created_at ? fmtTs(r.created_at) : '',
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...body]);
+    // Column widths
+    ws['!cols'] = [30,18,35,10,8,14,20,22,28,16,14,22,20,20,20,25,25,10,40,20].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'GPC Processos');
+    XLSX.writeFile(wb, `gpc_processos_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   const stats = useMemo(() => ({
@@ -2428,9 +2547,9 @@ export const GpcProcessos = () => {
           <div className="flex items-center gap-2.5">
             <button
               className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-colors"
-              onClick={exportCSV}
+              onClick={exportXLSX}
             >
-              <Download size={14} />Exportar CSV
+              <Download size={14} />Exportar XLSX
             </button>
             <button className={BTN_PRI} onClick={() => setModal({})}>
               <Plus size={16} />Novo Registro
@@ -2595,7 +2714,7 @@ export const GpcProcessos = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {paged.map(r => {
+                    {paged.map((r, rowIdx) => {
                       const dupes = duplicateMap[sv(r.processo)] ?? [];
                       const isDupe = dupes.length > 1;
                       const prevPositions = getPrevPositions(r);
@@ -2603,7 +2722,9 @@ export const GpcProcessos = () => {
                       return (
                         <tr
                           key={r.codigo}
-                          className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                          className={`transition-colors cursor-pointer group ${
+                            rowIdx % 2 === 0 ? 'bg-white hover:bg-blue-50/60' : 'bg-slate-50/70 hover:bg-blue-50/60'
+                          } ${r.situacao === 'IRREGULAR' ? 'border-l-2 border-l-red-400' : r.situacao === 'PARCIALMENTE_REGULAR' ? 'border-l-2 border-l-amber-400' : r.situacao === 'REGULAR' ? 'border-l-2 border-l-green-400' : ''}`}
                           onClick={() => setViewRow(r)}
                         >
                           {/* Processo - full number, no truncation */}
@@ -2775,6 +2896,15 @@ export const GpcProcessos = () => {
           onClose={() => setModal(null)}
           isAdmin={isAdmin}
           onRecordUpdated={load}
+        />
+      )}
+
+      {/* Delete password confirmation modal */}
+      {deleteConfirm !== null && (
+        <DeletePasswordModal
+          processo={deleteConfirm.processo}
+          onCancel={() => setDeleteConfirm(null)}
+          onConfirm={confirmDeleteWithPassword}
         />
       )}
     </div>
