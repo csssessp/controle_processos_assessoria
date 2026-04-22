@@ -2127,7 +2127,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
         </div>
       </div>
 
-      {/* Technician cards */}
+      {/* Technician table */}
       {!technicians.length ? (
         <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center">
           <BarChart2 size={40} className="mx-auto mb-3 text-slate-200" />
@@ -2135,99 +2135,126 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           <p className="text-slate-300 text-xs mt-1">Selecione outro período ou altere a granularidade.</p>
         </div>
       ) : (
-        <>
-          <div className="flex items-center gap-2 px-1">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/60">
             <User size={14} className="text-slate-400" />
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Atividade por Técnico</span>
-            <span className="text-xs text-slate-400 ml-1">— clique em um card para ver os processos detalhados</span>
+            <span className="text-sm font-bold text-slate-700">Atividade por Técnico</span>
+            <span className="ml-auto text-xs text-slate-400">clique em uma linha para ver os processos</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {technicians.map(t => {
-              const totalComposition = t.analises + t.posicoes + t.movimentos;
-              const pct = totals.total > 0 ? Math.round((t.total / totals.total) * 100) : 0;
-              const efic = t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0;
-              const diasUltimo = t.ultimoEvento
-                ? Math.round((Date.now() - new Date(t.ultimoEvento).getTime()) / 86400000)
-                : null;
-              return (
-                <button
-                  key={t.responsavel}
-                  onClick={() => setSelectedTech(t.responsavel)}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md hover:border-blue-200 transition-all text-left group"
-                >
-                  {/* Card header */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-xl font-black flex-shrink-0 shadow-sm">
-                      {t.responsavel.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-slate-800 truncate">{t.responsavel}</div>
-                      {diasUltimo !== null && (
-                        <div className={`text-xs mt-0.5 ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
-                          {diasUltimo === 0 ? '● Ativo hoje' : `Ativo há ${diasUltimo} dia${diasUltimo !== 1 ? 's' : ''}`}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Técnico</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-sky-500 uppercase tracking-wider" title="Processos distintos com início de análise">Analisados</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider" title="Avanços de posição registrados">Posições</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="Atualizações de movimento">Movimentos</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider">Total</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">Páginas</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo Médio</th>
+                <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider min-w-[140px]">Composição</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {technicians.map(t => {
+                const totalComposition = t.analises + t.posicoes + t.movimentos;
+                const pct = totals.total > 0 ? Math.round((t.total / totals.total) * 100) : 0;
+                const efic = t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0;
+                const diasUltimo = t.ultimoEvento
+                  ? Math.round((Date.now() - new Date(t.ultimoEvento).getTime()) / 86400000)
+                  : null;
+                return (
+                  <tr
+                    key={t.responsavel}
+                    onClick={() => setSelectedTech(t.responsavel)}
+                    className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
+                  >
+                    {/* Técnico */}
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          {t.responsavel.charAt(0).toUpperCase()}
                         </div>
-                      )}
-                    </div>
-                    <span className="text-xs font-bold text-slate-300 group-hover:text-blue-500 transition-colors flex-shrink-0">{pct}%</span>
-                  </div>
-                  {/* Main metrics */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    <div className="bg-sky-50 rounded-xl p-2.5 text-center">
-                      <div className="text-lg font-black text-sky-700">{t.analises}</div>
-                      <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wide leading-tight mt-0.5">Analisados</div>
-                    </div>
-                    <div className="bg-amber-50 rounded-xl p-2.5 text-center">
-                      <div className="text-lg font-black text-amber-700">{t.posicoes}</div>
-                      <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide leading-tight mt-0.5">Posições</div>
-                    </div>
-                    <div className="bg-purple-50 rounded-xl p-2.5 text-center">
-                      <div className="text-lg font-black text-purple-700">{t.movimentos}</div>
-                      <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wide leading-tight mt-0.5">Movimentos</div>
-                    </div>
-                  </div>
-                  {/* Secondary metrics */}
-                  <div className="grid grid-cols-3 gap-0 text-center border border-slate-100 rounded-xl overflow-hidden mb-3">
-                    <div className="py-2 px-1 border-r border-slate-100">
-                      <div className="text-sm font-black text-slate-700">{t.paginas > 0 ? t.paginas.toLocaleString('pt-BR') : '—'}</div>
-                      <div className="text-[10px] text-slate-400 leading-tight">Páginas</div>
-                    </div>
-                    <div className="py-2 px-1 border-r border-slate-100">
-                      <div className="text-sm font-black text-slate-700">{efic > 0 ? `${efic}` : '—'}</div>
-                      <div className="text-[10px] text-slate-400 leading-tight">pág/ação</div>
-                    </div>
-                    <div className="py-2 px-1">
-                      <div className={`text-sm font-black ${t.tempMedio === 0 ? 'text-slate-400' : t.tempMedio <= 5 ? 'text-green-600' : t.tempMedio <= 15 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {t.tempMedio > 0 ? `${t.tempMedio}d` : '—'}
+                        <div>
+                          <div className="font-semibold text-slate-800 leading-tight">{t.responsavel}</div>
+                          {diasUltimo !== null && (
+                            <div className={`text-[11px] ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
+                              {diasUltimo === 0 ? '● Ativo hoje' : `Ativo há ${diasUltimo}d`}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-400 leading-tight">tempo médio</div>
-                    </div>
-                  </div>
-                  {/* Composition bar */}
-                  {totalComposition > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
-                        {t.analises   > 0 && <div style={{ width: `${(t.analises   / totalComposition) * 100}%` }} className="bg-sky-400" />}
-                        {t.posicoes   > 0 && <div style={{ width: `${(t.posicoes   / totalComposition) * 100}%` }} className="bg-amber-400" />}
-                        {t.movimentos > 0 && <div style={{ width: `${(t.movimentos / totalComposition) * 100}%` }} className="bg-purple-400" />}
+                    </td>
+                    {/* Analisados */}
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-block min-w-[32px] px-2 py-0.5 bg-sky-50 text-sky-700 rounded-lg text-sm font-bold">{t.analises}</span>
+                    </td>
+                    {/* Posições */}
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-block min-w-[32px] px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-sm font-bold">{t.posicoes}</span>
+                    </td>
+                    {/* Movimentos */}
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-block min-w-[32px] px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-bold">{t.movimentos}</span>
+                    </td>
+                    {/* Total */}
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="inline-block min-w-[32px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold">{t.total}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">{pct}%</span>
                       </div>
-                      <div className="flex h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                        <div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="text-[10px] text-slate-400">Participação no total do período</div>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    </td>
+                    {/* Páginas */}
+                    <td className="px-4 py-3 text-center text-sm text-slate-600 font-medium">
+                      {t.paginas > 0 ? t.paginas.toLocaleString('pt-BR') : <span className="text-slate-300">—</span>}
+                      {efic > 0 && <div className="text-[10px] text-slate-400">{efic} pág/ação</div>}
+                    </td>
+                    {/* Tempo Médio */}
+                    <td className="px-4 py-3 text-center">
+                      {t.tempMedio > 0 ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-bold ${t.tempMedio <= 5 ? 'bg-green-50 text-green-700' : t.tempMedio <= 15 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
+                          {t.tempMedio}d
+                        </span>
+                      ) : <span className="text-slate-300 text-sm">—</span>}
+                    </td>
+                    {/* Composição */}
+                    <td className="px-5 py-3">
+                      {totalComposition > 0 ? (
+                        <div className="space-y-1">
+                          <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                            {t.analises   > 0 && <div style={{ width: `${(t.analises   / totalComposition) * 100}%` }} className="bg-sky-400" />}
+                            {t.posicoes   > 0 && <div style={{ width: `${(t.posicoes   / totalComposition) * 100}%` }} className="bg-amber-400" />}
+                            {t.movimentos > 0 && <div style={{ width: `${(t.movimentos / totalComposition) * 100}%` }} className="bg-purple-400" />}
+                          </div>
+                          <div className="flex h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-blue-300 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      ) : <div className="h-2 rounded-full bg-slate-100" />}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="border-t-2 border-slate-100 bg-slate-50/60">
+              <tr>
+                <td className="px-5 py-2.5 text-xs font-bold text-slate-500">Total geral</td>
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded-lg text-xs font-bold">{totals.analises}</span></td>
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold">{totals.posicoes}</span></td>
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold">{totals.movimentos}</span></td>
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold">{totals.total}</span></td>
+                <td colSpan={3} className="px-4 py-2.5" />
+              </tr>
+            </tfoot>
+          </table>
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 px-1">
-            <span className="font-semibold text-slate-500">Composição das barras:</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-sky-400 inline-block" />Processos analisados</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-amber-400 inline-block" />Avanços de posição</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded bg-purple-400 inline-block" />Atualizações de movimento</span>
+          <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 px-5 py-3 border-t border-slate-100">
+            <span className="font-semibold text-slate-500">Composição:</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-sky-400 inline-block" />Processos analisados</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-amber-400 inline-block" />Avanços de posição</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-purple-400 inline-block" />Atualizações de movimento</span>
+            <span className="ml-auto flex items-center gap-1">Tempo: <span className="text-green-600 font-semibold">≤5d rápido</span> · <span className="text-amber-600 font-semibold">≤15d regular</span> · <span className="text-red-600 font-semibold">&gt;15d lento</span></span>
           </div>
-        </>
+        </div>
       )}
 
       {/* Technician detail drawer */}
@@ -2679,14 +2706,15 @@ export const GpcProcessos = () => {
 
   const stats = useMemo(() => ({
     total: rows.length,
-    comLink: rows.filter(r => r.link_processo).length,
+    emAnalise: rows.filter(r => r.movimento === 'EM ANÁLISE').length,
+    acima: rows.filter(r => r.remessa === 'ACIMA').length,
+    parcelamentos: rows.filter(r => !!r.is_parcelamento).length,
     semResponsavel: rows.filter(r => !r.responsavel).length,
-    duplicados: Object.values(duplicateMap).filter(v => v.length > 1).length,
     regulares: rows.filter(r => r.situacao === 'REGULAR').length,
     irregulares: rows.filter(r => r.situacao === 'IRREGULAR').length,
     parcialmente: rows.filter(r => r.situacao === 'PARCIALMENTE_REGULAR').length,
     semSituacao: rows.filter(r => !r.situacao).length,
-  }), [rows, duplicateMap]);
+  }), [rows]);
 
   return (
     <div className="space-y-5">
@@ -2717,112 +2745,85 @@ export const GpcProcessos = () => {
 
       {/* KPI cards */}
       {mainTab === 'registros' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* Total */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                  <FileText size={18} className="text-slate-500" />
-                </div>
-                <span className="text-xs font-bold text-slate-300">100%</span>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <FileText size={16} className="text-slate-500" />
               </div>
-              <div className="text-3xl font-black text-slate-700">{stats.total.toLocaleString('pt-BR')}</div>
-              <div className="text-xs font-bold text-slate-600 mt-1">Total de Processos</div>
-              <div className="text-xs text-slate-400 mt-0.5">registros cadastrados</div>
+              <div>
+                <div className="text-2xl font-black text-slate-700 leading-none">{stats.total.toLocaleString('pt-BR')}</div>
+                <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Total de Processos</div>
+              </div>
             </div>
-            {/* Com Link */}
-            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <ExternalLink size={18} className="text-blue-600" />
-                </div>
-                <span className="text-xs font-bold text-blue-300">{stats.total > 0 ? Math.round((stats.comLink / stats.total) * 100) : 0}%</span>
+            {/* Em Análise */}
+            <div className="bg-white rounded-xl border border-sky-100 shadow-sm px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0">
+                <Search size={16} className="text-sky-600" />
               </div>
-              <div className="text-3xl font-black text-blue-700">{stats.comLink.toLocaleString('pt-BR')}</div>
-              <div className="text-xs font-bold text-slate-600 mt-1">Com Link</div>
-              <div className="text-xs text-slate-400 mt-0.5">com processo digital</div>
+              <div>
+                <div className="text-2xl font-black text-sky-700 leading-none">{stats.emAnalise.toLocaleString('pt-BR')}</div>
+                <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Em Análise</div>
+                <div className="text-[10px] text-slate-400">{stats.total > 0 ? Math.round((stats.emAnalise / stats.total) * 100) : 0}% do total</div>
+              </div>
             </div>
-            {/* Sem Responsável */}
-            <div className="bg-white rounded-2xl border border-amber-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                  <AlertTriangle size={18} className="text-amber-600" />
-                </div>
-                <span className="text-xs font-bold text-amber-300">{stats.total > 0 ? Math.round((stats.semResponsavel / stats.total) * 100) : 0}%</span>
+            {/* Acima de Remessa */}
+            <div className="bg-white rounded-xl border border-indigo-100 shadow-sm px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                <ArrowUp size={16} className="text-indigo-600" />
               </div>
-              <div className="text-3xl font-black text-amber-700">{stats.semResponsavel.toLocaleString('pt-BR')}</div>
-              <div className="text-xs font-bold text-slate-600 mt-1">Sem Responsável</div>
-              <div className="text-xs text-slate-400 mt-0.5">aguardando atribuição</div>
+              <div>
+                <div className="text-2xl font-black text-indigo-700 leading-none">{stats.acima.toLocaleString('pt-BR')}</div>
+                <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Acima de Remessa</div>
+                <div className="text-[10px] text-slate-400">{stats.total > 0 ? Math.round((stats.acima / stats.total) * 100) : 0}% do total</div>
+              </div>
             </div>
-            {/* Nº Duplicados */}
-            <div className="bg-white rounded-2xl border border-purple-100 shadow-sm px-5 py-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                  <Info size={18} className="text-purple-600" />
-                </div>
-                <span className="text-xs font-bold text-purple-300">{stats.total > 0 ? Math.round((stats.duplicados / stats.total) * 100) : 0}%</span>
+            {/* Parcelamentos */}
+            <div className="bg-white rounded-xl border border-emerald-100 shadow-sm px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                <DollarSign size={16} className="text-emerald-600" />
               </div>
-              <div className="text-3xl font-black text-purple-700">{stats.duplicados.toLocaleString('pt-BR')}</div>
-              <div className="text-xs font-bold text-slate-600 mt-1">Nº Duplicados</div>
-              <div className="text-xs text-slate-400 mt-0.5">processos com duplicatas</div>
+              <div>
+                <div className="text-2xl font-black text-emerald-700 leading-none">{stats.parcelamentos.toLocaleString('pt-BR')}</div>
+                <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Parcelamentos</div>
+                <div className="text-[10px] text-slate-400">{stats.total > 0 ? Math.round((stats.parcelamentos / stats.total) * 100) : 0}% do total</div>
+              </div>
             </div>
           </div>
 
-          {/* Situação breakdown */}
-          {(stats.regulares + stats.irregulares + stats.parcialmente) > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
-              <div className="flex items-center gap-2 mb-3">
-                <ShieldCheck size={14} className="text-slate-500" />
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Situação dos Processos Avaliados</span>
-                <span className="ml-auto text-xs text-slate-400">
-                  {stats.semSituacao > 0 && `${stats.semSituacao} sem avaliação · `}
-                  {(stats.regulares + stats.irregulares + stats.parcialmente)} avaliados
-                </span>
+          {/* Situação breakdown — subtle inline row */}
+          {(stats.regulares + stats.irregulares + stats.parcialmente) > 0 && (() => {
+            const totalAval = stats.regulares + stats.irregulares + stats.parcialmente;
+            const regPct = totalAval > 0 ? Math.round((stats.regulares / totalAval) * 100) : 0;
+            const parPct = totalAval > 0 ? Math.round((stats.parcialmente / totalAval) * 100) : 0;
+            const irrPct = totalAval > 0 ? Math.round((stats.irregulares / totalAval) * 100) : 0;
+            return (
+              <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                <ShieldCheck size={13} className="text-slate-400 flex-shrink-0" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">Situação</span>
+                <div className="flex h-1.5 flex-1 rounded-full overflow-hidden gap-px">
+                  {stats.regulares   > 0 && <div style={{ width: `${regPct}%` }} className="bg-green-400" title={`${stats.regulares} regulares`} />}
+                  {stats.parcialmente > 0 && <div style={{ width: `${parPct}%` }} className="bg-amber-400" title={`${stats.parcialmente} parcialmente`} />}
+                  {stats.irregulares  > 0 && <div style={{ width: `${irrPct}%` }} className="bg-red-400" title={`${stats.irregulares} irregulares`} />}
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="flex items-center gap-1 text-[11px] text-green-700 font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />{stats.regulares} reg.
+                  </span>
+                  <span className="flex items-center gap-1 text-[11px] text-amber-700 font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{stats.parcialmente} parc.
+                  </span>
+                  <span className="flex items-center gap-1 text-[11px] text-red-700 font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />{stats.irregulares} irreg.
+                  </span>
+                  {stats.semSituacao > 0 && (
+                    <span className="text-[11px] text-slate-400">{stats.semSituacao} s/ avaliação</span>
+                  )}
+                </div>
               </div>
-              {(() => {
-                const totalAval = stats.regulares + stats.irregulares + stats.parcialmente;
-                const regPct = totalAval > 0 ? Math.round((stats.regulares / totalAval) * 100) : 0;
-                const parPct = totalAval > 0 ? Math.round((stats.parcialmente / totalAval) * 100) : 0;
-                const irrPct = totalAval > 0 ? Math.round((stats.irregulares / totalAval) * 100) : 0;
-                return (
-                  <>
-                    <div className="flex h-3 rounded-full overflow-hidden gap-px mb-3">
-                      {stats.regulares > 0 && <div style={{ width: `${regPct}%` }} className="bg-green-400" title={`${stats.regulares} regulares`} />}
-                      {stats.parcialmente > 0 && <div style={{ width: `${parPct}%` }} className="bg-amber-400" title={`${stats.parcialmente} parcialmente regulares`} />}
-                      {stats.irregulares > 0 && <div style={{ width: `${irrPct}%` }} className="bg-red-400" title={`${stats.irregulares} irregulares`} />}
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-200">
-                        <ShieldCheck size={22} className="text-green-600 flex-shrink-0" />
-                        <div>
-                          <div className="text-2xl font-black text-green-700">{stats.regulares}</div>
-                          <div className="text-[11px] font-bold text-green-700 uppercase tracking-wide">Regulares</div>
-                          <div className="text-xs text-slate-400">{regPct}% dos avaliados</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
-                        <ShieldOff size={22} className="text-amber-600 flex-shrink-0" />
-                        <div>
-                          <div className="text-2xl font-black text-amber-700">{stats.parcialmente}</div>
-                          <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">Parcialmente Reg.</div>
-                          <div className="text-xs text-slate-400">{parPct}% dos avaliados</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50 border border-red-200">
-                        <ShieldAlert size={22} className="text-red-600 flex-shrink-0" />
-                        <div>
-                          <div className="text-2xl font-black text-red-700">{stats.irregulares}</div>
-                          <div className="text-[11px] font-bold text-red-700 uppercase tracking-wide">Irregulares</div>
-                          <div className="text-xs text-slate-400">{irrPct}% dos avaliados</div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
