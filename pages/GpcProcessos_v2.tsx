@@ -1145,7 +1145,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
               </div>
               {(row.convenio || row.valor_convenio) && (
                 <div className="text-slate-400 text-sm mt-1.5 flex items-center gap-2 flex-wrap">
-                  {row.convenio && <span>Conv\u00eanio {row.convenio}</span>}
+                  {row.convenio && <span>Convênio {row.convenio}</span>}
                   {row.valor_convenio != null && (
                     <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-md">
                       <DollarSign size={10} />{row.valor_convenio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1609,15 +1609,15 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
               </div>
               <div>
-                <label className={LABEL}>Conv\u00eanio</label>
+                <label className={LABEL}>Convênio</label>
                 <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
               </div>
               <div>
-                <label className={LABEL}>Valor do Conv\u00eanio (R$)</label>
+                <label className={LABEL}>Valor do Convênio (R$)</label>
                 <CurrencyInput value={form.valor_convenio} onChange={v => set('valor_convenio', v)} />
               </div>
               <div className="sm:col-span-2">
-                <label className={LABEL}>Entidade / Munic\u00edpio</label>
+                <label className={LABEL}>Entidade / Município</label>
                 <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
               </div>
             </div>
@@ -2010,7 +2010,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               lastSaldo = sal > 0 ? sal : undefined;
             }
             return (
-              <Modal title={subModal.data ? 'Editar Exerc\u00edcio' : 'Novo Exerc\u00edcio'} onClose={() => setSubModal(null)} size="md">
+              <Modal title={subModal.data ? 'Editar Exercício' : 'Novo Exercício'} onClose={() => setSubModal(null)} size="md">
                 <ExercicioForm
                   processoId={full.codigo}
                   initial={subModal.data}
@@ -2089,12 +2089,12 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
           if (_total === 0) return null;
           const parts = [];
           if ((f.exercicio_anterior ?? 0) > 0) parts.push('Ex. Ant. + ');
-          parts.push('Repasse + Aplica\u00e7\u00e3o');
+          parts.push('Repasse + Aplicação');
           return (
             <div className="col-span-2">
               <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Dispon\u00edvel no Exerc\u00edcio</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Disponível no Exercício</div>
                   <div className="text-[10px] text-blue-400 mt-0.5">{parts.join('')}</div>
                 </div>
                 <div className="text-lg font-bold text-blue-700">
@@ -2129,10 +2129,10 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
               <DollarSign size={15} className={saldo > 0 ? 'text-blue-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Saldo para o pr\u00f3ximo exerc\u00edcio</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Saldo para o próximo exercício</div>
               <div className={`text-base font-bold ${saldo > 0 ? 'text-blue-700' : saldo < 0 ? 'text-red-700' : 'text-slate-500'}`}>
                 {saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">\u26a0 gastos excedem o total dispon\u00edvel</span>}
+                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">⚠ gastos excedem o total disponível</span>}
               </div>
               <div className="text-xs text-slate-400 mt-0.5">{detParts.join(' + ')}</div>
             </div>
