@@ -623,14 +623,16 @@ const ACAO_COLORS: Record<string, { bg: string; text: string; border: string; do
 };
 const ACAO_DEF = { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' };
 
-const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved }: {
+const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved, currentUserName }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
   onSaved: () => Promise<void> | void;
+  currentUserName?: string;
 }) => {
   const [form, setForm] = useState<Partial<GpcFluxoTecnico>>({
     registro_id: registroId,
     num_paginas_analise: numPaginas ?? undefined,
+    tecnico: currentUserName ?? undefined,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -640,7 +642,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
     e.preventDefault(); setSaving(true); setErr('');
     try {
       await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: new Date().toISOString() });
-      setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined });
+      setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
       onSaved();
     } catch (ex: any) { setErr(ex.message); }
     finally { setSaving(false); }
@@ -654,11 +656,14 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
       {err && <div className="text-red-600 text-xs flex items-center gap-1"><AlertCircle size={12} />{err}</div>}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
-          <label className={LABEL}>Técnico Responsável</label>
-          <select className={INPUT} value={form.tecnico ?? ''} onChange={e => set('tecnico', e.target.value || null)} required>
-            <option value="">— selecione —</option>
-            {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-          </select>
+          <label className={LABEL + ' flex items-center gap-1'}>
+            <User size={10} className="text-slate-400" />Registrado por
+          </label>
+          <div className={INPUT + ' bg-slate-50 text-slate-700 flex items-center gap-2 select-none'}>{
+            currentUserName
+              ? <><div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{currentUserName.charAt(0).toUpperCase()}</div><span className="text-sm font-medium">{currentUserName}</span><span className="ml-auto text-[10px] text-slate-400 font-medium">Usuário logado</span></>
+              : <span className="text-slate-400 text-xs italic">Não identificado</span>
+          }</div>
         </div>
         <div>
           <label className={LABEL + ' flex items-center gap-1'}>
@@ -702,7 +707,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
   );
 };
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
   signatoryUsers: { id: string; name: string }[];
@@ -711,6 +716,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   onRecordUpdated?: () => Promise<void> | void;
   readOnly?: boolean;
   hideAssinatura?: boolean;
+  currentUserName?: string;
 }) => {
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
   const [loading, setLoading] = useState(true);
@@ -902,6 +908,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
           posicoes={posicoes}
           numPaginas={numPaginas}
           gpcUsers={gpcUsers}
+          currentUserName={currentUserName}
           onSaved={async () => { await load(); onRecordUpdated?.(); }}
         />
       )}
@@ -1019,6 +1026,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
   prevPositions: string[];
   onRecordUpdated?: () => Promise<void> | void;
 }) => {
+  const { currentUser } = useApp();
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
   const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
@@ -1135,6 +1143,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
             onRecordUpdated={onRecordUpdated}
             readOnly={false}
             hideAssinatura={true}
+            currentUserName={currentUser?.name ?? undefined}
           />
         </section>
 
@@ -1420,6 +1429,7 @@ interface RegistroModalProps {
 }
 
 const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin, onRecordUpdated }) => {
+  const { currentUser } = useApp();
   const [liveRecord, setLiveRecord] = useState<GpcRecebido | undefined>(initial);
   const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? {});
   const [saving, setSaving] = useState(false);
@@ -1488,6 +1498,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
         setForm(saved);
         setSavedOk(true);
       } else {
+        onRecordUpdated?.();
         onClose();
       }
     }
@@ -2992,12 +3003,12 @@ export const GpcProcessos = () => {
   }), [rows]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Grupo de Prestação de Contas</h2>
-          <p className="text-sm text-slate-400 mt-0.5">
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Grupo de Prestação de Contas</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
             {mainTab === 'registros'
               ? `${filtered.length.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} registros`
               : 'Produtividade mensal por técnico'}
