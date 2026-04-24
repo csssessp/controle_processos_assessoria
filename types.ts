@@ -265,6 +265,9 @@ export interface GpcRecebido {
   num_paginas?: number | null;
   responsavel_assinatura?: string | null;
   responsavel_assinatura_2?: string | null;
+  // Responsabilidades
+  responsavel_cadastro?: string | null;      // Quem cadastrou o processo no sistema
+  responsaveis_analise?: string[] | null;    // Array de técnicos que analisam o processo
   // Situação do processo
   situacao?: 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR' | null;
   valor_a_devolver?: number | null;
@@ -294,7 +297,7 @@ export interface GpcProdutividade {
   responsavel: string | null;
   posicao_id: number | null;
   posicao?: string | null;
-  evento: string; // 'CRIACAO' | 'RESPONSAVEL' | 'POSICAO'
+  evento: string; // 'CADASTRO' | 'INICIO_ANALISE' | 'RESPONSAVEL' | 'POSICAO' | 'MOVIMENTO' | 'CRIACAO'
   data_evento: string;
   obs: string | null;
   created_at?: string;

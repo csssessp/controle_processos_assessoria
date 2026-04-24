@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, Check,
@@ -316,6 +316,7 @@ const InfoCard = ({ label, value, icon }: { label: string; value: string | null 
 
 const EVENTO_CFG: Record<string, { color: string; label: string }> = {
   CRIACAO:        { color: 'bg-blue-500',    label: 'Atribuição inicial' },
+  CADASTRO:       { color: 'bg-slate-500',   label: 'Responsável pelo cadastro' },
   RESPONSAVEL:    { color: 'bg-emerald-500', label: 'Mudança de responsável' },
   POSICAO:        { color: 'bg-amber-500',   label: 'Mudança de posição' },
   MOVIMENTO:      { color: 'bg-purple-500',  label: 'Alteração de movimento' },
@@ -371,6 +372,77 @@ const ProdPanel = ({ registroId }: { registroId: number }) => {
 };
 
 // ---- ViewModal - all info of a record ----
+
+// ---- MultiSelectChips: multi-select with chips ----
+const MultiSelectChips = ({
+  options, selected, onChange, placeholder = '— clique para adicionar analista —'
+}: {
+  options: { id: string; name: string }[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const available = options.filter(o => !selected.includes(o.name));
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        className={INPUT + ' min-h-[42px] flex flex-wrap gap-1.5 py-2 cursor-pointer'}
+        onClick={() => setOpen(o => !o)}
+      >
+        {selected.map(name => (
+          <span key={name} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
+            {name}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onChange(selected.filter(n => n !== name)); }}
+              className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-blue-300 text-blue-600 hover:text-blue-900 transition-colors"
+            >×</button>
+          </span>
+        ))}
+        {selected.length === 0 && (
+          <span className="text-slate-300 text-sm">{placeholder}</span>
+        )}
+        {available.length > 0 && (
+          <span className="ml-auto text-xs text-blue-500 flex items-center gap-1 self-center">
+            <Plus size={11} />Adicionar
+          </span>
+        )}
+      </div>
+      {open && available.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+          <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">Selecionar analista</div>
+          {available.map(u => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => { onChange([...selected, u.name]); setOpen(false); }}
+              className="w-full px-3 py-2.5 text-sm text-left hover:bg-blue-50 text-slate-700 flex items-center gap-2 transition-colors"
+            >
+              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                {u.name.charAt(0).toUpperCase()}
+              </div>
+              {u.name}
+            </button>
+          ))}
+          {available.length === 0 && (
+            <div className="px-3 py-3 text-xs text-slate-400 text-center">Todos os técnicos já foram adicionados</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ---- Movement options (shared) ----
 
@@ -478,13 +550,6 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           </div>
         </div>
         <div>
-          <label className={LABEL}>Ação Realizada</label>
-          <select className={INPUT} value={form.acao ?? ''} onChange={e => set('acao', e.target.value || null)} required>
-            <option value="">— selecione —</option>
-            {ACAO_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-        <div>
           <label className={LABEL}>Posição Atual</label>
           <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
             <option value="">— selecione —</option>
@@ -502,9 +567,9 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           <label className={LABEL}>Páginas Analisadas</label>
           <input className={INPUT} type="number" min={0} value={form.num_paginas_analise ?? ''} onChange={e => set('num_paginas_analise', e.target.value ? Number(e.target.value) : null)} placeholder="ex: 50" />
         </div>
-        <div className="sm:col-span-3">
+        <div className="sm:col-span-1">
           <label className={LABEL}>Observações</label>
-          <input className={INPUT} value={form.obs ?? ''} onChange={e => set('obs', e.target.value || null)} placeholder="Detalhes adicionais sobre o evento..." />
+          <input className={INPUT} value={form.obs ?? ''} onChange={e => set('obs', e.target.value || null)} placeholder="Detalhes adicionais..." />
         </div>
       </div>
       <div className="flex justify-end pt-1">
@@ -761,13 +826,15 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
-                            {it.acao ?? 'EVENTO'}
-                          </span>
                           {it.posicao && <PosicaoBadge id={it.posicao_id} label={it.posicao} />}
                           {it.movimento && (
-                            <span className="text-xs text-slate-500 bg-white border border-slate-200 rounded-full px-2 py-0.5">
+                            <span className="text-xs text-slate-600 bg-white border border-slate-200 rounded-full px-2 py-0.5 font-medium">
                               {it.movimento}
+                            </span>
+                          )}
+                          {it.acao && !it.posicao && !it.movimento && (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
+                              {it.acao}
                             </span>
                           )}
                         </div>
@@ -935,22 +1002,33 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
         {/* ── Indicadores chave ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Responsável pelo Cadastro */}
           <div className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
               <User size={17} className="text-slate-500" />
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Responsável</div>
-              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.responsavel || <span className="text-slate-300 font-normal">—</span>}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Responsável pelo Cadastro</div>
+              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.responsavel_cadastro || row.responsavel || <span className="text-slate-300 font-normal">—</span>}</div>
             </div>
           </div>
-          <div className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
-              <Activity size={17} className="text-purple-500" />
+          {/* Analistas */}
+          <div className="flex items-start gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-sky-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Search size={17} className="text-sky-500" />
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Movimento</div>
-              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.movimento || <span className="text-slate-300 font-normal">—</span>}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Técnicos Analistas</div>
+              {(row.responsaveis_analise ?? []).length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {(row.responsaveis_analise ?? []).map(a => (
+                    <span key={a} className="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full text-xs font-semibold border border-sky-200">{a}</span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm text-slate-300 font-normal italic">— não atribuído</span>
+              )}
+              {row.movimento && <div className="text-[10px] text-slate-500 mt-1.5 truncate font-medium">{row.movimento}</div>}
             </div>
           </div>
           <div className={`flex items-center gap-3 rounded-2xl p-4 border shadow-sm ${cpx ? `${cpx.bg} ${cpx.border}` : 'bg-white border-slate-100'}`}>
@@ -1357,7 +1435,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               </div>
               <div>
                 <label className={LABEL}>Responsável pelo Cadastro</label>
-                <select className={INPUT} value={form.responsavel ?? ''} onChange={e => set('responsavel', e.target.value || null)}>
+                <select className={INPUT} value={form.responsavel_cadastro ?? ''} onChange={e => set('responsavel_cadastro', e.target.value || null)}>
                   <option value="">— selecione —</option>
                   {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                 </select>
@@ -1406,7 +1484,20 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           {/* ── Análise ── */}
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <Sec icon={<BookOpen size={13} />} title="Análise do Processo" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <div>
+                <label className={LABEL + ' flex items-center gap-1.5'}>
+                  <User size={11} />Técnicos Responsáveis pela Análise
+                  <span className="text-slate-300 font-normal normal-case tracking-normal text-[10px]">(múltiplos possíveis)</span>
+                </label>
+                <MultiSelectChips
+                  options={gpcUsers}
+                  selected={form.responsaveis_analise ?? []}
+                  onChange={v => set('responsaveis_analise', v.length > 0 ? v : null)}
+                />
+                <p className="mt-1 text-xs text-slate-400">Cada analista é contabilizado individualmente na produtividade</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={LABEL}>
                   <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
@@ -1453,6 +1544,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     </a>
                   )}
                 </div>
+              </div>
               </div>
             </div>
           </section>
@@ -1736,6 +1828,29 @@ const ExercicioForm = ({ processoId, initial, onSave, onClose }: {
         <div><label className={LABEL}>Gastos (R$)</label><CurrencyInput value={f.gastos} onChange={v => set('gastos', v)} /></div>
         <div><label className={LABEL}>Devolvido (R$)</label><CurrencyInput value={f.devolvido} onChange={v => set('devolvido', v)} /></div>
       </div>
+      {/* Saldo disponível para próximo exercício */}
+      {(() => {
+        const repasse    = f.repasse    ?? 0;
+        const gastos     = f.gastos     ?? 0;
+        const devolvido  = f.devolvido  ?? 0;
+        const saldo = repasse - gastos - devolvido;
+        if (repasse === 0) return null;
+        return (
+          <div className={`rounded-xl border p-3.5 flex items-center gap-3 ${saldo > 0 ? 'bg-blue-50 border-blue-200' : saldo < 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${saldo > 0 ? 'bg-blue-100' : saldo < 0 ? 'bg-red-100' : 'bg-slate-100'}`}>
+              <DollarSign size={15} className={saldo > 0 ? 'text-blue-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Valor não utilizado — saldo para próximo exercício</div>
+              <div className={`text-base font-bold ${saldo > 0 ? 'text-blue-700' : saldo < 0 ? 'text-red-700' : 'text-slate-500'}`}>
+                {saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">⚠ gastos excedem o repasse</span>}
+              </div>
+              <div className="text-xs text-slate-400 mt-0.5">Repasse {fmt(repasse)} − Gastos {fmt(gastos)} − Devolvido {fmt(devolvido)}</div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="flex justify-end gap-3">
         <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
         <button type="submit" className={BTN_PRI} disabled={saving}>{saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}Salvar</button>
@@ -1858,10 +1973,11 @@ type Granularity = 'dia' | 'mes' | 'ano' | 'geral';
 
 interface TechStats {
   responsavel: string;
+  cadastros: number;      // CADASTRO events (not counted in total)
   analises: number;       // unique registro_ids with INICIO_ANALISE
   posicoes: number;       // POSICAO events
   movimentos: number;     // MOVIMENTO events
-  total: number;
+  total: number;          // analises + posicoes + movimentos (excludes cadastros)
 }
 
 function periodoKey(date: string, gran: Granularity): string {
@@ -1881,19 +1997,21 @@ function fmtPeriodo(key: string, gran: Granularity): string {
 
 function computeStats(events: ProdEvento[], gran: Granularity, period: string): TechStats[] {
   const inPeriod = gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period);
-  const map: Record<string, { analises: Set<number>; posicoes: number; movimentos: number }> = {};
+  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number }> = {};
   for (const e of inPeriod) {
-    if (!map[e.responsavel]) map[e.responsavel] = { analises: new Set(), posicoes: 0, movimentos: 0 };
+    if (!map[e.responsavel]) map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0 };
+    if (e.evento === 'CADASTRO')       map[e.responsavel].cadastros++;
     if (e.evento === 'INICIO_ANALISE') map[e.responsavel].analises.add(e.registro_id);
     if (e.evento === 'POSICAO')        map[e.responsavel].posicoes++;
     if (e.evento === 'MOVIMENTO')      map[e.responsavel].movimentos++;
   }
   return Object.entries(map).map(([responsavel, s]) => ({
     responsavel,
+    cadastros:  s.cadastros,
     analises:   s.analises.size,
     posicoes:   s.posicoes,
     movimentos: s.movimentos,
-    total:      s.analises.size + s.posicoes + s.movimentos,
+    total:      s.analises.size + s.posicoes + s.movimentos, // cadastros NOT counted in total
   })).sort((a, b) => b.total - a.total);
 }
 
@@ -1999,10 +2117,10 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
   const exportXLSX = () => {
     const wb = XLSX.utils.book_new();
     // Sheet 1: Resumo por técnico
-    const h1 = ['Técnico', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento',
+    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento',
       'Total de Ações', 'Ações no Fluxo', 'Páginas Analisadas', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
     const b1 = technicians.map(t => [
-      t.responsavel, t.analises, t.posicoes, t.movimentos, t.total,
+      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.total,
       t.fluxoRegistros, t.paginas,
       t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0,
       t.tempMedio,
@@ -2145,6 +2263,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
             <thead>
               <tr className="border-b border-slate-100">
                 <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Técnico</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Processos cadastrados no sistema (não conta no total)">Cadastros</th>
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-sky-500 uppercase tracking-wider" title="Processos distintos com início de análise">Analisados</th>
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider" title="Avanços de posição registrados">Posições</th>
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="Atualizações de movimento">Movimentos</th>
@@ -2183,6 +2302,12 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                           )}
                         </div>
                       </div>
+                    </td>
+                    {/* Cadastros */}
+                    <td className="px-4 py-3 text-center">
+                      {t.cadastros > 0
+                        ? <span className="inline-block min-w-[32px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-sm font-semibold">{t.cadastros}</span>
+                        : <span className="text-slate-300">—</span>}
                     </td>
                     {/* Analisados */}
                     <td className="px-4 py-3 text-center">

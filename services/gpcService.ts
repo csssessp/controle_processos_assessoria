@@ -411,7 +411,9 @@ export const GpcService = {
       exercicio: r.exercicio ?? null,
       drs: r.drs ?? null,
       data: r.data ?? null,
-      responsavel: r.responsavel ?? null,
+      responsavel: r.responsaveis_analise?.[0] ?? r.responsavel ?? null, // primary analyst for backward compat
+      responsavel_cadastro: r.responsavel_cadastro ?? null,
+      responsaveis_analise: r.responsaveis_analise ?? null,
       posicao_id: r.posicao_id ?? null,
       movimento: r.movimento ?? null,
       link_processo: r.link_processo ?? null,
@@ -499,7 +501,7 @@ export const GpcService = {
       .from('cgof_gpc_produtividade')
       .select('registro_id, responsavel, evento, data_evento, obs')
       .not('responsavel', 'is', null)
-      .in('evento', ['INICIO_ANALISE', 'POSICAO', 'MOVIMENTO'])
+      .in('evento', ['INICIO_ANALISE', 'POSICAO', 'MOVIMENTO', 'CADASTRO'])
       .order('data_evento', { ascending: true });
     if (error) { console.error(error); return []; }
     return (data ?? []) as { registro_id: number; responsavel: string; evento: string; data_evento: string }[];
