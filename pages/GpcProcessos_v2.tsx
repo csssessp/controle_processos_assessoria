@@ -960,7 +960,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
       ) : (
         <div className="space-y-0">
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Activity size={12} />Linha do Tempo do Processo ({items.length} eventos)
+            <Activity size={12} />Eventos do Fluxo Técnico ({items.length})
           </div>
           <div className="relative pl-6">
             {/* Vertical line */}
@@ -3364,11 +3364,6 @@ export const GpcProcessos = () => {
                                   </span>
                                 )}
                               </div>
-                              {r.entidade && (
-                                <span className="text-[11px] text-slate-500 leading-tight line-clamp-2 max-w-[200px]" title={r.entidade}>
-                                  {r.entidade}
-                                </span>
-                              )}
                               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                 {r.is_parcelamento && (
                                   <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">
@@ -3385,7 +3380,9 @@ export const GpcProcessos = () => {
                           </td>
                           <td className="px-3 py-4 text-slate-500 whitespace-nowrap text-xs">{r.convenio ?? '-'}</td>
                           {/* Entidade moved into processo cell */}
-                          <td className="hidden">{/* merged into processo */}</td>
+                          <td className="px-3 py-4 text-slate-600 text-xs max-w-[180px]">
+                            <span className="line-clamp-2" title={r.entidade ?? ''}>{r.entidade ?? '—'}</span>
+                          </td>
                           <td className="px-3 py-4 text-center">
                             <span className="inline-block bg-slate-100 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold">{r.exercicio ?? '—'}</span>
                           </td>
