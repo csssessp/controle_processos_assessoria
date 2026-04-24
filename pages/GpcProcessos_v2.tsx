@@ -1,4 +1,4 @@
-Ôªøimport React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Plus, Edit, Trash2, ChevronLeft, ChevronRight, X, Check,
@@ -52,7 +52,7 @@ function sortRows<T>(arr: T[], s: SortState | null): T[] {
   });
 }
 
-const MONTHS_PT = ['Janeiro', 'Fevereiro', 'Mar√ßo', 'Abril', 'Maio', 'Junho',
+const MONTHS_PT = ['Janeiro', 'Fevereiro', 'MarÁo', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const fmtMes = (ym: string) => {
   const [y, m] = ym.split('-');
@@ -140,26 +140,26 @@ const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }
 // ---- MovimentoBadge + Situacao Badge ----
 // ---- MovimentoBadge ----
 const MOV_CFG: Record<string, { bg: string; text: string; border: string }> = {
-  'EM AN√ÅLISE':            { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200' },
+  'EM AN¡LISE':            { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200' },
   'AGUARDANDO':            { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
-  'AGUARDANDO AN√ÅLISE':    { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  'AGUARDANDO AN¡LISE':    { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   'ENCAMINHADO':           { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
   'ENCAMINHADO AO GGCON':  { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
   'DEVOLVIDO':             { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
-  'DEVOLVIDO √Ä DRS':       { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
+  'DEVOLVIDO ¿ DRS':       { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
   'DEVOLVIDO A DRS':       { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
-  'DILIG√äNCIA':            { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  'DILIG NCIA':            { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   'RECEBIDO':              { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
-  'REAN√ÅLISE':             { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200' },
-  'CONCLU√çDO':             { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
-  'CONCLUS√ÉO':             { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
+  'REAN¡LISE':             { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200' },
+  'CONCLUÕDO':             { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
+  'CONCLUS√O':             { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
   'ARQUIVADO':             { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200' },
   'ARQUIVAMENTO':          { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200' },
 };
 const MOV_DEF = { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' };
 
 const MovimentoBadge = ({ movimento }: { movimento: string | null | undefined }) => {
-  if (!movimento) return <span className="text-slate-300 text-xs">‚Äî</span>;
+  if (!movimento) return <span className="text-slate-300 text-xs">ó</span>;
   const key = movimento.toUpperCase();
   const c = Object.entries(MOV_CFG).find(([k]) => k === key || key.startsWith(k))?.[1] ?? MOV_DEF;
   return (
@@ -175,7 +175,7 @@ const MovimentoBadge = ({ movimento }: { movimento: string | null | undefined })
 type Situacao = 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR';
 
 const SituacaoBadge = ({ situacao, compact = false }: { situacao: Situacao | string | null | undefined; compact?: boolean }) => {
-  if (!situacao) return <span className="text-slate-300 text-xs">‚Äî</span>;
+  if (!situacao) return <span className="text-slate-300 text-xs">ó</span>;
   if (situacao === 'REGULAR')
     return (
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-green-50 text-green-700 border-green-200`}>
@@ -194,7 +194,7 @@ const SituacaoBadge = ({ situacao, compact = false }: { situacao: Situacao | str
         <ShieldOff size={10} />{compact ? 'Parcial' : 'Parcialmente Regular'}
       </span>
     );
-  return <span className="text-slate-300 text-xs">‚Äî</span>;
+  return <span className="text-slate-300 text-xs">ó</span>;
 };
 
 // ---- SortTh ----
@@ -343,7 +343,7 @@ const InfoCard = ({ label, value, icon }: { label: string; value: string | null 
   <div className="bg-white border border-slate-100 rounded-xl p-3.5 hover:border-slate-200 hover:shadow-sm transition-all">
     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
     <div className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-      {icon}{value != null && value !== '' ? value : <span className="text-slate-300 font-normal">‚Äî</span>}
+      {icon}{value != null && value !== '' ? value : <span className="text-slate-300 font-normal">ó</span>}
     </div>
   </div>
 );
@@ -351,12 +351,12 @@ const InfoCard = ({ label, value, icon }: { label: string; value: string | null 
 // ---- Productivity Panel ----
 
 const EVENTO_CFG: Record<string, { color: string; label: string }> = {
-  CRIACAO:        { color: 'bg-blue-500',    label: 'Atribui√ß√£o inicial' },
-  CADASTRO:       { color: 'bg-slate-500',   label: 'Respons√°vel pelo cadastro' },
-  RESPONSAVEL:    { color: 'bg-emerald-500', label: 'Mudan√ßa de respons√°vel' },
-  POSICAO:        { color: 'bg-amber-500',   label: 'Mudan√ßa de posi√ß√£o' },
-  MOVIMENTO:      { color: 'bg-purple-500',  label: 'Altera√ß√£o de movimento' },
-  INICIO_ANALISE: { color: 'bg-sky-500',     label: 'In√≠cio de an√°lise' },
+  CRIACAO:        { color: 'bg-blue-500',    label: 'AtribuiÁ„o inicial' },
+  CADASTRO:       { color: 'bg-slate-500',   label: 'Respons·vel pelo cadastro' },
+  RESPONSAVEL:    { color: 'bg-emerald-500', label: 'MudanÁa de respons·vel' },
+  POSICAO:        { color: 'bg-amber-500',   label: 'MudanÁa de posiÁ„o' },
+  MOVIMENTO:      { color: 'bg-purple-500',  label: 'AlteraÁ„o de movimento' },
+  INICIO_ANALISE: { color: 'bg-sky-500',     label: 'InÌcio de an·lise' },
 };
 
 
@@ -392,7 +392,7 @@ const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPos
           ev.push({
             id: `prod-${p.id}`, date: p.data_evento, tipo: 'ANALISE',
             color: 'bg-sky-500', iconType: 'search',
-            title: `Processo em an√°lise ‚Äî ${p.responsavel}`,
+            title: `Processo em an·lise ó ${p.responsavel}`,
             detail: '',
             badge: p.responsavel,
           });
@@ -400,17 +400,17 @@ const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPos
           ev.push({
             id: `prod-${p.id}`, date: p.data_evento, tipo: 'RESPONSAVEL',
             color: 'bg-amber-500', iconType: 'user',
-            title: `Mudan√ßa de analista ‚Äî ${p.responsavel}`,
+            title: `MudanÁa de analista ó ${p.responsavel}`,
             detail: p.obs ?? '',
           });
         }
       }
 
-      // Fluxo t√©cnico events
+      // Fluxo tÈcnico events
       for (const ft of fluxo) {
         const posLabel = posicoes.find(p => p.codigo === ft.posicao_id)?.posicao ?? ft.posicao;
         const title = posLabel
-          ? `Posi√ß√£o: ${posLabel}`
+          ? `PosiÁ„o: ${posLabel}`
           : ft.movimento ?? ft.acao ?? 'Evento registrado';
         ev.push({
           id: `ft-${ft.id}`, date: ft.data_evento, tipo: 'FLUXO',
@@ -493,7 +493,7 @@ const ProdPanel = ({ registroId }: { registroId: number }) => {
   if (!items.length) return (
     <div className="py-10 text-center text-slate-400 text-sm">
       <TrendingUp size={32} className="mx-auto mb-2 opacity-30" />
-      Nenhum evento registrado. Gerado ao salvar respons√°vel ou posi√ß√£o.
+      Nenhum evento registrado. Gerado ao salvar respons·vel ou posiÁ„o.
     </div>
   );
 
@@ -529,7 +529,7 @@ const ProdPanel = ({ registroId }: { registroId: number }) => {
 
 // ---- MultiSelectChips: multi-select with chips ----
 const MultiSelectChips = ({
-  options, selected, onChange, placeholder = '‚Äî clique para adicionar analista ‚Äî'
+  options, selected, onChange, placeholder = 'ó clique para adicionar analista ó'
 }: {
   options: { id: string; name: string }[];
   selected: string[];
@@ -561,7 +561,7 @@ const MultiSelectChips = ({
               type="button"
               onClick={e => { e.stopPropagation(); onChange(selected.filter(n => n !== name)); }}
               className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-blue-300 text-blue-600 hover:text-blue-900 transition-colors"
-            >√ó</button>
+            >◊</button>
           </span>
         ))}
         {selected.length === 0 && (
@@ -590,7 +590,7 @@ const MultiSelectChips = ({
             </button>
           ))}
           {available.length === 0 && (
-            <div className="px-3 py-3 text-xs text-slate-400 text-center">Todos os t√©cnicos j√° foram adicionados</div>
+            <div className="px-3 py-3 text-xs text-slate-400 text-center">Todos os tÈcnicos j· foram adicionados</div>
           )}
         </div>
       )}
@@ -602,57 +602,57 @@ const MultiSelectChips = ({
 
 const MOVIMENTOS = [
   'RECEBIDO',
-  'EM AN√ÅLISE',
-  'DILIG√äNCIA',
-  'AGUARDANDO COMPLEMENTA√á√ÉO',
-  'ENCAMINHADO √Ä CHEFIA',
+  'EM AN¡LISE',
+  'DILIG NCIA',
+  'AGUARDANDO COMPLEMENTA«√O',
+  'ENCAMINHADO ¿ CHEFIA',
   'ENCAMINHADO A CHEFIA GCP',
   'ENCAMINHADO AO GGCON',
   'ENCAMINHADO AO CATC',
   'ENCAMINHADO A ASSESSORIA',
   'ENCAMINHADO AO GABINETE',
   'ENCAMINHADO AO TCE-SP',
-  'ENCAMINHADO √Ä PGE',
-  'ENCAMINHADO √Ä CGE',
+  'ENCAMINHADO ¿ PGE',
+  'ENCAMINHADO ¿ CGE',
   'ARQUIVADO',
-  'CONCLU√çDO',
+  'CONCLUÕDO',
   'DEVOLVIDO AO CONVENENTE',
   'PARECER EMITIDO',
-  'REAN√ÅLISE',
+  'REAN¡LISE',
 ];
 
-// ---- Fluxo T√©cnico Panel ----
+// ---- Fluxo TÈcnico Panel ----
 
 const ACAO_OPTIONS = [
   'RECEBIMENTO',
-  'IN√çCIO DA AN√ÅLISE',
-  'AN√ÅLISE EM ANDAMENTO',
-  'DILIG√äNCIA EMITIDA',
+  'INÕCIO DA AN¡LISE',
+  'AN¡LISE EM ANDAMENTO',
+  'DILIG NCIA EMITIDA',
   'AGUARDANDO RESPOSTA',
   'RESPOSTA RECEBIDA',
   'PARECER ELABORADO',
-  'REVIS√ÉO DO PARECER',
+  'REVIS√O DO PARECER',
   'ENCAMINHAMENTO',
-  'DEVOLU√á√ÉO',
+  'DEVOLU«√O',
   'ARQUIVAMENTO',
-  'CONCLUS√ÉO',
-  'REAN√ÅLISE',
+  'CONCLUS√O',
+  'REAN¡LISE',
 ];
 
 const ACAO_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
   'RECEBIMENTO':          { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' },
-  'IN√çCIO DA AN√ÅLISE':    { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200',     dot: 'bg-sky-500' },
-  'AN√ÅLISE EM ANDAMENTO': { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200',  dot: 'bg-indigo-500' },
-  'DILIG√äNCIA EMITIDA':   { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
+  'INÕCIO DA AN¡LISE':    { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200',     dot: 'bg-sky-500' },
+  'AN¡LISE EM ANDAMENTO': { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200',  dot: 'bg-indigo-500' },
+  'DILIG NCIA EMITIDA':   { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
   'AGUARDANDO RESPOSTA':  { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200',  dot: 'bg-orange-400' },
   'RESPOSTA RECEBIDA':    { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200',    dot: 'bg-teal-500' },
   'PARECER ELABORADO':    { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200',  dot: 'bg-purple-500' },
-  'REVIS√ÉO DO PARECER':   { bg: 'bg-pink-50',    text: 'text-pink-700',    border: 'border-pink-200',    dot: 'bg-pink-500' },
+  'REVIS√O DO PARECER':   { bg: 'bg-pink-50',    text: 'text-pink-700',    border: 'border-pink-200',    dot: 'bg-pink-500' },
   'ENCAMINHAMENTO':       { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200',    dot: 'bg-cyan-500' },
-  'DEVOLU√á√ÉO':            { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' },
+  'DEVOLU«√O':            { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' },
   'ARQUIVAMENTO':         { bg: 'bg-slate-50',   text: 'text-slate-600',   border: 'border-slate-200',   dot: 'bg-slate-400' },
-  'CONCLUS√ÉO':            { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200',   dot: 'bg-green-500' },
-  'REAN√ÅLISE':            { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  dot: 'bg-violet-500' },
+  'CONCLUS√O':            { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200',   dot: 'bg-green-500' },
+  'REAN¡LISE':            { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  dot: 'bg-violet-500' },
 };
 const ACAO_DEF = { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' };
 
@@ -698,8 +698,8 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           </label>
           <div className={INPUT + ' bg-slate-50 text-slate-700 flex items-center gap-2 select-none'}>
             {form.tecnico
-              ? <><div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{form.tecnico.charAt(0).toUpperCase()}</div><span className="text-sm font-medium">{form.tecnico}</span><span className="ml-auto text-[10px] text-slate-400 font-medium">Usu√°rio logado</span></>
-              : <><div className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0"><User size={10} className="text-slate-500" /></div><span className="text-slate-400 text-xs italic">Carregando usu√°rio...</span></>}
+              ? <><div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{form.tecnico.charAt(0).toUpperCase()}</div><span className="text-sm font-medium">{form.tecnico}</span><span className="ml-auto text-[10px] text-slate-400 font-medium">Usu·rio logado</span></>
+              : <><div className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0"><User size={10} className="text-slate-500" /></div><span className="text-slate-400 text-xs italic">Carregando usu·rio...</span></>}
           </div>
         </div>
         <div>
@@ -709,29 +709,29 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           <div className={INPUT + ' bg-slate-100 text-slate-500 flex items-center gap-2 cursor-not-allowed select-none'}>
             <Clock size={13} className="text-slate-400 flex-shrink-0" />
             <span className="text-sm font-medium">{now()}</span>
-            <span className="ml-auto text-xs text-slate-400">Autom√°tico</span>
+            <span className="ml-auto text-xs text-slate-400">Autom·tico</span>
           </div>
         </div>
         <div>
-          <label className={LABEL}>Posi√ß√£o Atual</label>
+          <label className={LABEL}>PosiÁ„o Atual</label>
           <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
-            <option value="">‚Äî selecione ‚Äî</option>
+            <option value="">ó selecione ó</option>
             {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
           </select>
         </div>
         <div>
           <label className={LABEL}>Movimento</label>
           <select className={INPUT} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
-            <option value="">‚Äî selecione ‚Äî</option>
+            <option value="">ó selecione ó</option>
             {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div>
-          <label className={LABEL}>P√°ginas Analisadas</label>
+          <label className={LABEL}>P·ginas Analisadas</label>
           <input className={INPUT} type="number" min={0} value={form.num_paginas_analise ?? ''} onChange={e => set('num_paginas_analise', e.target.value ? Number(e.target.value) : null)} placeholder="ex: 50" />
         </div>
         <div className="sm:col-span-1">
-          <label className={LABEL}>Observa√ß√µes</label>
+          <label className={LABEL}>ObservaÁıes</label>
           <input className={INPUT} value={form.obs ?? ''} onChange={e => set('obs', e.target.value || null)} placeholder="Detalhes adicionais..." />
         </div>
       </div>
@@ -766,7 +766,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
     setSavingAssinatura(true); setAssinaturaMsg(null);
     try {
       await GpcService.updateAssinatura(registroId, assinatura1 || null, assinatura2 || null);
-      setAssinaturaMsg({ type: 'ok', text: 'Respons√°veis salvos com sucesso!' });
+      setAssinaturaMsg({ type: 'ok', text: 'Respons·veis salvos com sucesso!' });
       onRecordUpdated?.();
     } catch (ex: any) {
       setAssinaturaMsg({ type: 'err', text: ex.message });
@@ -800,9 +800,9 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
       ? Math.round((new Date(lastEvent.data_evento).getTime() - new Date(firstEvent.data_evento).getTime()) / 86400000)
       : 0;
     const totalPaginas = items.reduce((s, i) => s + (i.num_paginas_analise ?? 0), 0);
-    const diligencias = items.filter(i => i.acao === 'DILIG√äNCIA EMITIDA').length;
-    const analises = items.filter(i => i.acao === 'AN√ÅLISE EM ANDAMENTO' || i.acao === 'IN√çCIO DA AN√ÅLISE').length;
-    // Tempo m√©dio entre eventos
+    const diligencias = items.filter(i => i.acao === 'DILIG NCIA EMITIDA').length;
+    const analises = items.filter(i => i.acao === 'AN¡LISE EM ANDAMENTO' || i.acao === 'INÕCIO DA AN¡LISE').length;
+    // Tempo mÈdio entre eventos
     let tempoMedio = 0;
     if (items.length > 1) {
       let total = 0;
@@ -816,27 +816,27 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
   if (loading) return (
     <div className="flex items-center gap-2 py-10 justify-center text-slate-400 text-sm">
-      <Loader2 size={16} className="animate-spin" />Carregando fluxo t√©cnico...
+      <Loader2 size={16} className="animate-spin" />Carregando fluxo tÈcnico...
     </div>
   );
 
   return (
     <div className="space-y-4">
-      {/* Respons√°vel pela Assinatura */}
+      {/* Respons·vel pela Assinatura */}
       {readOnly && !hideAssinatura ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
           <div className="flex items-center gap-2 mb-3">
             <PenLine size={15} className="text-indigo-500" />
-            <span className="text-sm font-bold text-indigo-800">Respons√°vel pela Assinatura</span>
+            <span className="text-sm font-bold text-indigo-800">Respons·vel pela Assinatura</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-white border border-indigo-100 rounded-lg p-3">
-              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">1¬∫ Respons√°vel</div>
-              <div className="text-sm font-medium text-slate-800">{assinatura1 || <span className="text-slate-300">‚Äî</span>}</div>
+              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">1∫ Respons·vel</div>
+              <div className="text-sm font-medium text-slate-800">{assinatura1 || <span className="text-slate-300">ó</span>}</div>
             </div>
             <div className="bg-white border border-indigo-100 rounded-lg p-3">
-              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">2¬∫ Respons√°vel</div>
-              <div className="text-sm font-medium text-slate-800">{assinatura2 || <span className="text-slate-300">‚Äî</span>}</div>
+              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">2∫ Respons·vel</div>
+              <div className="text-sm font-medium text-slate-800">{assinatura2 || <span className="text-slate-300">ó</span>}</div>
             </div>
           </div>
         </div>
@@ -844,20 +844,20 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <PenLine size={15} className="text-indigo-500" />
-            <span className="text-sm font-bold text-indigo-800">Respons√°vel pela Assinatura</span>
+            <span className="text-sm font-bold text-indigo-800">Respons·vel pela Assinatura</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={LABEL}>1¬∫ Respons√°vel</label>
+              <label className={LABEL}>1∫ Respons·vel</label>
               <select className={INPUT} value={assinatura1} onChange={e => setAssinatura1(e.target.value)}>
-                <option value="">‚Äî selecione ‚Äî</option>
+                <option value="">ó selecione ó</option>
                 {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={LABEL}>2¬∫ Respons√°vel <span className="text-slate-400 font-normal">(opcional)</span></label>
+              <label className={LABEL}>2∫ Respons·vel <span className="text-slate-400 font-normal">(opcional)</span></label>
               <select className={INPUT} value={assinatura2} onChange={e => setAssinatura2(e.target.value)}>
-                <option value="">‚Äî nenhum ‚Äî</option>
+                <option value="">ó nenhum ó</option>
                 {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
               </select>
             </div>
@@ -867,7 +867,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
           )}
           {signatoryUsers.length === 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-              Nenhum usu√°rio habilitado para assinar processos. O administrador deve marcar usu√°rios como "Pode assinar processos" no Gerenciamento de Usu√°rios.
+              Nenhum usu·rio habilitado para assinar processos. O administrador deve marcar usu·rios como "Pode assinar processos" no Gerenciamento de Usu·rios.
             </p>
           )}
           <div className="flex justify-end">
@@ -878,7 +878,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
             >
               {savingAssinatura ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Salvar Respons√°veis
+              Salvar Respons·veis
             </button>
           </div>
         </div>
@@ -890,8 +890,8 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
           {[
             { label: 'Eventos',    value: String(metrics.totalEventos), color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-100',   icon: <Activity size={14} className="text-blue-400" /> },
             { label: 'Tempo Total', value: `${metrics.totalDias} dias`, color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200',  icon: <Timer size={14} className="text-slate-400" /> },
-            { label: 'P√°g. Analisadas', value: String(metrics.totalPaginas), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100', icon: <BookOpen size={14} className="text-purple-400" /> },
-            { label: 'Tempo M√©dio/Evento', value: `${metrics.tempoMedio} dias`, color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-100',  icon: <Gauge size={14} className="text-amber-400" /> },
+            { label: 'P·g. Analisadas', value: String(metrics.totalPaginas), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100', icon: <BookOpen size={14} className="text-purple-400" /> },
+            { label: 'Tempo MÈdio/Evento', value: `${metrics.tempoMedio} dias`, color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-100',  icon: <Gauge size={14} className="text-amber-400" /> },
           ].map(k => (
             <div key={k.label} className={`${k.bg} rounded-xl border px-3 py-2.5 flex items-center gap-2.5`}>
               {k.icon}
@@ -918,21 +918,21 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
           } />
           <div>
             <div className="text-sm font-bold text-slate-700">
-              Processo com {numPaginas} p√°ginas ‚Äî Complexidade{' '}
+              Processo com {numPaginas} p·ginas ó Complexidade{' '}
               <span className={
                 (numPaginas ?? 0) <= 50 ? 'text-green-700' :
                 (numPaginas ?? 0) <= 200 ? 'text-amber-700' :
                 (numPaginas ?? 0) <= 500 ? 'text-orange-700' : 'text-red-700'
               }>
                 {(numPaginas ?? 0) <= 50 ? 'Baixa' :
-                 (numPaginas ?? 0) <= 200 ? 'M√©dia' :
+                 (numPaginas ?? 0) <= 200 ? 'MÈdia' :
                  (numPaginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
               </span>
             </div>
             <div className="text-xs text-slate-500 mt-0.5">
-              {(numPaginas ?? 0) <= 50 ? 'Prazo estimado: 5-10 dias √∫teis' :
-               (numPaginas ?? 0) <= 200 ? 'Prazo estimado: 10-20 dias √∫teis' :
-               (numPaginas ?? 0) <= 500 ? 'Prazo estimado: 20-40 dias √∫teis' : 'Prazo estimado: 40+ dias √∫teis ‚Äî an√°lise complexa'}
+              {(numPaginas ?? 0) <= 50 ? 'Prazo estimado: 5-10 dias ˙teis' :
+               (numPaginas ?? 0) <= 200 ? 'Prazo estimado: 10-20 dias ˙teis' :
+               (numPaginas ?? 0) <= 500 ? 'Prazo estimado: 20-40 dias ˙teis' : 'Prazo estimado: 40+ dias ˙teis ó an·lise complexa'}
             </div>
           </div>
         </div>
@@ -954,13 +954,13 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
       {items.length === 0 ? (
         <div className="py-10 text-center text-slate-400 text-sm">
           <Activity size={36} className="mx-auto mb-2 opacity-30" />
-          <p className="font-medium">Nenhum evento registrado no fluxo t√©cnico</p>
-          {!readOnly && <p className="text-xs mt-1">Use o formul√°rio acima para registrar o primeiro evento.</p>}
+          <p className="font-medium">Nenhum evento registrado no fluxo tÈcnico</p>
+          {!readOnly && <p className="text-xs mt-1">Use o formul·rio acima para registrar o primeiro evento.</p>}
         </div>
       ) : (
         <div className="space-y-0">
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Activity size={12} />Eventos do Fluxo T√©cnico ({items.length})
+            <Activity size={12} />Eventos do Fluxo TÈcnico ({items.length})
           </div>
           <div className="relative pl-6">
             {/* Vertical line */}
@@ -1016,7 +1016,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
                           )}
                           {it.num_paginas_analise && (
                             <span className="flex items-center gap-1 text-purple-600">
-                              <BookOpen size={10} />{it.num_paginas_analise} p√°g.
+                              <BookOpen size={10} />{it.num_paginas_analise} p·g.
                             </span>
                           )}
                           {daysSincePrev !== null && daysSincePrev > 0 && (
@@ -1093,7 +1093,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
   const cpxLabel = (n: number | null | undefined) => {
     if (!n) return null;
     if (n <= 50)  return { label: 'Baixa',     color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-100',  ring: 'bg-green-100',  icon: 'text-green-600' };
-    if (n <= 200) return { label: 'M√©dia',     color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-100',  ring: 'bg-amber-100',  icon: 'text-amber-600' };
+    if (n <= 200) return { label: 'MÈdia',     color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-100',  ring: 'bg-amber-100',  icon: 'text-amber-600' };
     if (n <= 500) return { label: 'Alta',      color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-100', ring: 'bg-orange-100', icon: 'text-orange-600' };
     return        { label: 'Muito Alta', color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-100',    ring: 'bg-red-100',    icon: 'text-red-600' };
   };
@@ -1110,7 +1110,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
       <div className="flex items-center justify-between -mt-1 mb-5">
         <div className="flex items-center gap-2 text-xs text-slate-400">
           Registro <span className="font-bold text-slate-600">#{row.codigo}</span>
-          {row.created_at && <span className="text-slate-300">¬∑</span>}
+          {row.created_at && <span className="text-slate-300">∑</span>}
           {row.created_at && <span>Cadastrado em {fmtDate(row.created_at)}</span>}
         </div>
         <button className={BTN_PRI} onClick={onEdit}>
@@ -1120,7 +1120,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
       <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
 
-        {/* ‚îÄ‚îÄ HERO CARD ‚îÄ‚îÄ */}
+        {/* -- HERO CARD -- */}
         <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 rounded-2xl p-6 text-white shadow-xl">
           <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-blue-600/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-8 left-4 w-36 h-36 rounded-full bg-indigo-500/10 blur-2xl" />
@@ -1141,11 +1141,11 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                 )}
               </div>
               <div className="font-mono text-xl font-bold text-white tracking-tight break-all leading-snug">
-                {row.processo ?? '‚Äî'}
+                {row.processo ?? 'ó'}
               </div>
               {(row.convenio || row.valor_convenio) && (
                 <div className="text-slate-400 text-sm mt-1.5 flex items-center gap-2 flex-wrap">
-                  {row.convenio && <span>Conv√™nio {row.convenio}</span>}
+                  {row.convenio && <span>ConvÍnio {row.convenio}</span>}
                   {row.valor_convenio != null && (
                     <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-md">
                       <DollarSign size={10} />{row.valor_convenio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1162,10 +1162,10 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 relative">
             {[
-              { label: 'Exerc√≠cio',    value: row.exercicio ?? '‚Äî' },
-              { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : '‚Äî' },
+              { label: 'ExercÌcio',    value: row.exercicio ?? 'ó' },
+              { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : 'ó' },
               { label: 'Recebimento',  value: fmtDate(row.data) },
-              { label: 'Entidade',     value: row.entidade ?? '‚Äî' },
+              { label: 'Entidade',     value: row.entidade ?? 'ó' },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/10">
                 <div className="text-slate-400 text-[10px] uppercase tracking-widest font-semibold mb-0.5">{label}</div>
@@ -1175,40 +1175,23 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
           </div>
         </div>
 
-        {/* ‚îÄ‚îÄ Registrar Evento no Fluxo ‚îÄ‚îÄ */}
-        <section className="bg-gradient-to-br from-blue-50 via-indigo-50/60 to-slate-50 border border-blue-100 rounded-2xl p-5 shadow-sm">
-          <Sec icon={<Activity size={13} />} title="Registrar Novo Evento no Fluxo" />
-          <FluxoTecnicoPanel
-            registroId={row.codigo}
-            posicoes={posicoes}
-            numPaginas={row.num_paginas}
-            gpcUsers={gpcUsers}
-            signatoryUsers={signatoryUsers}
-            responsavelAssinatura={row.responsavel_assinatura}
-            responsavelAssinatura2={row.responsavel_assinatura_2}
-            onRecordUpdated={onRecordUpdated}
-            readOnly={false}
-            hideAssinatura={true}
-            currentUserName={currentUser?.name ?? undefined}
-          />
-        </section>
 
-        {/* ‚îÄ‚îÄ Linha do Tempo do Processo ‚îÄ‚îÄ */}
+        {/* -- Linha do Tempo do Processo -- */}
         <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
           <Sec icon={<TrendingUp size={13} />} title="Linha do Tempo do Processo" />
           <ProcessTimeline row={row} posicoes={posicoes} />
         </section>
 
-                {/* ‚îÄ‚îÄ Indicadores chave ‚îÄ‚îÄ */}
+                {/* -- Indicadores chave -- */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Respons√°vel pelo Cadastro */}
+          {/* Respons·vel pelo Cadastro */}
           <div className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
               <User size={17} className="text-slate-500" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Respons√°vel pelo Cadastro</div>
-              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.responsavel_cadastro || row.responsavel || <span className="text-slate-300 font-normal">‚Äî</span>}</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Respons·vel pelo Cadastro</div>
+              <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{row.responsavel_cadastro || row.responsavel || <span className="text-slate-300 font-normal">ó</span>}</div>
             </div>
           </div>
           {/* Analistas */}
@@ -1217,7 +1200,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
               <Search size={17} className="text-sky-500" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">T√©cnicos Analistas</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">TÈcnicos Analistas</div>
               {(row.responsaveis_analise ?? []).length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {(row.responsaveis_analise ?? []).map(a => (
@@ -1225,7 +1208,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   ))}
                 </div>
               ) : (
-                <span className="text-sm text-slate-300 font-normal italic">‚Äî n√£o atribu√≠do</span>
+                <span className="text-sm text-slate-300 font-normal italic">ó n„o atribuÌdo</span>
               )}
               {row.movimento && <div className="text-[10px] text-slate-500 mt-1.5 truncate font-medium">{row.movimento}</div>}
             </div>
@@ -1237,41 +1220,17 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
             <div className="min-w-0">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Complexidade</div>
               {cpx
-                ? <div className="mt-0.5"><span className={`text-sm font-bold ${cpx.color}`}>{cpx.label}</span><span className="text-xs text-slate-500 ml-1.5">({row.num_paginas} p√°g.)</span></div>
-                : <div className="text-sm text-slate-300 font-normal mt-0.5">N√£o informado</div>}
+                ? <div className="mt-0.5"><span className={`text-sm font-bold ${cpx.color}`}>{cpx.label}</span><span className="text-xs text-slate-500 ml-1.5">({row.num_paginas} p·g.)</span></div>
+                : <div className="text-sm text-slate-300 font-normal mt-0.5">N„o informado</div>}
             </div>
           </div>
         </div>
 
-        {/* ‚îÄ‚îÄ Respons√°veis pela Assinatura ‚îÄ‚îÄ */}
-        <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-          <Sec icon={<PenLine size={13} />} title="Respons√°veis pela Assinatura" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { label: '1¬∫ Respons√°vel', value: row.responsavel_assinatura, initials: '1¬∞' },
-              { label: '2¬∫ Respons√°vel', value: row.responsavel_assinatura_2, initials: '2¬∞' },
-            ].map(({ label, value, initials }) => (
-              <div key={label} className="flex items-center gap-3 bg-indigo-50/60 border border-indigo-100 rounded-xl p-4">
-                <div className="w-11 h-11 rounded-full bg-indigo-100 border-2 border-indigo-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-indigo-600 text-sm font-bold">
-                    {value ? value.trim().split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() : initials}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">{label}</div>
-                  <div className="text-sm font-semibold text-slate-800 mt-0.5 truncate">
-                    {value || <span className="text-slate-400 font-normal italic">N√£o atribu√≠do</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
-        {/* ‚îÄ‚îÄ Situa√ß√£o do Processo ‚îÄ‚îÄ */}
+        {/* -- SituaÁ„o do Processo -- */}
+        {row.situacao && (
         <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-          <Sec icon={<ShieldCheck size={13} />} title="Situa√ß√£o do Processo" />
-          {row.situacao ? (
+          <Sec icon={<ShieldCheck size={13} />} title="SituaÁ„o do Processo" />
             <div className={`rounded-2xl overflow-hidden border-2 shadow-sm ${
               row.situacao === 'REGULAR' ? 'border-green-200' :
               row.situacao === 'IRREGULAR' ? 'border-red-300' : 'border-amber-300'
@@ -1286,9 +1245,9 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                     ? <ShieldAlert size={18} className="text-white" />
                     : <ShieldOff size={18} className="text-white" />}
                 <span className="text-white font-bold text-sm">
-                  {row.situacao === 'REGULAR' ? 'Processo Regular ‚Äî sem pend√™ncias financeiras'
-                    : row.situacao === 'IRREGULAR' ? 'Processo Irregular ‚Äî com pend√™ncias financeiras'
-                    : 'Parcialmente Regular ‚Äî pend√™ncias parciais'}
+                  {row.situacao === 'REGULAR' ? 'Processo Regular ó sem pendÍncias financeiras'
+                    : row.situacao === 'IRREGULAR' ? 'Processo Irregular ó com pendÍncias financeiras'
+                    : 'Parcialmente Regular ó pendÍncias parciais'}
                 </span>
               </div>
               <div className={`px-5 py-4 space-y-3 ${
@@ -1297,18 +1256,18 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
               }`}>
                 {row.situacao === 'REGULAR' && (
                   <p className="text-sm text-green-700 flex items-center gap-2">
-                    <Check size={14} className="text-green-600 flex-shrink-0" />Processo sem pend√™ncias financeiras identificadas.
+                    <Check size={14} className="text-green-600 flex-shrink-0" />Processo sem pendÍncias financeiras identificadas.
                   </p>
                 )}
                 {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-white rounded-xl p-3.5 border border-red-200 text-center shadow-sm">
                       <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider mb-1">A Devolver</div>
-                      <div className="text-lg font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : '‚Äî'}</div>
+                      <div className="text-lg font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : 'ó'}</div>
                     </div>
                     <div className="bg-white rounded-xl p-3.5 border border-green-200 text-center shadow-sm">
-                      <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">J√° Devolvido</div>
-                      <div className="text-lg font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : '‚Äî'}</div>
+                      <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">J· Devolvido</div>
+                      <div className="text-lg font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : 'ó'}</div>
                     </div>
                     {(row.valor_a_devolver ?? 0) > 0 && (() => {
                       const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
@@ -1316,7 +1275,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                         <div className={`bg-white rounded-xl p-3.5 border text-center shadow-sm ${saldo <= 0 ? 'border-green-200' : 'border-red-200'}`}>
                           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Saldo</div>
                           <div className={`text-lg font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {saldo <= 0 ? '‚úì Quitado' : fmt(saldo)}
+                            {saldo <= 0 ? '? Quitado' : fmt(saldo)}
                           </div>
                         </div>
                       );
@@ -1325,31 +1284,18 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                 )}
                 {row.situacao_obs && (
                   <div className="bg-white/80 rounded-xl p-4 border border-current/10">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Observa√ß√µes</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">ObservaÁıes</p>
                     <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
                   </div>
                 )}
               </div>
             </div>
-          ) : (
-            <div className="rounded-2xl p-5 border-2 border-dashed border-slate-200 flex items-center gap-4 bg-slate-50/50">
-              <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-                <ShieldOff size={20} className="text-slate-400" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-slate-600">Situa√ß√£o n√£o avaliada</div>
-                <div className="text-xs text-slate-400 mt-0.5">O processo ainda n√£o foi analisado financeiramente</div>
-              </div>
-              <button className="ml-auto text-sm text-blue-600 hover:text-blue-700 font-semibold whitespace-nowrap" onClick={onEdit}>
-                Avaliar ‚Üí
-              </button>
-            </div>
-          )}
         </section>
+        )}
 
 
 
-        {/* ‚îÄ‚îÄ Link ‚îÄ‚îÄ */}
+        {/* -- Link -- */}
         {row.link_processo && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -1365,7 +1311,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
           </div>
         )}
 
-        {/* ‚îÄ‚îÄ Dados ass√≠ncronos ‚îÄ‚îÄ */}
+        {/* -- Dados assÌncronos -- */}
         {loadingFull && (
           <div className="flex items-center gap-2 py-4 justify-center text-slate-400 text-xs">
             <Loader2 size={13} className="animate-spin" />Carregando dados adicionais...
@@ -1403,7 +1349,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
                     <Calendar size={13} />
                   </span>
-                  <span className="text-sm font-bold text-slate-700">Exerc√≠cios ({full.exercicios!.length})</span>
+                  <span className="text-sm font-bold text-slate-700">ExercÌcios ({full.exercicios!.length})</span>
                 </div>
                 <div className="divide-y divide-slate-50">
                   {full.exercicios!.map(ex => (
@@ -1421,11 +1367,11 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                     <div className="font-bold text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplica√ß√£o</div>
+                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total AplicaÁ„o</div>
                     <div className="font-bold text-slate-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.aplicacao ?? 0), 0))}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold mb-0.5">Total do Conv√™nio</div>
+                    <div className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold mb-0.5">Total do ConvÍnio</div>
                     <div className="font-bold text-blue-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0))}</div>
                   </div>
                 </div>
@@ -1438,7 +1384,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
                     <Clock size={13} />
                   </span>
-                  <span className="text-sm font-bold text-slate-700">Hist√≥rico de Movimentos ({full.historicos!.length})</span>
+                  <span className="text-sm font-bold text-slate-700">HistÛrico de Movimentos ({full.historicos!.length})</span>
                 </div>
                 <div className="divide-y divide-slate-50">
                   {full.historicos!.slice(-5).map(h => (
@@ -1457,7 +1403,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
         {prevPositions.length > 0 && (
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<Info size={13} />} title="Processo com m√∫ltiplas posi√ß√µes" />
+            <Sec icon={<Info size={13} />} title="Processo com m˙ltiplas posiÁıes" />
             <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex flex-wrap gap-2">
               {prevPositions.map((p, i) => (
                 <span key={i} className="inline-flex items-center gap-1 text-xs bg-white border border-purple-200 text-purple-700 rounded-full px-3 py-1 shadow-sm">
@@ -1500,11 +1446,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   const set = (k: keyof GpcRecebido, v: any) => setForm(f => ({ ...f, [k]: v }));
   const isEditing = !!(liveRecord?.codigo);
 
-  // Section locking (require password to edit Identifica√ß√£o + Classifica√ß√£o)
+  // Section locking (require password to edit IdentificaÁ„o + ClassificaÁ„o)
   const [identLocked, setIdentLocked] = useState(isEditing);
   const [classifLocked, setClassifLocked] = useState(isEditing);
   const tryUnlock = (setter: (v: boolean) => void) => {
-    const pw = window.prompt('Digite a senha para liberar a edi√ß√£o desta se√ß√£o:');
+    const pw = window.prompt('Digite a senha para liberar a ediÁ„o desta seÁ„o:');
     if (pw === SECTION_PASSWORD) {
       setter(false);
     } else if (pw !== null) {
@@ -1515,7 +1461,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
     <button
       type="button"
       onClick={locked ? onUnlock : undefined}
-      title={locked ? 'Clique para desbloquear (requer senha)' : 'Se√ß√£o desbloqueada para edi√ß√£o'}
+      title={locked ? 'Clique para desbloquear (requer senha)' : 'SeÁ„o desbloqueada para ediÁ„o'}
       className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg transition-colors ${
         locked
           ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 cursor-pointer'
@@ -1563,7 +1509,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   };
 
   const confirmDeleteSub = async (action: () => Promise<void>) => {
-    if (!confirm('Confirma a exclus√£o?')) return;
+    if (!confirm('Confirma a exclus„o?')) return;
     try { await action(); await refreshFull(); }
     catch (ex: any) { alert(ex.message); }
   };
@@ -1582,7 +1528,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   return (
     <Modal
       title={isEditing ? 'Editar Registro' : 'Novo Registro'}
-      subtitle={isEditing ? `#${liveRecord!.codigo} ‚Äî ${liveRecord!.processo ?? ''}` : 'Preencha os dados do processo'}
+      subtitle={isEditing ? `#${liveRecord!.codigo} ó ${liveRecord!.processo ?? ''}` : 'Preencha os dados do processo'}
       onClose={onClose}
       size="xl"
     >
@@ -1596,45 +1542,45 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           )}
           {savedOk && (
             <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-              <Check size={15} className="flex-shrink-0" />Registro cadastrado! Complete as informa√ß√µes adicionais abaixo.
+              <Check size={15} className="flex-shrink-0" />Registro cadastrado! Complete as informaÁıes adicionais abaixo.
             </div>
           )}
 
-          {/* ‚îÄ‚îÄ Identifica√ß√£o do Processo ‚îÄ‚îÄ */}
+          {/* -- IdentificaÁ„o do Processo -- */}
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<FileText size={13} />} title="Identifica√ß√£o do Processo" action={isEditing ? <LockBtn locked={identLocked} onUnlock={() => tryUnlock(setIdentLocked)} /> : undefined} />
+            <Sec icon={<FileText size={13} />} title="IdentificaÁ„o do Processo" action={isEditing ? <LockBtn locked={identLocked} onUnlock={() => tryUnlock(setIdentLocked)} /> : undefined} />
             <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 transition-opacity ${identLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
               <div>
-                <label className={LABEL}>N√∫mero do Processo *</label>
+                <label className={LABEL}>N˙mero do Processo *</label>
                 <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
               </div>
               <div>
-                <label className={LABEL}>Conv√™nio</label>
+                <label className={LABEL}>ConvÍnio</label>
                 <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
               </div>
               <div>
-                <label className={LABEL}>Valor do Conv√™nio (R$)</label>
+                <label className={LABEL}>Valor do ConvÍnio (R$)</label>
                 <CurrencyInput value={form.valor_convenio} onChange={v => set('valor_convenio', v)} />
               </div>
               <div className="sm:col-span-2">
-                <label className={LABEL}>Entidade / Munic√≠pio</label>
-                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou munic√≠pio" />
+                <label className={LABEL}>Entidade / MunicÌpio</label>
+                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou municÌpio" />
               </div>
             </div>
           </section>
 
-          {/* ‚îÄ‚îÄ Classifica√ß√£o ‚îÄ‚îÄ */}
+          {/* -- ClassificaÁ„o -- */}
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<ClipboardList size={13} />} title="Classifica√ß√£o e Posi√ß√£o" action={isEditing ? <LockBtn locked={classifLocked} onUnlock={() => tryUnlock(setClassifLocked)} /> : undefined} />
+            <Sec icon={<ClipboardList size={13} />} title="ClassificaÁ„o e PosiÁ„o" action={isEditing ? <LockBtn locked={classifLocked} onUnlock={() => tryUnlock(setClassifLocked)} /> : undefined} />
             <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${classifLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
               <div>
-                <label className={LABEL}>Exerc√≠cio (ano)</label>
+                <label className={LABEL}>ExercÌcio (ano)</label>
                 <input className={INPUT} value={form.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} placeholder="ex: 2024" />
               </div>
               <div>
                 <label className={LABEL}>DRS</label>
                 <select className={INPUT} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}>
-                  <option value="">‚Äî sel. ‚Äî</option>
+                  <option value="">ó sel. ó</option>
                   {Array.from({ length: 17 }, (_, i) => i + 1).map(n => (
                     <option key={n} value={n}>DRS {n.toString().padStart(2, '0')}</option>
                   ))}
@@ -1648,23 +1594,23 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 {!!initial?.data && !isAdmin ? (
                   <div className={INPUT + ' bg-slate-50 text-slate-500 flex items-center gap-1 cursor-not-allowed select-none'}>
                     <Lock size={12} className="text-slate-400 flex-shrink-0" />
-                    <span className="text-xs">{form.data ?? '‚Äî'}</span>
+                    <span className="text-xs">{form.data ?? 'ó'}</span>
                   </div>
                 ) : (
                   <input className={INPUT} type="date" value={form.data ?? ''} onChange={e => set('data', e.target.value || null)} />
                 )}
               </div>
               <div>
-                <label className={LABEL}>Respons√°vel pelo Cadastro</label>
+                <label className={LABEL}>Respons·vel pelo Cadastro</label>
                 <select className={INPUT} value={form.responsavel_cadastro ?? ''} onChange={e => set('responsavel_cadastro', e.target.value || null)}>
-                  <option value="">‚Äî selecione ‚Äî</option>
+                  <option value="">ó selecione ó</option>
                   {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className={LABEL}>Posi√ß√£o Atual</label>
+                <label className={LABEL}>PosiÁ„o Atual</label>
                 <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
-                  <option value="">‚Äî selecione ‚Äî</option>
+                  <option value="">ó selecione ó</option>
                   {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
                 </select>
                 {isEditing && initial?.posicao && form.posicao_id !== initial?.posicao_id && (
@@ -1676,14 +1622,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               <div>
                 <label className={LABEL}>Movimento</label>
                 <select className={INPUT} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
-                  <option value="">‚Äî selecione ‚Äî</option>
+                  <option value="">ó selecione ó</option>
                   {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
                 <label className={LABEL}>Remessa</label>
                 <select className={INPUT} value={form.remessa ?? ''} onChange={e => set('remessa', (e.target.value || null) as 'ACIMA' | 'ABAIXO' | null)}>
-                  <option value="">‚Äî selecione ‚Äî</option>
+                  <option value="">ó selecione ó</option>
                   <option value="ACIMA">Acima de Remessa</option>
                   <option value="ABAIXO">Abaixo de Remessa</option>
                 </select>
@@ -1702,26 +1648,26 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
             </div>
           </section>
 
-          {/* ‚îÄ‚îÄ An√°lise ‚îÄ‚îÄ */}
+          {/* -- An·lise -- */}
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<BookOpen size={13} />} title="An√°lise do Processo" />
+            <Sec icon={<BookOpen size={13} />} title="An·lise do Processo" />
             <div className="space-y-3">
               <div>
                 <label className={LABEL + ' flex items-center gap-1.5'}>
-                  <User size={11} />T√©cnicos Respons√°veis pela An√°lise
-                  <span className="text-slate-300 font-normal normal-case tracking-normal text-[10px]">(m√∫ltiplos poss√≠veis)</span>
+                  <User size={11} />TÈcnicos Respons·veis pela An·lise
+                  <span className="text-slate-300 font-normal normal-case tracking-normal text-[10px]">(m˙ltiplos possÌveis)</span>
                 </label>
                 <MultiSelectChips
                   options={gpcUsers}
                   selected={form.responsaveis_analise ?? []}
                   onChange={v => set('responsaveis_analise', v.length > 0 ? v : null)}
                 />
-                <p className="mt-1 text-xs text-slate-400">Cada analista √© contabilizado individualmente na produtividade</p>
+                <p className="mt-1 text-xs text-slate-400">Cada analista È contabilizado individualmente na produtividade</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={LABEL}>
-                  <span className="flex items-center gap-1"><BookOpen size={11} />N¬∫ de P√°ginas do Processo</span>
+                  <span className="flex items-center gap-1"><BookOpen size={11} />N∫ de P·ginas do Processo</span>
                 </label>
                 <input
                   className={INPUT}
@@ -1740,7 +1686,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                       (form.num_paginas ?? 0) <= 500 ? 'text-orange-600' : 'text-red-600'
                     }`}>
                       {(form.num_paginas ?? 0) <= 50 ? 'Baixa' :
-                       (form.num_paginas ?? 0) <= 200 ? 'M√©dia' :
+                       (form.num_paginas ?? 0) <= 200 ? 'MÈdia' :
                        (form.num_paginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
                     </span>
                   </p>
@@ -1770,18 +1716,18 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
             </div>
           </section>
 
-          {/* ‚îÄ‚îÄ Situa√ß√£o do Processo ‚îÄ‚îÄ */}
+          {/* -- SituaÁ„o do Processo -- */}
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<ShieldCheck size={13} />} title="Situa√ß√£o do Processo" />
+            <Sec icon={<ShieldCheck size={13} />} title="SituaÁ„o do Processo" />
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
-                  <label className={LABEL}>Situa√ß√£o</label>
+                  <label className={LABEL}>SituaÁ„o</label>
                   <select className={INPUT} value={form.situacao ?? ''} onChange={e => set('situacao', e.target.value || null)}>
-                    <option value="">‚Äî n√£o avaliada ‚Äî</option>
-                    <option value="REGULAR">‚úÖ Regular ‚Äî sem pend√™ncias financeiras</option>
-                    <option value="PARCIALMENTE_REGULAR">‚ö†Ô∏è Parcialmente Regular ‚Äî pend√™ncias parciais</option>
-                    <option value="IRREGULAR">‚ùå Irregular ‚Äî com pend√™ncias / valores a devolver</option>
+                    <option value="">ó n„o avaliada ó</option>
+                    <option value="REGULAR">? Regular ó sem pendÍncias financeiras</option>
+                    <option value="PARCIALMENTE_REGULAR">?? Parcialmente Regular ó pendÍncias parciais</option>
+                    <option value="IRREGULAR">? Irregular ó com pendÍncias / valores a devolver</option>
                   </select>
                 </div>
                 {(form.situacao === 'IRREGULAR' || form.situacao === 'PARCIALMENTE_REGULAR') && (
@@ -1789,12 +1735,12 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     <div>
                       <label className={LABEL}>Valor a Devolver (R$)</label>
                       <CurrencyInput value={form.valor_a_devolver} onChange={v => set('valor_a_devolver', v)} />
-                      <p className="mt-1 text-xs text-slate-400">Total que deve ser restitu√≠do ao er√°rio</p>
+                      <p className="mt-1 text-xs text-slate-400">Total que deve ser restituÌdo ao er·rio</p>
                     </div>
                     <div>
-                      <label className={LABEL}>Valor j√° Devolvido (R$)</label>
+                      <label className={LABEL}>Valor j· Devolvido (R$)</label>
                       <CurrencyInput value={form.valor_devolvido} onChange={v => set('valor_devolvido', v)} />
-                      <p className="mt-1 text-xs text-slate-400">Valor efetivamente j√° restitu√≠do</p>
+                      <p className="mt-1 text-xs text-slate-400">Valor efetivamente j· restituÌdo</p>
                     </div>
                     {(form.valor_a_devolver ?? 0) > 0 && (() => {
                       const saldo = (form.valor_a_devolver ?? 0) - (form.valor_devolvido ?? 0);
@@ -1803,7 +1749,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Saldo Pendente</div>
                           <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             {fmt(saldo)}
-                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">‚úì Totalmente quitado</span>}
+                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">? Totalmente quitado</span>}
                           </div>
                         </div>
                       );
@@ -1811,20 +1757,20 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                   </>
                 )}
                 <div className="sm:col-span-2">
-                  <label className={LABEL}>Observa√ß√µes / Fundamenta√ß√£o</label>
+                  <label className={LABEL}>ObservaÁıes / FundamentaÁ„o</label>
                   <textarea
                     className={INPUT}
                     rows={3}
                     value={form.situacao_obs ?? ''}
                     onChange={e => set('situacao_obs', e.target.value || null)}
-                    placeholder="Descreva os motivos, irregularidades encontradas, dilig√™ncias realizadas..."
+                    placeholder="Descreva os motivos, irregularidades encontradas, diligÍncias realizadas..."
                   />
                 </div>
               </div>
             </div>
           </section>
 
-          {/* ‚îÄ‚îÄ Save bar ‚îÄ‚îÄ */}
+          {/* -- Save bar -- */}
           <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white/97 backdrop-blur-sm py-3">
             <div className="text-xs text-slate-400">
               {isEditing ? <span>Editando registro <span className="font-semibold text-slate-600">#{liveRecord!.codigo}</span></span> : <span className="text-slate-400">Novo registro</span>}
@@ -1833,19 +1779,19 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
               <button type="submit" className={BTN_PRI} disabled={saving}>
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                {isEditing ? 'Salvar Altera√ß√µes' : 'Cadastrar Processo'}
+                {isEditing ? 'Salvar AlteraÁıes' : 'Cadastrar Processo'}
               </button>
             </div>
           </div>
         </form>
 
-        {/* ‚îÄ‚îÄ Sections visible only when a record exists ‚îÄ‚îÄ */}
+        {/* -- Sections visible only when a record exists -- */}
         {isEditing && (
           <div className="space-y-4 pb-4">
 
-            {/* Fluxo T√©cnico */}
+            {/* Fluxo TÈcnico */}
             <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-              <Sec icon={<Activity size={13} />} title="Fluxo T√©cnico e Respons√°veis pela Assinatura" />
+              <Sec icon={<Activity size={13} />} title="Fluxo TÈcnico e Respons·veis pela Assinatura" />
               <FluxoTecnicoPanel
                 registroId={liveRecord!.codigo}
                 posicoes={posicoes}
@@ -1867,11 +1813,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
             {!loadingFull && full && (
               <>
-                {/* Exerc√≠cios */}
+                {/* ExercÌcios */}
                 <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <Sec
                     icon={<Calendar size={13} />}
-                    title={`Exerc√≠cios (${full.exercicios?.length ?? 0})`}
+                    title={`ExercÌcios (${full.exercicios?.length ?? 0})`}
                     action={
                       <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'exercicio' })}>
                         <Plus size={12} />Adicionar
@@ -1883,14 +1829,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                       { label: 'Ano',       render: (r: GpcExercicio) => <span className="font-bold text-slate-700">{r.exercicio}</span> },
                       { label: 'Ex. Ant.',  render: (r: GpcExercicio) => fmt(r.exercicio_anterior) },
                       { label: 'Repasse',   render: (r: GpcExercicio) => <span className="text-green-700 font-medium">{fmt(r.repasse)}</span> },
-                      { label: 'Aplica√ß√£o', render: (r: GpcExercicio) => fmt(r.aplicacao) },
+                      { label: 'AplicaÁ„o', render: (r: GpcExercicio) => fmt(r.aplicacao) },
                       { label: 'Gastos',    render: (r: GpcExercicio) => fmt(r.gastos) },
                       { label: 'Devolvido', render: (r: GpcExercicio) => fmt(r.devolvido) },
                     ]}
                     rows={full.exercicios ?? []}
                     onEdit={r => setSubModal({ type: 'exercicio', data: r })}
                     onDelete={r => confirmDeleteSub(() => GpcService.deleteExercicio(r.codigo))}
-                    emptyMsg="Nenhum exerc√≠cio cadastrado"
+                    emptyMsg="Nenhum exercÌcio cadastrado"
                   />
                   {(full.exercicios?.length ?? 0) > 0 && (() => {
                     const totalRepasse  = (full.exercicios ?? []).reduce((s, e) => s + (e.repasse ?? 0), 0);
@@ -1903,11 +1849,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                           <div className="text-sm font-bold text-green-700">{fmt(totalRepasse)}</div>
                         </div>
                         <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplica√ß√£o</div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total AplicaÁ„o</div>
                           <div className="text-sm font-bold text-slate-700">{fmt(totalAplicacao)}</div>
                         </div>
                         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
-                          <div className="text-[10px] uppercase tracking-wider text-blue-500 font-semibold mb-0.5">Total do Conv√™nio</div>
+                          <div className="text-[10px] uppercase tracking-wider text-blue-500 font-semibold mb-0.5">Total do ConvÍnio</div>
                           <div className="text-sm font-bold text-blue-700">{fmt(totalConvenio)}</div>
                         </div>
                       </div>
@@ -1928,7 +1874,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                   />
                   <InlineTable
                     cols={[
-                      { label: 'Descri√ß√£o', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
+                      { label: 'DescriÁ„o', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
                       { label: 'Custo',     render: (r: GpcObjeto) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
                     ]}
                     rows={full.objetos ?? []}
@@ -1953,11 +1899,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     cols={[
                       { label: 'Proc. Parcela', render: (r: GpcParcelamento) => <span className="font-medium">{r.proc_parcela ?? '-'}</span> },
                       { label: 'Tipo',           render: (r: GpcParcelamento) => r.tipo ?? '-' },
-                      { label: 'Exerc√≠cio',      render: (r: GpcParcelamento) => r.exercicio ?? '-' },
+                      { label: 'ExercÌcio',      render: (r: GpcParcelamento) => r.exercicio ?? '-' },
                       { label: 'Valor',          render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
                       { label: 'Parcelas',       render: (r: GpcParcelamento) => r.parcelas ?? '-' },
-                      { label: 'Em Dia',         render: (r: GpcParcelamento) => r.em_dia ? <span className="text-green-600 font-bold">‚úì</span> : <span className="text-red-500">‚úó</span> },
-                      { label: 'Conclu√≠do',      render: (r: GpcParcelamento) => r.parcelas_concluidas ? <span className="text-green-600 font-bold">‚úì</span> : <span className="text-red-500">‚úó</span> },
+                      { label: 'Em Dia',         render: (r: GpcParcelamento) => r.em_dia ? <span className="text-green-600 font-bold">?</span> : <span className="text-red-500">?</span> },
+                      { label: 'ConcluÌdo',      render: (r: GpcParcelamento) => r.parcelas_concluidas ? <span className="text-green-600 font-bold">?</span> : <span className="text-red-500">?</span> },
                     ]}
                     rows={full.parcelamentos ?? []}
                     onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
@@ -1979,7 +1925,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                   />
                   <InlineTable
                     cols={[
-                      { label: 'N√∫mero', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
+                      { label: 'N˙mero', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
                       { label: 'Data',   render: (r: GpcTa) => fmtDate(r.data) },
                       { label: 'Custo',  render: (r: GpcTa) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
                     ]}
@@ -2010,7 +1956,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               lastSaldo = sal > 0 ? sal : undefined;
             }
             return (
-              <Modal title={subModal.data ? 'Editar Exerc√≠cio' : 'Novo Exerc√≠cio'} onClose={() => setSubModal(null)} size="md">
+              <Modal title={subModal.data ? 'Editar ExercÌcio' : 'Novo ExercÌcio'} onClose={() => setSubModal(null)} size="md">
                 <ExercicioForm
                   processoId={full.codigo}
                   initial={subModal.data}
@@ -2080,21 +2026,21 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
     <form onSubmit={submit} className="space-y-4">
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={LABEL}>Exerc√≠cio *</label><input className={INPUT} value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
+        <div><label className={LABEL}>ExercÌcio *</label><input className={INPUT} value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
         <div><label className={LABEL}>Exerc. Anterior (R$)</label><CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} /></div>
         <div><label className={LABEL}>Repasse (R$)</label><CurrencyInput value={f.repasse} onChange={v => set('repasse', v)} /></div>
-        <div><label className={LABEL}>Aplica√ß√£o (R$)</label><CurrencyInput value={f.aplicacao} onChange={v => set('aplicacao', v)} /></div>
+        <div><label className={LABEL}>AplicaÁ„o (R$)</label><CurrencyInput value={f.aplicacao} onChange={v => set('aplicacao', v)} /></div>
         {(() => {
           const _total = (f.exercicio_anterior ?? 0) + (f.repasse ?? 0) + (f.aplicacao ?? 0);
           if (_total === 0) return null;
           const parts = [];
           if ((f.exercicio_anterior ?? 0) > 0) parts.push('Ex. Ant. + ');
-          parts.push('Repasse + Aplica√ß√£o');
+          parts.push('Repasse + AplicaÁ„o');
           return (
             <div className="col-span-2">
               <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Dispon√≠vel no Exerc√≠cio</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total DisponÌvel no ExercÌcio</div>
                   <div className="text-[10px] text-blue-400 mt-0.5">{parts.join('')}</div>
                 </div>
                 <div className="text-lg font-bold text-blue-700">
@@ -2107,7 +2053,7 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
         <div><label className={LABEL}>Gastos (R$)</label><CurrencyInput value={f.gastos} onChange={v => set('gastos', v)} /></div>
         <div><label className={LABEL}>Devolvido (R$)</label><CurrencyInput value={f.devolvido} onChange={v => set('devolvido', v)} /></div>
       </div>
-      {/* Saldo dispon√≠vel para pr√≥ximo exerc√≠cio */}
+      {/* Saldo disponÌvel para prÛximo exercÌcio */}
       {(() => {
         const exAnt     = f.exercicio_anterior ?? 0;
         const repasse   = f.repasse    ?? 0;
@@ -2129,10 +2075,10 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
               <DollarSign size={15} className={saldo > 0 ? 'text-blue-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Saldo para o pr√≥ximo exerc√≠cio</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Saldo para o prÛximo exercÌcio</div>
               <div className={`text-base font-bold ${saldo > 0 ? 'text-blue-700' : saldo < 0 ? 'text-red-700' : 'text-slate-500'}`}>
                 {saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">‚ö† gastos excedem o total dispon√≠vel</span>}
+                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">? gastos excedem o total disponÌvel</span>}
               </div>
               <div className="text-xs text-slate-400 mt-0.5">{detParts.join(' + ')}</div>
             </div>
@@ -2163,7 +2109,7 @@ const ObjetoForm = ({ processoId, initial, onSave, onClose }: {
     <form onSubmit={submit} className="space-y-4">
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
       <div>
-        <label className={LABEL}>Descri√ß√£o *</label>
+        <label className={LABEL}>DescriÁ„o *</label>
         <textarea className={INPUT} rows={3} value={f.objeto ?? ''} onChange={e => setF(p => ({ ...p, objeto: e.target.value }))} required />
       </div>
       <div>
@@ -2198,8 +2144,8 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
       <div className="grid grid-cols-2 gap-3">
         <div><label className={LABEL}>Proc. Parcela</label><input className={INPUT} value={f.proc_parcela ?? ''} onChange={e => set('proc_parcela', e.target.value)} /></div>
         <div><label className={LABEL}>Tipo</label><input className={INPUT} value={f.tipo ?? ''} onChange={e => set('tipo', e.target.value)} /></div>
-        <div><label className={LABEL}>Exerc√≠cio</label><input className={INPUT} type="number" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} /></div>
-        <div><label className={LABEL}>N¬∫ Parcelas</label><input className={INPUT} type="number" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} /></div>
+        <div><label className={LABEL}>ExercÌcio</label><input className={INPUT} type="number" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} /></div>
+        <div><label className={LABEL}>N∫ Parcelas</label><input className={INPUT} type="number" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} /></div>
         <div><label className={LABEL}>Valor Parcelado (R$)</label><CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} /></div>
         <div><label className={LABEL}>Valor Corrigido (R$)</label><CurrencyInput value={f.valor_corrigido} onChange={v => set('valor_corrigido', v)} /></div>
         <div className="col-span-2 flex items-center gap-6">
@@ -2207,11 +2153,11 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
             <input type="checkbox" checked={f.em_dia ?? false} onChange={e => set('em_dia', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />Em Dia
           </label>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={f.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />Conclu√≠das
+            <input type="checkbox" checked={f.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />ConcluÌdas
           </label>
         </div>
-        <div className="col-span-2"><label className={LABEL}>Provid√™ncias</label><textarea className={INPUT} rows={2} value={f.providencias ?? ''} onChange={e => set('providencias', e.target.value)} /></div>
-        <div className="col-span-2"><label className={LABEL}>Observa√ß√µes</label><textarea className={INPUT} rows={2} value={f.obs ?? ''} onChange={e => set('obs', e.target.value)} /></div>
+        <div className="col-span-2"><label className={LABEL}>ProvidÍncias</label><textarea className={INPUT} rows={2} value={f.providencias ?? ''} onChange={e => set('providencias', e.target.value)} /></div>
+        <div className="col-span-2"><label className={LABEL}>ObservaÁıes</label><textarea className={INPUT} rows={2} value={f.obs ?? ''} onChange={e => set('obs', e.target.value)} /></div>
       </div>
       <div className="flex justify-end gap-3">
         <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
@@ -2238,7 +2184,7 @@ const TaForm = ({ processoId, initial, onSave, onClose }: {
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className={LABEL}>N√∫mero do TA *</label>
+          <label className={LABEL}>N˙mero do TA *</label>
           <input className={INPUT} value={f.numero ?? ''} onChange={e => setF(p => ({ ...p, numero: e.target.value }))} required />
         </div>
         <div><label className={LABEL}>Data</label><input className={INPUT} type="date" value={f.data ?? ''} onChange={e => setF(p => ({ ...p, data: e.target.value || null }))} /></div>
@@ -2404,9 +2350,9 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
   // XLSX export: summary sheet + detail sheet
   const exportXLSX = () => {
     const wb = XLSX.utils.book_new();
-    // Sheet 1: Resumo por t√©cnico
-    const h1 = ['T√©cnico', 'Cadastros', 'Processos Analisados', 'Avan√ßos de Posi√ß√£o', 'Atualiza√ß√µes de Movimento',
-      'Total de A√ß√µes', 'A√ß√µes no Fluxo', 'P√°ginas Analisadas', 'Efic. (p√°g/a√ß√£o)', 'Tempo M√©dio (dias)', '√öltimo Registro'];
+    // Sheet 1: Resumo por tÈcnico
+    const h1 = ['TÈcnico', 'Cadastros', 'Processos Analisados', 'AvanÁos de PosiÁ„o', 'AtualizaÁıes de Movimento',
+      'Total de AÁıes', 'AÁıes no Fluxo', 'P·ginas Analisadas', 'Efic. (p·g/aÁ„o)', 'Tempo MÈdio (dias)', '⁄ltimo Registro'];
     const b1 = technicians.map(t => [
       t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.total,
       t.fluxoRegistros, t.paginas,
@@ -2416,11 +2362,11 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
     ]);
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...b1]);
     ws1['!cols'] = [25, 20, 20, 24, 14, 14, 18, 16, 17, 20].map(w => ({ wch: w }));
-    XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por T√©cnico');
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por TÈcnico');
     // Sheet 2: Detalhamento de eventos
-    const h2 = ['T√©cnico', 'Data/Hora', 'Evento', 'Descri√ß√£o', 'Processo', 'Entidade', 'Conv√™nio', 'Exerc√≠cio', 'Posi√ß√£o Atual'];
+    const h2 = ['TÈcnico', 'Data/Hora', 'Evento', 'DescriÁ„o', 'Processo', 'Entidade', 'ConvÍnio', 'ExercÌcio', 'PosiÁ„o Atual'];
     const evtLbl = (e: string) =>
-      e === 'INICIO_ANALISE' ? 'In√≠cio de An√°lise' : e === 'POSICAO' ? 'Avan√ßo de Posi√ß√£o' : e === 'MOVIMENTO' ? 'Atualiza√ß√£o de Movimento' : e;
+      e === 'INICIO_ANALISE' ? 'InÌcio de An·lise' : e === 'POSICAO' ? 'AvanÁo de PosiÁ„o' : e === 'MOVIMENTO' ? 'AtualizaÁ„o de Movimento' : e;
     const b2 = inPeriodEvents.map(e => {
       const rec = allRows.find(r => r.codigo === e.registro_id);
       return [e.responsavel, fmtTs(e.data_evento), evtLbl(e.evento), e.obs ?? '', rec?.processo ?? '', rec?.entidade ?? '', rec?.convenio ?? '', rec?.exercicio ?? '', rec?.posicao ?? ''];
@@ -2444,9 +2390,9 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
   };
 
   const evtInfo = (evento: string) => {
-    if (evento === 'INICIO_ANALISE') return { label: 'In√≠cio de An√°lise', cls: 'text-sky-700 bg-sky-50 border-sky-200', dot: 'bg-sky-400' };
-    if (evento === 'POSICAO')        return { label: 'Avan√ßo de Posi√ß√£o', cls: 'text-amber-700 bg-amber-50 border-amber-200', dot: 'bg-amber-400' };
-    if (evento === 'MOVIMENTO')      return { label: 'Atualiza√ß√£o de Movimento', cls: 'text-purple-700 bg-purple-50 border-purple-200', dot: 'bg-purple-400' };
+    if (evento === 'INICIO_ANALISE') return { label: 'InÌcio de An·lise', cls: 'text-sky-700 bg-sky-50 border-sky-200', dot: 'bg-sky-400' };
+    if (evento === 'POSICAO')        return { label: 'AvanÁo de PosiÁ„o', cls: 'text-amber-700 bg-amber-50 border-amber-200', dot: 'bg-amber-400' };
+    if (evento === 'MOVIMENTO')      return { label: 'AtualizaÁ„o de Movimento', cls: 'text-purple-700 bg-purple-50 border-purple-200', dot: 'bg-purple-400' };
     return { label: evento, cls: 'text-slate-600 bg-slate-50 border-slate-200', dot: 'bg-slate-300' };
   };
 
@@ -2464,7 +2410,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           {(['dia', 'mes', 'ano', 'geral'] as Granularity[]).map(g => (
             <button key={g} onClick={() => setGran(g)}
               className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${gran === g ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              {g === 'dia' ? 'Dia' : g === 'mes' ? 'M√™s' : g === 'ano' ? 'Ano' : 'Geral'}
+              {g === 'dia' ? 'Dia' : g === 'mes' ? 'MÍs' : g === 'ano' ? 'Ano' : 'Geral'}
             </button>
           ))}
         </div>
@@ -2477,12 +2423,12 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
         {prevPeriodStr && prevTotals.total > 0 && (
           <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-500">
             Anterior: <strong className="text-slate-700">{fmtPeriodo(prevPeriodStr, gran)}</strong>
-            {' ¬∑ '}{prevTotals.total} a√ß√µes
+            {' ∑ '}{prevTotals.total} aÁıes
           </div>
         )}
         <span className="ml-auto text-sm text-slate-400">
-          {gran === 'geral' ? 'Todos os per√≠odos' : fmtPeriodo(period, gran)}
-          {' ¬∑ '}<strong className="text-slate-600">{stats.length}</strong> t√©cnico{stats.length !== 1 ? 's' : ''}
+          {gran === 'geral' ? 'Todos os perÌodos' : fmtPeriodo(period, gran)}
+          {' ∑ '}<strong className="text-slate-600">{stats.length}</strong> tÈcnico{stats.length !== 1 ? 's' : ''}
         </span>
         <button
           onClick={exportXLSX}
@@ -2501,7 +2447,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           </div>
           <div className="text-3xl font-black text-sky-700">{totals.analises.toLocaleString('pt-BR')}</div>
           <div className="text-xs font-bold text-slate-600 mt-1">Processos Analisados</div>
-          <div className="text-xs text-slate-400 mt-0.5">in√≠cio de an√°lise no per√≠odo</div>
+          <div className="text-xs text-slate-400 mt-0.5">inÌcio de an·lise no perÌodo</div>
           <Delta cur={totals.analises} prev={prevTotals.analises} />
         </div>
         <div className="bg-white rounded-2xl border border-amber-100 shadow-sm px-5 py-4">
@@ -2509,8 +2455,8 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
             <TrendingUp size={18} className="text-amber-600" />
           </div>
           <div className="text-3xl font-black text-amber-700">{totals.posicoes.toLocaleString('pt-BR')}</div>
-          <div className="text-xs font-bold text-slate-600 mt-1">Avan√ßos de Posi√ß√£o</div>
-          <div className="text-xs text-slate-400 mt-0.5">posi√ß√µes movimentadas</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">AvanÁos de PosiÁ„o</div>
+          <div className="text-xs text-slate-400 mt-0.5">posiÁıes movimentadas</div>
           <Delta cur={totals.posicoes} prev={prevTotals.posicoes} />
         </div>
         <div className="bg-white rounded-2xl border border-purple-100 shadow-sm px-5 py-4">
@@ -2518,8 +2464,8 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
             <Activity size={18} className="text-purple-600" />
           </div>
           <div className="text-3xl font-black text-purple-700">{totals.movimentos.toLocaleString('pt-BR')}</div>
-          <div className="text-xs font-bold text-slate-600 mt-1">Atualiza√ß√µes de Movimento</div>
-          <div className="text-xs text-slate-400 mt-0.5">est√°gios registrados</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">AtualizaÁıes de Movimento</div>
+          <div className="text-xs text-slate-400 mt-0.5">est·gios registrados</div>
           <Delta cur={totals.movimentos} prev={prevTotals.movimentos} />
         </div>
         <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4">
@@ -2527,7 +2473,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
             <BarChart2 size={18} className="text-blue-600" />
           </div>
           <div className="text-3xl font-black text-blue-700">{totals.total.toLocaleString('pt-BR')}</div>
-          <div className="text-xs font-bold text-slate-600 mt-1">Total de A√ß√µes</div>
+          <div className="text-xs font-bold text-slate-600 mt-1">Total de AÁıes</div>
           <div className="text-xs text-slate-400 mt-0.5">todas as atividades</div>
           <Delta cur={totals.total} prev={prevTotals.total} />
         </div>
@@ -2537,28 +2483,28 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
       {!technicians.length ? (
         <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center">
           <BarChart2 size={40} className="mx-auto mb-3 text-slate-200" />
-          <p className="text-slate-400 text-sm font-medium">Nenhuma atividade registrada neste per√≠odo.</p>
-          <p className="text-slate-300 text-xs mt-1">Selecione outro per√≠odo ou altere a granularidade.</p>
+          <p className="text-slate-400 text-sm font-medium">Nenhuma atividade registrada neste perÌodo.</p>
+          <p className="text-slate-300 text-xs mt-1">Selecione outro perÌodo ou altere a granularidade.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/60">
             <User size={14} className="text-slate-400" />
-            <span className="text-sm font-bold text-slate-700">Atividade por T√©cnico</span>
+            <span className="text-sm font-bold text-slate-700">Atividade por TÈcnico</span>
             <span className="ml-auto text-xs text-slate-400">clique em uma linha para ver os processos</span>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">T√©cnico</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Processos cadastrados no sistema (n√£o conta no total)">Cadastros</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-sky-500 uppercase tracking-wider" title="Processos distintos com in√≠cio de an√°lise">Analisados</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider" title="Avan√ßos de posi√ß√£o registrados">Posi√ß√µes</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="Atualiza√ß√µes de movimento">Movimentos</th>
+                <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">TÈcnico</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Processos cadastrados no sistema (n„o conta no total)">Cadastros</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-sky-500 uppercase tracking-wider" title="Processos distintos com inÌcio de an·lise">Analisados</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider" title="AvanÁos de posiÁ„o registrados">PosiÁıes</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="AtualizaÁıes de movimento">Movimentos</th>
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider">Total</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">P√°ginas</th>
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo M√©dio</th>
-                <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider min-w-[140px]">Composi√ß√£o</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">P·ginas</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo MÈdio</th>
+                <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider min-w-[140px]">ComposiÁ„o</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -2575,7 +2521,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                     onClick={() => setSelectedTech(t.responsavel)}
                     className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
                   >
-                    {/* T√©cnico */}
+                    {/* TÈcnico */}
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
@@ -2585,7 +2531,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                           <div className="font-semibold text-slate-800 leading-tight">{t.responsavel}</div>
                           {diasUltimo !== null && (
                             <div className={`text-[11px] ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
-                              {diasUltimo === 0 ? '‚óè Ativo hoje' : `Ativo h√° ${diasUltimo}d`}
+                              {diasUltimo === 0 ? '? Ativo hoje' : `Ativo h· ${diasUltimo}d`}
                             </div>
                           )}
                         </div>
@@ -2595,13 +2541,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                     <td className="px-4 py-3 text-center">
                       {t.cadastros > 0
                         ? <span className="inline-block min-w-[32px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-sm font-semibold">{t.cadastros}</span>
-                        : <span className="text-slate-300">‚Äî</span>}
+                        : <span className="text-slate-300">ó</span>}
                     </td>
                     {/* Analisados */}
                     <td className="px-4 py-3 text-center">
                       <span className="inline-block min-w-[32px] px-2 py-0.5 bg-sky-50 text-sky-700 rounded-lg text-sm font-bold">{t.analises}</span>
                     </td>
-                    {/* Posi√ß√µes */}
+                    {/* PosiÁıes */}
                     <td className="px-4 py-3 text-center">
                       <span className="inline-block min-w-[32px] px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-sm font-bold">{t.posicoes}</span>
                     </td>
@@ -2616,20 +2562,20 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                         <span className="text-[10px] text-slate-400 font-semibold">{pct}%</span>
                       </div>
                     </td>
-                    {/* P√°ginas */}
+                    {/* P·ginas */}
                     <td className="px-4 py-3 text-center text-sm text-slate-600 font-medium">
-                      {t.paginas > 0 ? t.paginas.toLocaleString('pt-BR') : <span className="text-slate-300">‚Äî</span>}
-                      {efic > 0 && <div className="text-[10px] text-slate-400">{efic} p√°g/a√ß√£o</div>}
+                      {t.paginas > 0 ? t.paginas.toLocaleString('pt-BR') : <span className="text-slate-300">ó</span>}
+                      {efic > 0 && <div className="text-[10px] text-slate-400">{efic} p·g/aÁ„o</div>}
                     </td>
-                    {/* Tempo M√©dio */}
+                    {/* Tempo MÈdio */}
                     <td className="px-4 py-3 text-center">
                       {t.tempMedio > 0 ? (
                         <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-bold ${t.tempMedio <= 5 ? 'bg-green-50 text-green-700' : t.tempMedio <= 15 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
                           {t.tempMedio}d
                         </span>
-                      ) : <span className="text-slate-300 text-sm">‚Äî</span>}
+                      ) : <span className="text-slate-300 text-sm">ó</span>}
                     </td>
-                    {/* Composi√ß√£o */}
+                    {/* ComposiÁ„o */}
                     <td className="px-5 py-3">
                       {totalComposition > 0 ? (
                         <div className="space-y-1">
@@ -2661,11 +2607,11 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           </table>
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 px-5 py-3 border-t border-slate-100">
-            <span className="font-semibold text-slate-500">Composi√ß√£o:</span>
+            <span className="font-semibold text-slate-500">ComposiÁ„o:</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-sky-400 inline-block" />Processos analisados</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-amber-400 inline-block" />Avan√ßos de posi√ß√£o</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-purple-400 inline-block" />Atualiza√ß√µes de movimento</span>
-            <span className="ml-auto flex items-center gap-1">Tempo: <span className="text-green-600 font-semibold">‚â§5d r√°pido</span> ¬∑ <span className="text-amber-600 font-semibold">‚â§15d regular</span> ¬∑ <span className="text-red-600 font-semibold">&gt;15d lento</span></span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-amber-400 inline-block" />AvanÁos de posiÁ„o</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-purple-400 inline-block" />AtualizaÁıes de movimento</span>
+            <span className="ml-auto flex items-center gap-1">Tempo: <span className="text-green-600 font-semibold">=5d r·pido</span> ∑ <span className="text-amber-600 font-semibold">=15d regular</span> ∑ <span className="text-red-600 font-semibold">&gt;15d lento</span></span>
           </div>
         </div>
       )}
@@ -2685,7 +2631,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-black text-slate-800 text-lg leading-tight truncate">{selectedTech}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{gran === 'geral' ? 'Todos os per√≠odos' : fmtPeriodo(period, gran)}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{gran === 'geral' ? 'Todos os perÌodos' : fmtPeriodo(period, gran)}</div>
                 </div>
                 <button onClick={() => setSelectedTech(null)} className="p-2 rounded-xl hover:bg-white text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
                   <X size={18} />
@@ -2697,7 +2643,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                   <div className="grid grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 flex-shrink-0">
                     {[
                       { label: 'Analisados', value: st.analises, color: 'text-sky-700', bg: 'bg-sky-50' },
-                      { label: 'Posi√ß√µes', value: st.posicoes, color: 'text-amber-700', bg: 'bg-amber-50' },
+                      { label: 'PosiÁıes', value: st.posicoes, color: 'text-amber-700', bg: 'bg-amber-50' },
                       { label: 'Movimentos', value: st.movimentos, color: 'text-purple-700', bg: 'bg-purple-50' },
                       { label: 'Total', value: st.total, color: 'text-blue-700', bg: 'bg-blue-50' },
                     ].map(m => (
@@ -2711,18 +2657,18 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                     <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 flex-shrink-0">
                       <div className="py-3 text-center">
                         <div className="text-lg font-black text-slate-700">{st.paginas.toLocaleString('pt-BR')}</div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">P√°ginas Analisadas</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">P·ginas Analisadas</div>
                       </div>
                       <div className="py-3 text-center">
-                        <div className="text-lg font-black text-slate-700">{efic > 0 ? `${efic}` : '‚Äî'}</div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">P√°g / A√ß√£o no Fluxo</div>
+                        <div className="text-lg font-black text-slate-700">{efic > 0 ? `${efic}` : 'ó'}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">P·g / AÁ„o no Fluxo</div>
                       </div>
                       <div className="py-3 text-center">
                         <div className={`text-lg font-black ${st.tempMedio === 0 ? 'text-slate-400' : st.tempMedio <= 5 ? 'text-green-600' : st.tempMedio <= 15 ? 'text-amber-600' : 'text-red-600'}`}>
                           {st.tempMedio === 0 ? '< 1 dia' : `${st.tempMedio} dia${st.tempMedio !== 1 ? 's' : ''}`}
                         </div>
                         <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                          {st.tempMedio <= 5 ? '‚úì Tempo R√°pido' : st.tempMedio <= 15 ? '~ Tempo Regular' : '! Tempo Lento'}
+                          {st.tempMedio <= 5 ? '? Tempo R·pido' : st.tempMedio <= 15 ? '~ Tempo Regular' : '! Tempo Lento'}
                         </div>
                       </div>
                     </div>
@@ -2734,12 +2680,12 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                 {techProcesses.length === 0 ? (
                   <div className="text-center py-12">
                     <Search size={32} className="mx-auto mb-3 text-slate-200" />
-                    <p className="text-slate-400 text-sm">Nenhum processo encontrado para este per√≠odo.</p>
+                    <p className="text-slate-400 text-sm">Nenhum processo encontrado para este perÌodo.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      {techProcesses.length} processo{techProcesses.length !== 1 ? 's' : ''} trabalhado{techProcesses.length !== 1 ? 's' : ''} no per√≠odo
+                      {techProcesses.length} processo{techProcesses.length !== 1 ? 's' : ''} trabalhado{techProcesses.length !== 1 ? 's' : ''} no perÌodo
                     </div>
                     {techProcesses.map(p => (
                       <div key={p.registro_id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -2834,13 +2780,13 @@ const DeletePasswordModal = ({ processo, onCancel, onConfirm }: {
             <Trash2 size={18} className="text-red-600" />
           </div>
           <div>
-            <div className="font-bold text-slate-800 text-sm">Confirmar Exclus√£o</div>
+            <div className="font-bold text-slate-800 text-sm">Confirmar Exclus„o</div>
             {processo && <div className="text-xs text-slate-500 font-mono mt-0.5">{processo}</div>}
           </div>
         </div>
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
           <p className="text-sm text-slate-600">
-            Esta a√ß√£o √© <strong className="text-red-600">irrevers√≠vel</strong>. Digite sua senha para confirmar a exclus√£o do registro.
+            Esta aÁ„o È <strong className="text-red-600">irreversÌvel</strong>. Digite sua senha para confirmar a exclus„o do registro.
           </p>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -2849,7 +2795,7 @@ const DeletePasswordModal = ({ processo, onCancel, onConfirm }: {
             <input
               type="password"
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
-              placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢"
+              placeholder="ïïïïïïïï"
               value={password}
               onChange={e => { setPassword(e.target.value); setErr(''); }}
               autoFocus
@@ -2978,13 +2924,13 @@ export const GpcProcessos = () => {
       if (form.responsavel) {
         await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel, posicao_id: form.posicao_id ?? null, posicao: posLabel, evento: 'CRIACAO', data_evento: now });
       }
-      // If created already in EM AN√ÅLISE, register start of analysis
-      if (form.movimento === 'EM AN√ÅLISE') {
+      // If created already in EM AN¡LISE, register start of analysis
+      if (form.movimento === 'EM AN¡LISE') {
         await GpcService.saveProdutividade({
           registro_id: saved.codigo, responsavel: form.responsavel ?? null,
           posicao_id: form.posicao_id ?? null, posicao: posLabel,
           evento: 'INICIO_ANALISE', data_evento: now,
-          obs: `Processo criado j√° em an√°lise${form.responsavel ? ' por ' + form.responsavel : ''}`,
+          obs: `Processo criado j· em an·lise${form.responsavel ? ' por ' + form.responsavel : ''}`,
         });
       }
     } else {
@@ -3000,17 +2946,17 @@ export const GpcProcessos = () => {
         await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel, posicao_id: form.posicao_id ?? null, posicao: posLabel, evento: 'RESPONSAVEL', data_evento: now });
       }
 
-      // 2. Process entering EM AN√ÅLISE (e.g. new technician starts analysis)
-      if (prev.movimento !== 'EM AN√ÅLISE' && form.movimento === 'EM AN√ÅLISE') {
+      // 2. Process entering EM AN¡LISE (e.g. new technician starts analysis)
+      if (prev.movimento !== 'EM AN¡LISE' && form.movimento === 'EM AN¡LISE') {
         await GpcService.saveProdutividade({
           registro_id: saved.codigo, responsavel: form.responsavel ?? null,
           posicao_id: form.posicao_id ?? null, posicao: posLabel,
           evento: 'INICIO_ANALISE', data_evento: now,
-          obs: `Iniciado em an√°lise${form.responsavel ? ' por ' + form.responsavel : ''}`,
+          obs: `Iniciado em an·lise${form.responsavel ? ' por ' + form.responsavel : ''}`,
         });
       }
 
-      // 3. Position changed ‚Äî calculate time in previous position
+      // 3. Position changed ó calculate time in previous position
       if (form.posicao_id !== prev.posicao_id && form.posicao_id) {
         const posLabelPrev = posicoes.find(p => p.codigo === prev.posicao_id)?.posicao ?? String(prev.posicao_id ?? '');
         const events = await getEvents();
@@ -3020,27 +2966,27 @@ export const GpcProcessos = () => {
         let posObsText: string;
         if (lastRef?.data_evento) {
           const dias = diffDias(lastRef.data_evento);
-          posObsText = `${posLabelPrev || 'posi√ß√£o anterior'} ‚Üí ${posLabel || 'nova posi√ß√£o'}. Tempo na posi√ß√£o: ${dias} dia${dias !== 1 ? 's' : ''}`;
+          posObsText = `${posLabelPrev || 'posiÁ„o anterior'} ? ${posLabel || 'nova posiÁ„o'}. Tempo na posiÁ„o: ${dias} dia${dias !== 1 ? 's' : ''}`;
         } else {
-          posObsText = `${posLabelPrev || 'posi√ß√£o anterior'} ‚Üí ${posLabel || 'nova posi√ß√£o'}`;
+          posObsText = `${posLabelPrev || 'posiÁ„o anterior'} ? ${posLabel || 'nova posiÁ„o'}`;
         }
         await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel ?? null, posicao_id: form.posicao_id, posicao: posLabel, evento: 'POSICAO', data_evento: now, obs: posObsText });
       }
 
-      // 4. Movement changed ‚Äî track ANY movimento change
+      // 4. Movement changed ó track ANY movimento change
       if (form.movimento && form.movimento !== prev.movimento) {
         let obsText: string;
-        if (prev.movimento === 'EM AN√ÅLISE') {
+        if (prev.movimento === 'EM AN¡LISE') {
           const events = await getEvents();
           const lastAnalise = [...events].reverse().find(e => e.evento === 'INICIO_ANALISE');
           if (lastAnalise?.data_evento) {
             const dias = diffDias(lastAnalise.data_evento);
-            obsText = `${prev.movimento} ‚Üí ${form.movimento}. Tempo em an√°lise: ${dias} dia${dias !== 1 ? 's' : ''}`;
+            obsText = `${prev.movimento} ? ${form.movimento}. Tempo em an·lise: ${dias} dia${dias !== 1 ? 's' : ''}`;
           } else {
-            obsText = `${prev.movimento} ‚Üí ${form.movimento}`;
+            obsText = `${prev.movimento} ? ${form.movimento}`;
           }
         } else {
-          obsText = `${prev.movimento ?? '-'} ‚Üí ${form.movimento}`;
+          obsText = `${prev.movimento ?? '-'} ? ${form.movimento}`;
         }
         await GpcService.saveProdutividade({
           registro_id: saved.codigo,
@@ -3063,7 +3009,7 @@ export const GpcProcessos = () => {
   };
 
   const confirmDeleteWithPassword = async (password: string): Promise<string | null> => {
-    if (!currentUser?.id) return 'Usu√°rio n√£o autenticado';
+    if (!currentUser?.id) return 'Usu·rio n„o autenticado';
     const valid = await DbService.verifyPassword(currentUser.id, password);
     if (!valid) return 'Senha incorreta';
     try {
@@ -3081,11 +3027,11 @@ export const GpcProcessos = () => {
     const situacaoLabel = (s: string | null | undefined) =>
       s === 'REGULAR' ? 'Regular' : s === 'IRREGULAR' ? 'Irregular' : s === 'PARCIALMENTE_REGULAR' ? 'Parcialmente Regular' : '';
     const headers = [
-      'Processo', 'Conv√™nio', 'Entidade', 'Exerc√≠cio', 'DRS', 'Data Recebimento',
-      'Respons√°vel', 'Posi√ß√£o', 'Movimento', 'Remessa', 'Parcelamento',
-      'Situa√ß√£o', 'Valor a Devolver (R$)', 'Valor Devolvido (R$)', 'Saldo Pendente (R$)',
-      '1¬∫ Resp. Assinatura', '2¬∫ Resp. Assinatura',
-      'N¬∫ P√°ginas', 'Link', 'Cadastrado em',
+      'Processo', 'ConvÍnio', 'Entidade', 'ExercÌcio', 'DRS', 'Data Recebimento',
+      'Respons·vel', 'PosiÁ„o', 'Movimento', 'Remessa', 'Parcelamento',
+      'SituaÁ„o', 'Valor a Devolver (R$)', 'Valor Devolvido (R$)', 'Saldo Pendente (R$)',
+      '1∫ Resp. Assinatura', '2∫ Resp. Assinatura',
+      'N∫ P·ginas', 'Link', 'Cadastrado em',
     ];
     const body = filtered.map(r => [
       r.processo ?? '',
@@ -3098,7 +3044,7 @@ export const GpcProcessos = () => {
       r.posicao ?? '',
       r.movimento ?? '',
       r.remessa === 'ACIMA' ? 'Acima de Remessa' : r.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : '',
-      r.is_parcelamento ? 'Sim' : 'N√£o',
+      r.is_parcelamento ? 'Sim' : 'N„o',
       situacaoLabel(r.situacao),
       r.valor_a_devolver ?? '',
       r.valor_devolvido ?? '',
@@ -3119,7 +3065,7 @@ export const GpcProcessos = () => {
 
   const stats = useMemo(() => ({
     total: rows.length,
-    emAnalise: rows.filter(r => r.movimento === 'EM AN√ÅLISE').length,
+    emAnalise: rows.filter(r => r.movimento === 'EM AN¡LISE').length,
     acima: rows.filter(r => r.remessa === 'ACIMA').length,
     parcelamentos: rows.filter(r => !!r.is_parcelamento).length,
     semResponsavel: rows.filter(r => !r.responsavel).length,
@@ -3134,11 +3080,11 @@ export const GpcProcessos = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Grupo de Presta√ß√£o de Contas</h2>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Grupo de PrestaÁ„o de Contas</h2>
           <p className="text-sm text-slate-500 mt-0.5">
             {mainTab === 'registros'
               ? `${filtered.length.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} registros`
-              : 'Produtividade mensal por t√©cnico'}
+              : 'Produtividade mensal por tÈcnico'}
           </p>
         </div>
         {mainTab === 'registros' && (
@@ -3170,14 +3116,14 @@ export const GpcProcessos = () => {
                 <div className="text-xs font-semibold text-slate-500 mt-1">Total de Processos</div>
               </div>
             </div>
-            {/* Em An√°lise */}
+            {/* Em An·lise */}
             <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4 flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center flex-shrink-0 shadow-inner">
                 <Search size={20} className="text-sky-500" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-3xl font-black text-sky-700 leading-none tracking-tight">{stats.emAnalise.toLocaleString('pt-BR')}</div>
-                <div className="text-xs font-semibold text-slate-500 mt-1">Em An√°lise</div>
+                <div className="text-xs font-semibold text-slate-500 mt-1">Em An·lise</div>
                 <div className="text-[11px] text-sky-400 font-medium mt-0.5">{stats.total > 0 ? Math.round((stats.emAnalise / stats.total) * 100) : 0}% do total</div>
               </div>
             </div>
@@ -3205,7 +3151,7 @@ export const GpcProcessos = () => {
             </div>
           </div>
 
-          {/* Situa√ß√£o breakdown ‚Äî subtle inline row */}
+          {/* SituaÁ„o breakdown ó subtle inline row */}
           {(stats.regulares + stats.irregulares + stats.parcialmente) > 0 && (() => {
             const totalAval = stats.regulares + stats.irregulares + stats.parcialmente;
             const regPct = totalAval > 0 ? Math.round((stats.regulares / totalAval) * 100) : 0;
@@ -3214,7 +3160,7 @@ export const GpcProcessos = () => {
             return (
               <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
                 <ShieldCheck size={13} className="text-slate-400 flex-shrink-0" />
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">Situa√ß√£o</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">SituaÁ„o</span>
                 <div className="flex h-1.5 flex-1 rounded-full overflow-hidden gap-px">
                   {stats.regulares   > 0 && <div style={{ width: `${regPct}%` }} className="bg-green-400" title={`${stats.regulares} regulares`} />}
                   {stats.parcialmente > 0 && <div style={{ width: `${parPct}%` }} className="bg-amber-400" title={`${stats.parcialmente} parcialmente`} />}
@@ -3231,7 +3177,7 @@ export const GpcProcessos = () => {
                     <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />{stats.irregulares} irreg.
                   </span>
                   {stats.semSituacao > 0 && (
-                    <span className="text-[11px] text-slate-400">{stats.semSituacao} s/ avalia√ß√£o</span>
+                    <span className="text-[11px] text-slate-400">{stats.semSituacao} s/ avaliaÁ„o</span>
                   )}
                 </div>
               </div>
@@ -3271,7 +3217,7 @@ export const GpcProcessos = () => {
 
       {(mainTab === 'registros' || mainTab === 'parcelamentos') && (
         <>
-          {/* ‚îÄ‚îÄ Filter Panel ‚îÄ‚îÄ */}
+          {/* -- Filter Panel -- */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3300,7 +3246,7 @@ export const GpcProcessos = () => {
                   <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.processo} onChange={e => setF('processo', e.target.value)} />
                 </div>
                 <div>
-                  <label className={LABEL}>Conv√™nio</label>
+                  <label className={LABEL}>ConvÍnio</label>
                   <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.convenio} onChange={e => setF('convenio', e.target.value)} />
                 </div>
                 <div>
@@ -3308,7 +3254,7 @@ export const GpcProcessos = () => {
                   <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.entidade} onChange={e => setF('entidade', e.target.value)} />
                 </div>
                 <div>
-                  <label className={LABEL}>Exerc√≠cio</label>
+                  <label className={LABEL}>ExercÌcio</label>
                   <input className={INPUT + ' py-2 text-xs'} placeholder="ano" value={filters.exercicio} onChange={e => setF('exercicio', e.target.value)} />
                 </div>
               </div>
@@ -3316,14 +3262,14 @@ export const GpcProcessos = () => {
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div>
                   <label className={LABEL}>DRS</label>
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="n¬∫" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
+                  <input className={INPUT + ' py-2 text-xs'} placeholder="n∫" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
                 </div>
                 <div>
                   <label className={LABEL}>Analista</label>
                   <input className={INPUT + ' py-2 text-xs'} placeholder="nome..." value={filters.responsavel} onChange={e => setF('responsavel', e.target.value)} />
                 </div>
                 <div>
-                  <label className={LABEL}>Posi√ß√£o</label>
+                  <label className={LABEL}>PosiÁ„o</label>
                   <select className={INPUT + ' py-2 text-xs'} value={filters.posicao_id} onChange={e => setF('posicao_id', e.target.value)}>
                     <option value="">Todas</option>
                     {posicoes.map(p => <option key={p.codigo} value={String(p.codigo)}>{p.posicao}</option>)}
@@ -3334,7 +3280,7 @@ export const GpcProcessos = () => {
                   <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.movimento} onChange={e => setF('movimento', e.target.value)} />
                 </div>
                 <div>
-                  <label className={LABEL}>Situa√ß√£o</label>
+                  <label className={LABEL}>SituaÁ„o</label>
                   <select className={INPUT + ' py-2 text-xs'} value={filters.situacao} onChange={e => setF('situacao', e.target.value)}>
                     <option value="">Todas</option>
                     <option value="REGULAR">Regular</option>
@@ -3361,16 +3307,16 @@ export const GpcProcessos = () => {
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-100">
                       <SortTh label="Processo"    col="processo"    sort={sort} onSort={toggleSort} />
-                      <SortTh label="Conv√™nio"    col="convenio"    sort={sort} onSort={toggleSort} />
+                      <SortTh label="ConvÍnio"    col="convenio"    sort={sort} onSort={toggleSort} />
                       <SortTh label="Entidade"    col="entidade"    sort={sort} onSort={toggleSort} />
                       <SortTh label="Exer."       col="exercicio"   sort={sort} onSort={toggleSort} cls="w-16" />
                       <SortTh label="DRS"         col="drs"         sort={sort} onSort={toggleSort} cls="w-14" />
                       <SortTh label="Data"        col="data"        sort={sort} onSort={toggleSort} cls="w-24" />
                       <SortTh label="Cadastro / Analistas" col="responsavel" sort={sort} onSort={toggleSort} />
-                      <SortTh label="Posi√ß√£o"     col="posicao"     sort={sort} onSort={toggleSort} />
+                      <SortTh label="PosiÁ„o"     col="posicao"     sort={sort} onSort={toggleSort} />
                       <SortTh label="Movimento"   col="movimento"   sort={sort} onSort={toggleSort} />
                       <SortTh label="Remessa"     col="remessa"     sort={sort} onSort={toggleSort} cls="w-24" />
-                      <SortTh label="Situa√ß√£o"    col="situacao"    sort={sort} onSort={toggleSort} />
+                      <SortTh label="SituaÁ„o"    col="situacao"    sort={sort} onSort={toggleSort} />
                       <FThX />
                     </tr>
 
@@ -3404,7 +3350,7 @@ export const GpcProcessos = () => {
                                   </a>
                                 )}
                                 {isDupe && (
-                                  <span className="text-[10px] text-purple-500 flex items-center gap-0.5 flex-shrink-0" title={`${dupes.length} registros com este n√∫mero`}>
+                                  <span className="text-[10px] text-purple-500 flex items-center gap-0.5 flex-shrink-0" title={`${dupes.length} registros com este n˙mero`}>
                                     <Info size={9} />{dupes.length}x
                                   </span>
                                 )}
@@ -3426,12 +3372,12 @@ export const GpcProcessos = () => {
                           <td className="px-3 py-4 text-slate-500 whitespace-nowrap text-xs">{r.convenio ?? '-'}</td>
                           {/* Entidade moved into processo cell */}
                           <td className="px-3 py-4 text-slate-600 text-xs max-w-[180px]">
-                            <span className="line-clamp-2" title={r.entidade ?? ''}>{r.entidade ?? '‚Äî'}</span>
+                            <span className="line-clamp-2" title={r.entidade ?? ''}>{r.entidade ?? 'ó'}</span>
                           </td>
                           <td className="px-3 py-4 text-center">
-                            <span className="inline-block bg-slate-100 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold">{r.exercicio ?? '‚Äî'}</span>
+                            <span className="inline-block bg-slate-100 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold">{r.exercicio ?? 'ó'}</span>
                           </td>
-                          <td className="px-3 py-4 text-center text-slate-500 text-xs font-medium">{r.drs ?? '‚Äî'}</td>
+                          <td className="px-3 py-4 text-center text-slate-500 text-xs font-medium">{r.drs ?? 'ó'}</td>
                           <td className="px-3 py-4 whitespace-nowrap text-slate-400 text-xs">{fmtDate(r.data)}</td>
                           <td className="px-3 py-4 min-w-[160px]">
                             {/* Cadastrado por */}
@@ -3463,7 +3409,7 @@ export const GpcProcessos = () => {
                                 )}
                               </div>
                             ) : (!(r.responsavel_cadastro || r.responsavel) && (
-                              <span className="text-slate-300 text-xs">‚Äî</span>
+                              <span className="text-slate-300 text-xs">ó</span>
                             ))}
                           </td>
                           <td className="px-3 py-3">
@@ -3475,14 +3421,14 @@ export const GpcProcessos = () => {
                           <td className="px-3 py-4 text-xs text-center">
                             {r.remessa === 'ACIMA' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"><ArrowUp size={9} />Acima</span>}
                             {r.remessa === 'ABAIXO' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200"><ArrowDown size={9} />Abaixo</span>}
-                            {!r.remessa && <span className="text-slate-200">‚Äî</span>}
+                            {!r.remessa && <span className="text-slate-200">ó</span>}
                           </td>
                           <td className="px-3 py-3">
                             <SituacaoBadge situacao={r.situacao} compact />
                             {(r.situacao === 'IRREGULAR' || r.situacao === 'PARCIALMENTE_REGULAR') && (r.valor_a_devolver ?? 0) > 0 && (
                               <div className="mt-0.5 text-xs text-red-600 font-medium">
                                 {r.valor_devolvido != null && r.valor_devolvido >= (r.valor_a_devolver ?? 0)
-                                  ? <span className="text-green-600">‚úì Quitado</span>
+                                  ? <span className="text-green-600">? Quitado</span>
                                   : <span>Pend: {fmt((r.valor_a_devolver ?? 0) - (r.valor_devolvido ?? 0))}</span>}
                               </div>
                             )}
@@ -3535,7 +3481,7 @@ export const GpcProcessos = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between text-sm text-slate-500">
               <span>
-                P√°gina <strong className="text-slate-700">{page}</strong> de <strong className="text-slate-700">{totalPages}</strong>
+                P·gina <strong className="text-slate-700">{page}</strong> de <strong className="text-slate-700">{totalPages}</strong>
                 {' '}&mdash; {filtered.length.toLocaleString('pt-BR')} registros
               </span>
               <div className="flex gap-2">
@@ -3543,7 +3489,7 @@ export const GpcProcessos = () => {
                   <ChevronLeft size={16} />Anterior
                 </button>
                 <button className={BTN_SEC} disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
-                  Pr√≥xima<ChevronRight size={16} />
+                  PrÛxima<ChevronRight size={16} />
                 </button>
               </div>
             </div>
