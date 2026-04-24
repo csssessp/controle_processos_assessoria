@@ -1143,7 +1143,16 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
               <div className="font-mono text-xl font-bold text-white tracking-tight break-all leading-snug">
                 {row.processo ?? '—'}
               </div>
-              {row.convenio && <div className="text-slate-400 text-sm mt-1.5">Convênio {row.convenio}</div>}
+              {(row.convenio || row.valor_convenio) && (
+                <div className="text-slate-400 text-sm mt-1.5 flex items-center gap-2 flex-wrap">
+                  {row.convenio && <span>Conv\u00eanio {row.convenio}</span>}
+                  {row.valor_convenio != null && (
+                    <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-md">
+                      <DollarSign size={10} />{row.valor_convenio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
               <SituacaoBadge situacao={row.situacao} />
@@ -1600,11 +1609,15 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
               </div>
               <div>
-                <label className={LABEL}>Convênio</label>
+                <label className={LABEL}>Conv\u00eanio</label>
                 <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
               </div>
+              <div>
+                <label className={LABEL}>Valor do Conv\u00eanio (R$)</label>
+                <CurrencyInput value={form.valor_convenio} onChange={v => set('valor_convenio', v)} />
+              </div>
               <div className="sm:col-span-2">
-                <label className={LABEL}>Entidade / Município</label>
+                <label className={LABEL}>Entidade / Munic\u00edpio</label>
                 <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
               </div>
             </div>
@@ -1985,16 +1998,29 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       {/* Sub-modals */}
       {subModal && full && (
         <>
-          {subModal.type === 'exercicio' && (
-            <Modal title={subModal.data ? 'Editar Exercício' : 'Novo Exercício'} onClose={() => setSubModal(null)} size="md">
-              <ExercicioForm
-                processoId={full.codigo}
-                initial={subModal.data}
-                onSave={async e => { await GpcService.saveExercicio(e); await refreshFull(); setSubModal(null); }}
-                onClose={() => setSubModal(null)}
-              />
-            </Modal>
-          )}
+          {subModal.type === 'exercicio' && (() => {
+            let lastSaldo: number | undefined;
+            if (!subModal.data && (full.exercicios?.length ?? 0) > 0) {
+              const sorted = [...(full.exercicios ?? [])].sort((a, b) =>
+                String(a.exercicio ?? '').localeCompare(String(b.exercicio ?? ''))
+              );
+              const last = sorted[sorted.length - 1];
+              const tot = (last.exercicio_anterior ?? 0) + (last.repasse ?? 0) + (last.aplicacao ?? 0);
+              const sal = tot - (last.gastos ?? 0) - (last.devolvido ?? 0);
+              lastSaldo = sal > 0 ? sal : undefined;
+            }
+            return (
+              <Modal title={subModal.data ? 'Editar Exerc\u00edcio' : 'Novo Exerc\u00edcio'} onClose={() => setSubModal(null)} size="md">
+                <ExercicioForm
+                  processoId={full.codigo}
+                  initial={subModal.data}
+                  lastSaldo={lastSaldo}
+                  onSave={async e => { await GpcService.saveExercicio(e); await refreshFull(); setSubModal(null); }}
+                  onClose={() => setSubModal(null)}
+                />
+              </Modal>
+            );
+          })()}
           {subModal.type === 'objeto' && (
             <Modal title={subModal.data ? 'Editar Objeto' : 'Novo Objeto'} onClose={() => setSubModal(null)} size="md">
               <ObjetoForm
@@ -2033,11 +2059,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 // ---- Sub-forms ----
 
-const ExercicioForm = ({ processoId, initial, onSave, onClose }: {
-  processoId: number; initial?: Partial<GpcExercicio>;
+const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
+  processoId: number; initial?: Partial<GpcExercicio>; lastSaldo?: number;
   onSave: (e: Partial<GpcExercicio>) => Promise<void>; onClose: () => void;
 }) => {
-  const [f, setF] = useState<Partial<GpcExercicio>>(initial ?? { processo_id: processoId });
+  const [f, setF] = useState<Partial<GpcExercicio>>(initial ?? {
+    processo_id: processoId,
+    exercicio_anterior: lastSaldo ?? undefined,
+  });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const n = (v: string) => v === '' ? null : Number(v);
@@ -2055,41 +2084,57 @@ const ExercicioForm = ({ processoId, initial, onSave, onClose }: {
         <div><label className={LABEL}>Exerc. Anterior (R$)</label><CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} /></div>
         <div><label className={LABEL}>Repasse (R$)</label><CurrencyInput value={f.repasse} onChange={v => set('repasse', v)} /></div>
         <div><label className={LABEL}>Aplicação (R$)</label><CurrencyInput value={f.aplicacao} onChange={v => set('aplicacao', v)} /></div>
-        {(((f.repasse ?? 0) + (f.aplicacao ?? 0)) > 0) && (
-          <div className="col-span-2">
-            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Valor Total do Convênio</div>
-                <div className="text-[10px] text-blue-400 mt-0.5">Repasse + Aplicação</div>
-              </div>
-              <div className="text-lg font-bold text-blue-700">
-                {((f.repasse ?? 0) + (f.aplicacao ?? 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        {(() => {
+          const _total = (f.exercicio_anterior ?? 0) + (f.repasse ?? 0) + (f.aplicacao ?? 0);
+          if (_total === 0) return null;
+          const parts = [];
+          if ((f.exercicio_anterior ?? 0) > 0) parts.push('Ex. Ant. + ');
+          parts.push('Repasse + Aplica\u00e7\u00e3o');
+          return (
+            <div className="col-span-2">
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Dispon\u00edvel no Exerc\u00edcio</div>
+                  <div className="text-[10px] text-blue-400 mt-0.5">{parts.join('')}</div>
+                </div>
+                <div className="text-lg font-bold text-blue-700">
+                  {_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <div><label className={LABEL}>Gastos (R$)</label><CurrencyInput value={f.gastos} onChange={v => set('gastos', v)} /></div>
         <div><label className={LABEL}>Devolvido (R$)</label><CurrencyInput value={f.devolvido} onChange={v => set('devolvido', v)} /></div>
       </div>
       {/* Saldo disponível para próximo exercício */}
       {(() => {
-        const repasse    = f.repasse    ?? 0;
-        const gastos     = f.gastos     ?? 0;
-        const devolvido  = f.devolvido  ?? 0;
-        const saldo = repasse - gastos - devolvido;
-        if (repasse === 0) return null;
+        const exAnt     = f.exercicio_anterior ?? 0;
+        const repasse   = f.repasse    ?? 0;
+        const aplicacao = f.aplicacao  ?? 0;
+        const gastos    = f.gastos     ?? 0;
+        const devolvido = f.devolvido  ?? 0;
+        const total     = exAnt + repasse + aplicacao;
+        const saldo     = total - gastos - devolvido;
+        if (total === 0) return null;
+        const detParts: string[] = [];
+        if (exAnt > 0) detParts.push(`Ex. Ant. ${fmt(exAnt)}`);
+        detParts.push(`Repasse ${fmt(repasse)}`);
+        if (aplicacao > 0) detParts.push(`Aplic. ${fmt(aplicacao)}`);
+        detParts.push(`\u2212 Gastos ${fmt(gastos)}`);
+        if (devolvido > 0) detParts.push(`\u2212 Dev. ${fmt(devolvido)}`);
         return (
           <div className={`rounded-xl border p-3.5 flex items-center gap-3 ${saldo > 0 ? 'bg-blue-50 border-blue-200' : saldo < 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${saldo > 0 ? 'bg-blue-100' : saldo < 0 ? 'bg-red-100' : 'bg-slate-100'}`}>
               <DollarSign size={15} className={saldo > 0 ? 'text-blue-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Valor não utilizado — saldo para próximo exercício</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Saldo para o pr\u00f3ximo exerc\u00edcio</div>
               <div className={`text-base font-bold ${saldo > 0 ? 'text-blue-700' : saldo < 0 ? 'text-red-700' : 'text-slate-500'}`}>
                 {saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">⚠ gastos excedem o repasse</span>}
+                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">\u26a0 gastos excedem o total dispon\u00edvel</span>}
               </div>
-              <div className="text-xs text-slate-400 mt-0.5">Repasse {fmt(repasse)} − Gastos {fmt(gastos)} − Devolvido {fmt(devolvido)}</div>
+              <div className="text-xs text-slate-400 mt-0.5">{detParts.join(' + ')}</div>
             </div>
           </div>
         );

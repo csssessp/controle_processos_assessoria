@@ -268,6 +268,8 @@ export interface GpcRecebido {
   // Responsabilidades
   responsavel_cadastro?: string | null;      // Quem cadastrou o processo no sistema
   responsaveis_analise?: string[] | null;    // Array de técnicos que analisam o processo
+  // Valor do convênio (global, conforme termo)
+  valor_convenio?: number | null;
   // Situação do processo
   situacao?: 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR' | null;
   valor_a_devolver?: number | null;

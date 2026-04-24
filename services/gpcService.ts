@@ -426,6 +426,7 @@ export const GpcService = {
       valor_a_devolver: r.valor_a_devolver ?? null,
       valor_devolvido: r.valor_devolvido ?? null,
       situacao_obs: r.situacao_obs ?? null,
+      valor_convenio: r.valor_convenio ?? null,
     };
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();
