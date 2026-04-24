@@ -1406,9 +1406,19 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                     </div>
                   ))}
                 </div>
-                <div className="px-5 py-2.5 bg-green-50 border-t border-green-100 flex justify-between text-xs font-bold">
-                  <span className="text-slate-600">Total Repasse</span>
-                  <span className="text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</span>
+                <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Repasse</div>
+                    <div className="font-bold text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
+                    <div className="font-bold text-slate-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.aplicacao ?? 0), 0))}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold mb-0.5">Total do Convênio</div>
+                    <div className="font-bold text-blue-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0))}</div>
+                  </div>
                 </div>
               </section>
             )}
@@ -1869,6 +1879,27 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     onDelete={r => confirmDeleteSub(() => GpcService.deleteExercicio(r.codigo))}
                     emptyMsg="Nenhum exercício cadastrado"
                   />
+                  {(full.exercicios?.length ?? 0) > 0 && (() => {
+                    const totalRepasse  = (full.exercicios ?? []).reduce((s, e) => s + (e.repasse ?? 0), 0);
+                    const totalAplicacao = (full.exercicios ?? []).reduce((s, e) => s + (e.aplicacao ?? 0), 0);
+                    const totalConvenio = totalRepasse + totalAplicacao;
+                    return (
+                      <div className="mt-3 grid grid-cols-3 gap-3">
+                        <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
+                          <div className="text-[10px] uppercase tracking-wider text-green-500 font-semibold mb-0.5">Total Repasse</div>
+                          <div className="text-sm font-bold text-green-700">{fmt(totalRepasse)}</div>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
+                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
+                          <div className="text-sm font-bold text-slate-700">{fmt(totalAplicacao)}</div>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+                          <div className="text-[10px] uppercase tracking-wider text-blue-500 font-semibold mb-0.5">Total do Convênio</div>
+                          <div className="text-sm font-bold text-blue-700">{fmt(totalConvenio)}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </section>
 
                 {/* Objetos */}
