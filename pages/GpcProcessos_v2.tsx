@@ -4124,21 +4124,20 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
         const total     = exAnt + repasse + aplicacao;
 
-        const saldo     = total - gastos - devolvido;
+        // Arredondar para 2 casas para evitar erro de ponto flutuante (ex: -2.84e-14)
+        const saldo     = Math.round((total - gastos - devolvido) * 100) / 100;
 
         if (total === 0) return null;
 
-        const detParts: string[] = [];
-
-        if (exAnt > 0) detParts.push(`Ex. Ant. ${fmt(exAnt)}`);
-
-        detParts.push(`Repasse ${fmt(repasse)}`);
-
-        if (aplicacao > 0) detParts.push(`Aplic. ${fmt(aplicacao)}`);
-
-        detParts.push(`\u2212 Gastos ${fmt(gastos)}`);
-
-        if (devolvido > 0) detParts.push(`\u2212 Dev. ${fmt(devolvido)}`);
+        // Construir string de detalhe: positivos com "+", negativos com "−"
+        const posParts: string[] = [];
+        const negParts: string[] = [];
+        if (exAnt > 0) posParts.push(`Ex. Ant. ${fmt(exAnt)}`);
+        posParts.push(`Repasse ${fmt(repasse)}`);
+        if (aplicacao > 0) posParts.push(`Aplic. ${fmt(aplicacao)}`);
+        if (gastos > 0) negParts.push(`Gastos ${fmt(gastos)}`);
+        if (devolvido > 0) negParts.push(`Dev. ${fmt(devolvido)}`);
+        const detStr = posParts.join(' + ') + (negParts.length ? ' \u2212 ' + negParts.join(' \u2212 ') : '');
 
         return (
 
@@ -4158,11 +4157,11 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
                 {saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
 
-                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">? gastos excedem o total disponível</span>}
+                {saldo < 0 && <span className="ml-2 text-xs font-normal text-red-600">⚠ gastos excedem o total disponível</span>}
 
               </div>
 
-              <div className="text-xs text-slate-400 mt-0.5">{detParts.join(' + ')}</div>
+              <div className="text-xs text-slate-400 mt-0.5">{detStr}</div>
 
             </div>
 
