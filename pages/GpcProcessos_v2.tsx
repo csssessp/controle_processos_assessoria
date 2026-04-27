@@ -2724,33 +2724,33 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
                 </div>
 
-                <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs">
-
-                  <div>
-
-                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Repasse</div>
-
-                    <div className="font-bold text-green-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0), 0))}</div>
-
-                  </div>
-
-                  <div className="text-center">
-
-                    <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
-
-                    <div className="font-bold text-slate-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.aplicacao ?? 0), 0))}</div>
-
-                  </div>
-
-                  <div className="text-right">
-
-                    <div className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold mb-0.5">Total do Convênio</div>
-
-                    <div className="font-bold text-blue-700">{fmt(full.exercicios!.reduce((s, e) => s + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0))}</div>
-
-                  </div>
-
-                </div>
+                {(() => {
+                  const exs = full.exercicios!;
+                  const tRep = exs.reduce((s, e) => s + (e.repasse ?? 0), 0);
+                  const tApl = exs.reduce((s, e) => s + (e.aplicacao ?? 0), 0);
+                  const tDisp = exs.reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0);
+                  const tConv = Math.round((tDisp - exs.reduce((s, e) => s + (e.gastos ?? 0), 0)) * 100) / 100;
+                  return (
+                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Repasse</div>
+                        <div className="font-bold text-green-700">{fmt(tRep)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
+                        <div className="font-bold text-slate-700">{fmt(tApl)}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[10px] uppercase tracking-wider text-indigo-400 font-semibold mb-0.5">Total Disponível</div>
+                        <div className="font-bold text-indigo-700">{fmt(tDisp)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold mb-0.5">Total do Convênio</div>
+                        <div className="font-bold text-blue-700">{fmt(tConv)}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
               </section>
 
@@ -3680,15 +3680,17 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                   {(full.exercicios?.length ?? 0) > 0 && (() => {
 
-                    const totalRepasse  = (full.exercicios ?? []).reduce((s, e) => s + (e.repasse ?? 0), 0);
+                    const totalRepasse   = (full.exercicios ?? []).reduce((s, e) => s + (e.repasse ?? 0), 0);
 
                     const totalAplicacao = (full.exercicios ?? []).reduce((s, e) => s + (e.aplicacao ?? 0), 0);
 
-                    const totalConvenio = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0);
+                    const totalDisponivel = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0);
+
+                    const totalConvenio = Math.round((totalDisponivel - (full.exercicios ?? []).reduce((s, e) => s + (e.gastos ?? 0), 0)) * 100) / 100;
 
                     return (
 
-                      <div className="mt-3 grid grid-cols-3 gap-3">
+                      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
 
                         <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
 
@@ -3703,6 +3705,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                           <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
 
                           <div className="text-sm font-bold text-slate-700">{fmt(totalAplicacao)}</div>
+
+                        </div>
+
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5">
+
+                          <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-semibold mb-0.5">Total Disponível</div>
+
+                          <div className="text-sm font-bold text-indigo-700">{fmt(totalDisponivel)}</div>
 
                         </div>
 
