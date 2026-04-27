@@ -1490,7 +1490,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
 
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange }: {
 
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
 
@@ -1510,6 +1510,8 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
   currentUserName?: string;
 
+  onAssinaturaChange?: (a1: string, a2: string) => void;
+
 }) => {
 
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
@@ -1519,36 +1521,6 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   const [assinatura1, setAssinatura1] = useState<string>(responsavelAssinatura ?? '');
 
   const [assinatura2, setAssinatura2] = useState<string>(responsavelAssinatura2 ?? '');
-
-  const [savingAssinatura, setSavingAssinatura] = useState(false);
-
-  const [assinaturaMsg, setAssinaturaMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-
-
-
-  const handleSaveAssinatura = async () => {
-
-    setSavingAssinatura(true); setAssinaturaMsg(null);
-
-    try {
-
-      await GpcService.updateAssinatura(registroId, assinatura1 || null, assinatura2 || null);
-
-      setAssinaturaMsg({ type: 'ok', text: 'Responsáveis salvos com sucesso!' });
-
-      onRecordUpdated?.();
-
-    } catch (ex: any) {
-
-      setAssinaturaMsg({ type: 'err', text: ex.message });
-
-    } finally {
-
-      setSavingAssinatura(false);
-
-    }
-
-  };
 
 
 
@@ -1700,7 +1672,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
               <label className={LABEL}>1º Responsável</label>
 
-              <select className={INPUT} value={assinatura1} onChange={e => setAssinatura1(e.target.value)}>
+              <select className={INPUT} value={assinatura1} onChange={e => { setAssinatura1(e.target.value); onAssinaturaChange?.(e.target.value, assinatura2); }}>
 
                 <option value="">— selecione —</option>
 
@@ -1714,7 +1686,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
               <label className={LABEL}>2º Responsável <span className="text-slate-400 font-normal">(opcional)</span></label>
 
-              <select className={INPUT} value={assinatura2} onChange={e => setAssinatura2(e.target.value)}>
+              <select className={INPUT} value={assinatura2} onChange={e => { setAssinatura2(e.target.value); onAssinaturaChange?.(assinatura1, e.target.value); }}>
 
                 <option value="">— nenhum —</option>
 
@@ -1726,12 +1698,6 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
           </div>
 
-          {assinaturaMsg && (
-
-            <p className={`text-xs ${assinaturaMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{assinaturaMsg.text}</p>
-
-          )}
-
           {signatoryUsers.length === 0 && (
 
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
@@ -1741,28 +1707,6 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
             </p>
 
           )}
-
-          <div className="flex justify-end">
-
-            <button
-
-              type="button"
-
-              onClick={handleSaveAssinatura}
-
-              disabled={savingAssinatura}
-
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
-
-            >
-
-              {savingAssinatura ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-
-              Salvar Responsáveis
-
-            </button>
-
-          </div>
 
         </div>
 
@@ -3620,6 +3564,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 onRecordUpdated={onRecordUpdated}
 
                 currentUserName={currentUser?.name ?? undefined}
+
+                onAssinaturaChange={(a1, a2) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: a2 || null }))}
 
               />
 
