@@ -2452,6 +2452,26 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
         </div>
 
+        {/* ── Responsáveis pela Assinatura ── */}
+        {(row.responsavel_assinatura || row.responsavel_assinatura_2) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { label: '1º Responsável pela Assinatura', value: row.responsavel_assinatura },
+              { label: '2º Responsável pela Assinatura', value: row.responsavel_assinatura_2 },
+            ].filter(r => r.value).map(({ label, value }) => (
+              <div key={label} className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                  <PenLine size={17} className="text-indigo-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</div>
+                  <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
 
 
 

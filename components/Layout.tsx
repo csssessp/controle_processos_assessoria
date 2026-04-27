@@ -95,7 +95,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
               >
                 {drawerOpen ? <X size={22} /> : <Menu size={22} />}
               </button>
-              <img src={LogoImage} alt="Brasão SP" className="h-12 w-auto flex-shrink-0" />
+              <img src={LogoImage} alt="Brasão SP" className="h-24 w-auto flex-shrink-0" />
             </div>
 
             {/* Center: Title */}
