@@ -2835,6 +2835,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const [savedOk, setSavedOk] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<'analise' | 'ident' | 'fluxo' | 'financeiro'>('analise');
+
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
 
   const [loadingFull, setLoadingFull] = useState(false);
@@ -3025,7 +3027,32 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
     >
 
-      <div className="max-h-[78vh] overflow-y-auto pr-1 space-y-4">
+      {/* ── Barra de abas ── */}
+      <div className="flex border-b border-slate-200 mb-4 gap-0 flex-wrap -mx-1">
+        {([
+          { id: 'analise',    label: 'Análise',       icon: '🔍' },
+          { id: 'ident',      label: 'Identificação', icon: '📄' },
+          ...(isEditing ? [
+            { id: 'fluxo',      label: 'Fluxo',         icon: '⚡' },
+            { id: 'financeiro', label: 'Financeiro',     icon: '💰' },
+          ] : []),
+        ] as { id: string; label: string; icon: string }[]).map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'border-blue-500 text-blue-700 bg-blue-50/40'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <span className="text-base leading-none">{tab.icon}</span>{tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="max-h-[66vh] overflow-y-auto pr-1">
 
 
 
@@ -3052,6 +3079,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           )}
 
 
+
+          {activeTab === 'ident' && (<>
 
           {/* -- Identificação do Processo -- */}
 
@@ -3256,6 +3285,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           </section>
 
 
+
+          </>)}
+
+          {activeTab === 'analise' && (<>
 
           {/* -- Análise -- */}
 
@@ -3501,8 +3534,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
 
+          </>)}
+
           {/* -- Save bar -- */}
 
+          {(activeTab === 'analise' || activeTab === 'ident' || activeTab === 'fluxo') && (
           <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white/97 backdrop-blur-sm py-3">
 
             <div className="text-xs text-slate-400">
@@ -3526,6 +3562,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
             </div>
 
           </div>
+          )}
 
         </form>
 
@@ -3533,7 +3570,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
         {/* -- Sections visible only when a record exists -- */}
 
-        {isEditing && (
+        {isEditing && activeTab === 'fluxo' && (
 
           <div className="space-y-4 pb-4">
 
@@ -3572,6 +3609,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
             </section>
 
 
+
+          </div>
+
+        )}
+
+        {isEditing && activeTab === 'financeiro' && (
+
+          <div className="space-y-4 pb-4">
 
             {loadingFull && (
 
