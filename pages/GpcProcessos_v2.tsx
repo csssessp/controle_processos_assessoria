@@ -3684,7 +3684,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     const totalAplicacao = (full.exercicios ?? []).reduce((s, e) => s + (e.aplicacao ?? 0), 0);
 
-                    const totalConvenio = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0) - (e.gastos ?? 0), 0);
+                    const totalConvenio = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0);
 
                     return (
 
