@@ -1378,16 +1378,21 @@ const ACAO_DEF = { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-sl
 
 
 
-const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved, currentUserName }: {
+// Parcelamento step option prefix used to route saves
+const PARC_MOV_PREFIX = '__PARC__';
+const encodeParcMov = (parcCodigo: number, stepTipo: string) => `${PARC_MOV_PREFIX}${parcCodigo}__${stepTipo}`;
+const decodeParcMov = (val: string) => {
+  const parts = val.slice(PARC_MOV_PREFIX.length).split('__');
+  return { parcCodigo: Number(parts[0]), stepTipo: parts[1] };
+};
 
+const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved, currentUserName, parcelamentos, onSaveParc }: {
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
-
   gpcUsers: { id: string; name: string }[];
-
   onSaved: () => Promise<void> | void;
-
   currentUserName?: string;
-
+  parcelamentos?: GpcParcelamento[] | null;
+  onSaveParc?: (updated: GpcParcelamento) => Promise<void>;
 }) => {
 
   const [form, setForm] = useState<Partial<GpcFluxoTecnico>>({
@@ -1416,23 +1421,42 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
   const set = (k: keyof GpcFluxoTecnico, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  const isParcMov = (val: string | null | undefined) => !!val && val.startsWith(PARC_MOV_PREFIX);
+
   const submit = async (e: React.FormEvent) => {
 
     e.preventDefault(); setSaving(true); setErr('');
 
     try {
-
-      await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: new Date().toISOString() });
-
-      setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
-
-      onSaved();
-
+      if (isParcMov(form.movimento)) {
+        // Route to parcelamento authorization log
+        const { parcCodigo, stepTipo } = decodeParcMov(form.movimento!);
+        const parc = (parcelamentos ?? []).find(p => p.codigo === parcCodigo);
+        if (!parc || !onSaveParc) throw new Error('Parcelamento não encontrado.');
+        const now_iso = new Date().toISOString();
+        const newEntry: ParcAutorizacaoEntry = {
+          tipo: stepTipo as ParcAutorizacaoEntry['tipo'],
+          data: now_iso.slice(0, 10),
+          obs: form.obs ?? null,
+          registrado_por: currentUserName ?? null,
+          registrado_em: now_iso,
+        };
+        const updatedLog = [...((parc.autorizacoes_log ?? []) as ParcAutorizacaoEntry[]), newEntry];
+        await onSaveParc({ ...parc, autorizacoes_log: updatedLog });
+        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
+        onSaved();
+      } else {
+        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: new Date().toISOString() });
+        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
+        onSaved();
+      }
     } catch (ex: any) { setErr(ex.message); }
 
     finally { setSaving(false); }
 
   };
+
+  const hasParcs = (parcelamentos?.length ?? 0) > 0;
 
   return (
 
@@ -1490,21 +1514,23 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
         </div>
 
-        <div>
+        {!isParcMov(form.movimento) && (
+          <div>
 
-          <label className={LABEL}>Posição Atual</label>
+            <label className={LABEL}>Posição Atual</label>
 
-          <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+            <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
 
-            <option value="">— selecione —</option>
+              <option value="">— selecione —</option>
 
-            {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
+              {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
 
-          </select>
+            </select>
 
-        </div>
+          </div>
+        )}
 
-        <div>
+        <div className={isParcMov(form.movimento) ? 'sm:col-span-1' : ''}>
 
           <label className={LABEL}>Movimento</label>
 
@@ -1512,19 +1538,37 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
             <option value="">— selecione —</option>
 
-            {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+            <optgroup label="Movimentos do Processo">
+              {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+            </optgroup>
+
+            {hasParcs && parcelamentos!.map(parc => {
+              const visSteps = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || (parc.parcelas ?? 0) > 60);
+              const parcLabel = `${parc.tipo_parcelamento ?? 'Parcelamento'} #${parc.codigo}`;
+              return (
+                <optgroup key={parc.codigo} label={`── ${parcLabel}`}>
+                  {visSteps.map(s => (
+                    <option key={s.tipo} value={encodeParcMov(parc.codigo, s.tipo)}>
+                      {s.label}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
 
           </select>
 
         </div>
 
-        <div>
+        {!isParcMov(form.movimento) && (
+          <div>
 
-          <label className={LABEL}>Páginas Analisadas</label>
+            <label className={LABEL}>Páginas Analisadas</label>
 
-          <input className={INPUT} type="number" min={0} value={form.num_paginas_analise ?? ''} onChange={e => set('num_paginas_analise', e.target.value ? Number(e.target.value) : null)} placeholder="ex: 50" />
+            <input className={INPUT} type="number" min={0} value={form.num_paginas_analise ?? ''} onChange={e => set('num_paginas_analise', e.target.value ? Number(e.target.value) : null)} placeholder="ex: 50" />
 
-        </div>
+          </div>
+        )}
 
         <div className="sm:col-span-1">
 
@@ -1554,7 +1598,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
 
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange, parcelamentos, onSaveParc }: {
 
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
 
@@ -1575,6 +1619,10 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   currentUserName?: string;
 
   onAssinaturaChange?: (a1: string, a2: string) => void;
+
+  parcelamentos?: GpcParcelamento[] | null;
+
+  onSaveParc?: (updated: GpcParcelamento) => Promise<void>;
 
 }) => {
 
@@ -1901,6 +1949,10 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
           gpcUsers={gpcUsers}
 
           currentUserName={currentUserName}
+
+          parcelamentos={parcelamentos}
+
+          onSaveParc={onSaveParc}
 
           onSaved={async () => { await load(); onRecordUpdated?.(); }}
 
@@ -2777,91 +2829,6 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
               </section>
 
-            )}
-
-            {/* ── Parcelamentos: fluxo de autorização (read-only) ── */}
-            {(full.parcelamentos?.length ?? 0) > 0 && (
-              <section className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-                <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-2.5">
-                  <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                    <DollarSign size={13} />
-                  </span>
-                  <span className="text-sm font-bold text-slate-700">Parcelamento / Reparcelamento ({full.parcelamentos!.length})</span>
-                </div>
-                <div className="divide-y divide-slate-50">
-                  {full.parcelamentos!.map(parc => {
-                    const plog = ((parc.autorizacoes_log ?? []) as import('../types').ParcAutorizacaoEntry[]);
-                    const visSteps = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || (parc.parcelas ?? 0) > 60);
-                    const doneCnt = visSteps.filter(s => plog.some(e => e.tipo === s.tipo)).length;
-                    return (
-                      <div key={parc.codigo} className="px-5 py-4 space-y-3">
-                        {/* Header do parcelamento */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                            parc.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {parc.tipo_parcelamento ?? parc.tipo ?? 'Parcelamento'}
-                          </span>
-                          {parc.exercicio && <span className="text-xs text-slate-500">Exercício {parc.exercicio}</span>}
-                          {parc.valor_parcelado != null && <span className="text-xs font-semibold text-green-700">{fmt(parc.valor_parcelado)}</span>}
-                          {parc.parcelas != null && <span className="text-xs text-slate-400">{parc.parcelas} parcelas</span>}
-                          <span className={`ml-auto text-[10px] font-semibold ${doneCnt === visSteps.length && visSteps.length > 0 ? 'text-emerald-600' : doneCnt > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                            {doneCnt}/{visSteps.length} etapas
-                          </span>
-                        </div>
-                        {/* Barra de progresso */}
-                        {visSteps.length > 0 && (
-                          <div className="w-full bg-slate-100 rounded-full h-1">
-                            <div className="h-1 rounded-full bg-gradient-to-r from-blue-400 to-emerald-500 transition-all" style={{ width: `${(doneCnt / visSteps.length) * 100}%` }} />
-                          </div>
-                        )}
-                        {/* Passos do fluxo */}
-                        <div className="space-y-1.5">
-                          {visSteps.map((step, i) => {
-                            const entries = plog.filter(e => e.tipo === step.tipo);
-                            const done = entries.length > 0;
-                            return (
-                              <div key={step.tipo} className={`rounded-lg border overflow-hidden ${done ? 'border-emerald-200' : 'border-slate-100'}`}>
-                                <div className={`flex items-center gap-2.5 px-3 py-2 ${done ? 'bg-emerald-50' : 'bg-slate-50/50'}`}>
-                                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${done ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                                    {done ? <Check size={9} /> : i + 1}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span className={`text-xs font-semibold ${done ? 'text-emerald-700' : 'text-slate-500'}`}>{step.label}</span>
-                                  </div>
-                                  {!done && <span className="text-[10px] text-slate-300">Pendente</span>}
-                                </div>
-                                {entries.length > 0 && (
-                                  <div className="divide-y divide-emerald-100">
-                                    {entries.map((entry, j) => (
-                                      <div key={j} className="flex items-center gap-2 px-3 py-1.5 bg-white text-[11px]">
-                                        <Calendar size={9} className="text-emerald-400 flex-shrink-0" />
-                                        <span className="font-semibold text-slate-700">{fmtDate(entry.data)}</span>
-                                        {entry.obs && <span className="text-slate-400 flex-1 truncate">{entry.obs}</span>}
-                                        {entry.registrado_por && <span className="ml-auto text-blue-600 font-semibold flex items-center gap-0.5 flex-shrink-0"><User size={9} />{entry.registrado_por}</span>}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Status badges */}
-                        <div className="flex gap-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${parc.em_dia ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-400'}`}>
-                            {parc.em_dia ? <Check size={9} /> : <X size={9} />}Em Dia
-                          </span>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${parc.parcelas_concluidas ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
-                            {parc.parcelas_concluidas ? <Check size={9} /> : <X size={9} />}Concluído
-                          </span>
-                        </div>
-                        {parc.providencias && <p className="text-xs text-slate-500 italic">{parc.providencias}</p>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
             )}
 
             {(full.historicos?.length ?? 0) > 0 && (
@@ -3915,35 +3882,18 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                 currentUserName={currentUser?.name ?? undefined}
 
+                parcelamentos={full?.parcelamentos}
+
+                onSaveParc={async (updated) => {
+                  await GpcService.saveParcelamento(updated);
+                  await refreshFull();
+                }}
+
                 onAssinaturaChange={(a1, a2) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: a2 || null }))}
 
               />
 
             </section>
-
-            {/* Parcelamento / Reparcelamento — fluxo de autorização */}
-            {(full?.parcelamentos?.length ?? 0) > 0 && (
-              <div className="space-y-5">
-                {full!.parcelamentos!.map(parc => (
-                  <section key={parc.codigo} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                    <ParcFluxoCard
-                      parc={parc}
-                      currentUserName={currentUser?.name ?? undefined}
-                      onSaveLog={async (updated) => {
-                        await GpcService.saveParcelamento(updated);
-                        await refreshFull();
-                      }}
-                    />
-                  </section>
-                ))}
-              </div>
-            )}
-            {(full?.parcelamentos?.length ?? 0) === 0 && !loadingFull && (
-              <div className="text-center py-10 text-slate-400 text-sm">
-                <DollarSign size={28} className="mx-auto mb-2 opacity-30" />
-                Nenhum parcelamento cadastrado. Adicione um na aba <strong>Financeiro</strong>.
-              </div>
-            )}
 
           </div>
 
