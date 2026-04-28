@@ -3195,15 +3195,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const tryUnlock = (setter: (v: boolean) => void) => {
 
-    const pw = window.prompt('Digite a senha para liberar a edição desta seção:');
-
-    if (pw === SECTION_PASSWORD) {
+    if (window.confirm('Deseja desbloquear esta seção para edição?')) {
 
       setter(false);
-
-    } else if (pw !== null) {
-
-      alert('Senha incorreta. Acesso negado.');
 
     }
 
