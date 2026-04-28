@@ -34,7 +34,7 @@ import {
 
   GpcParcelamento, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
 
-  GpcFluxoTecnico
+  GpcFluxoTecnico, ParcAutorizacaoEntry
 
 } from '../types';
 
@@ -746,13 +746,23 @@ const EVENTO_CFG: Record<string, { color: string; label: string }> = {
 
 // ---- ProcessTimeline: chronological process flow ----
 
-const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPosicao[] }) => {
+const PARC_STEP_COLOR: Record<string, string> = {
+  AUTORIZO_SECRETARIO: 'bg-amber-500',
+  AUTORIZO_CASA_CIVIL: 'bg-orange-500',
+  ASSINATURA:          'bg-emerald-600',
+  AUTORIZO_GOVERNADOR: 'bg-red-500',
+};
+
+const ProcessTimeline = ({ row, posicoes, parcelamentos }: {
+  row: GpcRecebido; posicoes: GpcPosicao[];
+  parcelamentos?: GpcParcelamento[] | null;
+}) => {
 
   type TLEvent = {
 
     id: string; date: string; tipo: string; color: string;
 
-    iconType: string; title: string; detail: string; badge?: string;
+    iconType: string; title: string; detail: string; badge?: string; obs?: string;
 
   };
 
@@ -868,6 +878,26 @@ const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPos
 
 
 
+      // Parcelamento authorization events
+      for (const parc of (parcelamentos ?? [])) {
+        const parcLog = (parc.autorizacoes_log ?? []) as ParcAutorizacaoEntry[];
+        const parcLabel = `${parc.tipo_parcelamento ?? 'Parcelamento'} #${parc.codigo}`;
+        for (const entry of parcLog) {
+          const stepLabel = PARC_FLUXO_STEPS.find(s => s.tipo === entry.tipo)?.label ?? entry.tipo;
+          ev.push({
+            id: `parc-${parc.codigo}-${entry.tipo}-${entry.registrado_em}`,
+            date: entry.registrado_em,
+            tipo: 'PARCELAMENTO',
+            color: PARC_STEP_COLOR[entry.tipo] ?? 'bg-slate-500',
+            iconType: 'dollar',
+            title: stepLabel,
+            detail: entry.registrado_por ?? '',
+            badge: parcLabel,
+            obs: entry.obs ?? undefined,
+          });
+        }
+      }
+
       ev.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       setEvents(ev);
@@ -876,7 +906,7 @@ const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPos
 
     });
 
-  }, [row.codigo]);
+  }, [row.codigo, parcelamentos]);
 
 
 
@@ -905,6 +935,8 @@ const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPos
     if (type === 'search') return <Search size={14} />;
 
     if (type === 'user') return <User size={14} />;
+
+    if (type === 'dollar') return <DollarSign size={14} />;
 
     return <Activity size={14} />;
 
@@ -959,6 +991,16 @@ const ProcessTimeline = ({ row, posicoes }: { row: GpcRecebido; posicoes: GpcPos
                   {ev.badge}
 
                 </span>
+
+              )}
+
+              {(ev as any).obs && (
+
+                <div className="mt-1.5 text-xs text-slate-500 italic">
+
+                  {(ev as any).obs}
+
+                </div>
 
               )}
 
@@ -2326,7 +2368,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
           <Sec icon={<TrendingUp size={13} />} title="Linha do Tempo do Processo" />
 
-          <ProcessTimeline row={row} posicoes={posicoes} />
+          <ProcessTimeline row={row} posicoes={posicoes} parcelamentos={full?.parcelamentos} />
 
         </section>
 
