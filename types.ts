@@ -215,6 +215,14 @@ export interface GpcObjeto {
   custo: number | null;
 }
 
+export interface ParcAutorizacaoEntry {
+  tipo: 'AUTORIZO_SECRETARIO' | 'AUTORIZO_CASA_CIVIL' | 'ASSINATURA' | 'AUTORIZO_GOVERNADOR';
+  data: string;
+  obs?: string | null;
+  registrado_por?: string | null;
+  registrado_em: string;
+}
+
 export interface GpcParcelamento {
   codigo: number;
   processo_id: number | null;
@@ -233,6 +241,7 @@ export interface GpcParcelamento {
   autorizo_casa_civil: boolean;
   data_assinatura: string | null;
   autorizo_governador: boolean;
+  autorizacoes_log?: ParcAutorizacaoEntry[] | null;
 }
 
 export interface GpcTa {

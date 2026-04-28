@@ -253,6 +253,7 @@ export const GpcService = {
       autorizo_casa_civil: p.autorizo_casa_civil ?? false,
       data_assinatura: p.data_assinatura ?? null,
       autorizo_governador: p.autorizo_governador ?? false,
+      autorizacoes_log: p.autorizacoes_log ?? [],
     };
     if (p.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_parcelamento').update(payload).eq('codigo', p.codigo).select().single();
