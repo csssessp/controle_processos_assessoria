@@ -504,9 +504,9 @@ const FThX = () => <th className="px-2 py-1.5 bg-slate-50/80" />;
 
 
 
-const Modal = ({ title, subtitle, onClose, children, size = 'lg' }: {
+const Modal = ({ title, subtitle, onClose, onBack, children, size = 'lg' }: {
 
-  title: string; subtitle?: string; onClose: () => void;
+  title: string; subtitle?: string; onClose: () => void; onBack?: () => void;
 
   children: React.ReactNode; size?: 'md' | 'lg' | 'xl';
 
@@ -534,11 +534,33 @@ const Modal = ({ title, subtitle, onClose, children, size = 'lg' }: {
 
         <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl">
 
-          <div>
+          <div className="flex items-center gap-2">
 
-            <h3 className="text-base font-bold text-slate-800">{title}</h3>
+            {onBack && (
 
-            {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+              <button
+
+                onClick={onBack}
+
+                className="p-1.5 rounded-xl hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold mr-1"
+
+                title="Voltar aos Detalhes"
+
+              >
+
+                <ChevronLeft size={16} />Detalhes
+
+              </button>
+
+            )}
+
+            <div>
+
+              <h3 className="text-base font-bold text-slate-800">{title}</h3>
+
+              {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+
+            </div>
 
           </div>
 
@@ -2884,7 +2906,159 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
 // ---- RegistroModal (create / edit) ----
 
+// ---- ParcFluxoCard — fluxo de autorização do parcelamento (estilo FluxoTécnico) ----
+const ParcFluxoCard = ({ parc, currentUserName, onSaveLog }: {
+  parc: GpcParcelamento;
+  currentUserName?: string;
+  onSaveLog: (updated: GpcParcelamento) => Promise<void>;
+}) => {
+  const [log, setLog] = useState<import('../types').ParcAutorizacaoEntry[]>(
+    (parc.autorizacoes_log ?? []) as import('../types').ParcAutorizacaoEntry[]
+  );
+  const [step, setStep] = useState('');
+  const [obs, setObs]   = useState('');
+  const [saving, setSaving] = useState(false);
 
+  const needsGov    = (parc.parcelas ?? 0) > 60;
+  const visSteps    = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || needsGov);
+  const doneCnt     = visSteps.filter(s => log.some(e => e.tipo === s.tipo)).length;
+  const nowLabel    = () => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const handleRegister = async () => {
+    if (!step) return;
+    setSaving(true);
+    const entry: import('../types').ParcAutorizacaoEntry = {
+      tipo: step as any,
+      data: new Date().toISOString().split('T')[0],
+      obs: obs || null,
+      registrado_por: currentUserName ?? null,
+      registrado_em: new Date().toISOString(),
+    };
+    const newLog = [...log, entry];
+    try {
+      await onSaveLog({ ...parc, autorizacoes_log: newLog });
+      setLog(newLog);
+      setStep('');
+      setObs('');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header do parcelamento */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+          parc.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+        }`}>{parc.tipo_parcelamento ?? parc.tipo ?? 'Parcelamento'}</span>
+        {parc.exercicio && <span className="text-xs text-slate-500">Exercício {parc.exercicio}</span>}
+        {parc.valor_parcelado != null && <span className="text-xs font-semibold text-green-700">{fmt(parc.valor_parcelado)}</span>}
+        {parc.parcelas != null && <span className="text-xs text-slate-400">{parc.parcelas} parcelas</span>}
+        <span className={`ml-auto text-[11px] font-bold ${doneCnt === visSteps.length && visSteps.length > 0 ? 'text-emerald-600' : doneCnt > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+          {doneCnt}/{visSteps.length} etapas
+        </span>
+      </div>
+
+      {/* Barra de progresso */}
+      {visSteps.length > 0 && (
+        <div className="w-full bg-slate-100 rounded-full h-1">
+          <div className="h-1 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
+            style={{ width: `${(doneCnt / visSteps.length) * 100}%` }} />
+        </div>
+      )}
+
+      {/* Formulário — mesmo estilo do FluxoTécnico */}
+      <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 border border-slate-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Activity size={14} className="text-blue-600" />
+          <span className="text-sm font-bold text-slate-700">Registrar Autorização</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {/* Registrado por */}
+          <div>
+            <label className={LABEL + ' flex items-center gap-1'}><User size={10} className="text-slate-400" />Registrado por</label>
+            <div className={INPUT + ' bg-slate-50 text-slate-700 flex items-center gap-2 select-none'}>
+              {currentUserName
+                ? <><div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">{currentUserName.charAt(0).toUpperCase()}</div><span className="text-sm font-medium truncate">{currentUserName}</span><span className="ml-auto text-[10px] text-slate-400 font-medium flex-shrink-0">Usuário logado</span></>
+                : <><div className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0"><User size={10} className="text-slate-500" /></div><span className="text-slate-400 text-xs italic">Carregando...</span></>}
+            </div>
+          </div>
+          {/* Data/Hora */}
+          <div>
+            <label className={LABEL + ' flex items-center gap-1'}><Lock size={10} className="text-slate-400" />Data/Hora</label>
+            <div className={INPUT + ' bg-slate-100 text-slate-500 flex items-center gap-2 cursor-not-allowed select-none'}>
+              <Clock size={13} className="text-slate-400 flex-shrink-0" />
+              <span className="text-sm font-medium">{nowLabel()}</span>
+              <span className="ml-auto text-xs text-slate-400 flex-shrink-0">Automático</span>
+            </div>
+          </div>
+          {/* Etapa */}
+          <div>
+            <label className={LABEL}>Etapa</label>
+            <select className={INPUT} value={step} onChange={e => setStep(e.target.value)}>
+              <option value="">— selecione —</option>
+              {visSteps.map(s => <option key={s.tipo} value={s.tipo}>{s.label}</option>)}
+            </select>
+          </div>
+          {/* Observação */}
+          <div className="sm:col-span-2">
+            <label className={LABEL}>Observação</label>
+            <input className={INPUT} value={obs} onChange={e => setObs(e.target.value)} placeholder="Detalhes sobre a autorização..." />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              disabled={!step || saving}
+              onClick={handleRegister}
+              className={BTN_PRI + ' w-full justify-center'}
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}Registrar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de etapas */}
+      <div className="space-y-2">
+        {visSteps.map((s, idx) => {
+          const entries = log.filter(e => e.tipo === s.tipo);
+          const isDone  = entries.length > 0;
+          return (
+            <div key={s.tipo} className={`border rounded-xl overflow-hidden ${isDone ? 'border-emerald-200' : 'border-slate-200'}`}>
+              <div className={`flex items-center gap-3 px-4 py-2.5 ${isDone ? 'bg-emerald-50' : 'bg-slate-50/40'}`}>
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isDone ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                  {isDone ? <Check size={10} /> : idx + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-sm font-semibold ${isDone ? 'text-emerald-700' : 'text-slate-600'}`}>{s.label}</span>
+                  <span className="ml-2 text-[11px] text-slate-400">{s.desc}</span>
+                </div>
+                {!isDone && <span className="text-[10px] text-slate-300 font-medium">Pendente</span>}
+              </div>
+              {entries.length > 0 && (
+                <div className="divide-y divide-emerald-100/70">
+                  {entries.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2 bg-white text-xs">
+                      <Calendar size={10} className="text-emerald-400 flex-shrink-0" />
+                      <span className="font-semibold text-slate-700">{fmtDate(entry.data)}</span>
+                      {entry.obs && <span className="text-slate-400 flex-1 truncate">{entry.obs}</span>}
+                      {entry.registrado_por && (
+                        <span className="ml-auto text-blue-500 font-medium flex items-center gap-1 flex-shrink-0">
+                          <User size={9} />{entry.registrado_por}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ---- RegistroModal (create / edit) ----
 
 interface RegistroModalProps {
 
@@ -2900,11 +3074,13 @@ interface RegistroModalProps {
 
   onRecordUpdated?: () => Promise<void> | void;
 
+  onBackToView?: (rec: GpcRecebido) => void;
+
 }
 
 
 
-const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin, onRecordUpdated }) => {
+const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin, onRecordUpdated, onBackToView }) => {
 
   const { currentUser } = useApp();
 
@@ -3117,6 +3293,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       subtitle={isEditing ? `#${liveRecord!.codigo} — ${liveRecord!.processo ?? ''}` : 'Preencha os dados do processo'}
 
       onClose={onClose}
+
+      onBack={isEditing && onBackToView && liveRecord ? () => onBackToView(liveRecord) : undefined}
 
       size="xl"
 
@@ -3702,53 +3880,27 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
             </section>
 
             {/* Parcelamento / Reparcelamento — fluxo de autorização */}
-            {tipoParc !== '' && full && (
-              <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                <Sec
-                  icon={<DollarSign size={13} />}
-                  title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
-                  action={
-                    <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
-                      <Plus size={12} />Adicionar
-                    </button>
-                  }
-                />
-                <InlineTable
-                  cols={[
-                    { label: 'Tipo', render: (r: GpcParcelamento) => (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                        r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {r.tipo_parcelamento ?? r.tipo ?? '-'}
-                      </span>
-                    )},
-                    { label: 'Exercício', render: (r: GpcParcelamento) => r.exercicio ?? '-' },
-                    { label: 'Valor',     render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
-                    { label: 'Parcelas',  render: (r: GpcParcelamento) => r.parcelas ?? '-' },
-                    { label: 'Fluxo', render: (r: GpcParcelamento) => {
-                      const plog = (r.autorizacoes_log ?? []) as import('../types').ParcAutorizacaoEntry[];
-                      const vSteps = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || (r.parcelas ?? 0) > 60);
-                      const done = vSteps.filter(s => plog.some(e => e.tipo === s.tipo)).length;
-                      return (
-                        <span className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-bold ${done === vSteps.length ? 'text-emerald-600' : done > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{done}/{vSteps.length}</span>
-                          <span className="flex gap-0.5">
-                            {vSteps.map((s, i) => (
-                              <span key={i} className={`w-2 h-2 rounded-full ${plog.some(e => e.tipo === s.tipo) ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-                            ))}
-                          </span>
-                        </span>
-                      );
-                    }},
-                    { label: 'Em Dia',    render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
-                    { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
-                  ]}
-                  rows={full.parcelamentos ?? []}
-                  onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
-                  onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
-                  emptyMsg="Nenhum parcelamento cadastrado"
-                />
-              </section>
+            {(full?.parcelamentos?.length ?? 0) > 0 && (
+              <div className="space-y-5">
+                {full!.parcelamentos!.map(parc => (
+                  <section key={parc.codigo} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                    <ParcFluxoCard
+                      parc={parc}
+                      currentUserName={currentUser?.name ?? undefined}
+                      onSaveLog={async (updated) => {
+                        await GpcService.saveParcelamento(updated);
+                        await refreshFull();
+                      }}
+                    />
+                  </section>
+                ))}
+              </div>
+            )}
+            {(full?.parcelamentos?.length ?? 0) === 0 && !loadingFull && (
+              <div className="text-center py-10 text-slate-400 text-sm">
+                <DollarSign size={28} className="mx-auto mb-2 opacity-30" />
+                Nenhum parcelamento cadastrado. Adicione um na aba <strong>Financeiro</strong>.
+              </div>
             )}
 
           </div>
@@ -3917,7 +4069,36 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
 
-                {/* Parcelamentos — movido para aba Fluxo */}
+                {/* Parcelamentos — cadastro básico (fluxo de autorização na aba Fluxo) */}
+                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                  <Sec
+                    icon={<DollarSign size={13} />}
+                    title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
+                    action={
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
+                        <Plus size={12} />Adicionar
+                      </button>
+                    }
+                  />
+                  <InlineTable
+                    cols={[
+                      { label: 'Tipo', render: (r: GpcParcelamento) => (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                          r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>{r.tipo_parcelamento ?? r.tipo ?? '-'}</span>
+                      )},
+                      { label: 'Exercício', render: (r: GpcParcelamento) => r.exercicio ?? '-' },
+                      { label: 'Valor',     render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
+                      { label: 'Parcelas',  render: (r: GpcParcelamento) => r.parcelas ?? '-' },
+                      { label: 'Em Dia',    render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+                      { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+                    ]}
+                    rows={full.parcelamentos ?? []}
+                    onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
+                    onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
+                    emptyMsg="Nenhum parcelamento cadastrado"
+                  />
+                </section>
 
                 {/* TAs */}
 
@@ -4356,8 +4537,6 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
 }) => {
 
-  const { currentUser } = useApp();
-
   const [f, setF] = useState<Partial<GpcParcelamento>>(initial ?? {
     processo_id: processoId,
     em_dia: false,
@@ -4365,41 +4544,15 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
     autorizacoes_log: [],
   });
 
-
   const [saving, setSaving] = useState(false);
 
   const [err, setErr] = useState('');
-
-  const [registeringStep, setRegisteringStep] = useState<string | null>(null);
-
-  const [regDate, setRegDate] = useState(() => new Date().toISOString().split('T')[0]);
-
-  const [regObs, setRegObs] = useState('');
 
   const set = (k: keyof GpcParcelamento, v: any) => setF(p => ({ ...p, [k]: v }));
 
   const n = (v: string) => v === '' ? null : Number(v);
 
-  const parcelas = f.parcelas ?? 0;
-
-  const needsGov = parcelas > 60;
-
-  const log = (f.autorizacoes_log ?? []) as import('../types').ParcAutorizacaoEntry[];
-
-  const visibleSteps = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || needsGov);
-
-  const addToLog = (tipo: string) => {
-    const newEntry: import('../types').ParcAutorizacaoEntry = {
-      tipo: tipo as any,
-      data: regDate,
-      obs: regObs || null,
-      registrado_por: currentUser?.name ?? null,
-      registrado_em: new Date().toISOString(),
-    };
-    set('autorizacoes_log', [...log, newEntry]);
-    setRegisteringStep(null);
-    setRegObs('');
-  };
+  const needsGov = (f.parcelas ?? 0) > 60;
 
   const submit = async (e: React.FormEvent) => {
 
@@ -4451,103 +4604,6 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
         <div>
           <label className={LABEL}>Valor Corrigido (R$)</label>
           <CurrencyInput value={f.valor_corrigido} onChange={v => set('valor_corrigido', v)} />
-        </div>
-      </div>
-
-      {/* Fluxo de autorização — listbox para escolher etapa + log */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Fluxo de Autorização</span>
-          <span className="flex-1 h-px bg-slate-100" />
-          <span className="text-[11px] font-semibold text-slate-400">
-            {visibleSteps.filter(s => log.some(e => e.tipo === s.tipo)).length}/{visibleSteps.length} etapas
-          </span>
-        </div>
-
-        {/* Barra de progresso */}
-        {visibleSteps.length > 0 && (
-          <div className="w-full bg-slate-100 rounded-full h-1 mb-3">
-            <div
-              className="h-1 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
-              style={{ width: `${(visibleSteps.filter(s => log.some(e => e.tipo === s.tipo)).length / visibleSteps.length) * 100}%` }}
-            />
-          </div>
-        )}
-
-        {/* Listbox para selecionar etapa a registrar */}
-        <div className="flex gap-2 mb-3">
-          <select
-            className={INPUT + ' flex-1 text-sm'}
-            value={registeringStep ?? ''}
-            onChange={e => {
-              setRegisteringStep(e.target.value || null);
-              setRegDate(new Date().toISOString().split('T')[0]);
-              setRegObs('');
-            }}
-          >
-            <option value="">+ Selecione etapa para registrar...</option>
-            {visibleSteps.map(s => (
-              <option key={s.tipo} value={s.tipo}>{s.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Formulário inline ao selecionar */}
-        {registeringStep && (
-          <div className="border border-blue-200 bg-blue-50/60 rounded-xl px-4 py-3 flex flex-wrap gap-2 items-end mb-3">
-            <div>
-              <label className={LABEL}>Data</label>
-              <input type="date" value={regDate} onChange={e => setRegDate(e.target.value)} className={INPUT} />
-            </div>
-            <div className="flex-1 min-w-32">
-              <label className={LABEL}>Observação (opcional)</label>
-              <input type="text" value={regObs} onChange={e => setRegObs(e.target.value)} placeholder="Detalhes sobre a autorização..." className={INPUT} />
-            </div>
-            <button type="button" onClick={() => addToLog(registeringStep)} className={BTN_PRI + ' text-xs px-3 py-2'}>
-              <Check size={12} />Confirmar Registro
-            </button>
-            <button type="button" onClick={() => setRegisteringStep(null)} className={BTN_SEC + ' text-xs px-3 py-2'}>
-              <X size={12} />
-            </button>
-          </div>
-        )}
-
-        {/* Steps com log de eventos */}
-        <div className="space-y-2">
-          {visibleSteps.map((step, idx) => {
-            const stepLog = log.filter(e => e.tipo === step.tipo);
-            const isDone = stepLog.length > 0;
-            return (
-              <div key={step.tipo} className={`border rounded-xl overflow-hidden transition-all ${isDone ? 'border-emerald-200' : 'border-slate-200'}`}>
-                <div className={`flex items-center gap-3 px-4 py-2.5 ${isDone ? 'bg-emerald-50' : 'bg-slate-50/40'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isDone ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                    {isDone ? <Check size={10} /> : idx + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-sm font-semibold ${isDone ? 'text-emerald-700' : 'text-slate-600'}`}>{step.label}</span>
-                    <span className="ml-2 text-[11px] text-slate-400">{step.desc}</span>
-                  </div>
-                  {!isDone && <span className="text-[10px] text-slate-300 font-medium">Pendente</span>}
-                </div>
-                {stepLog.length > 0 && (
-                  <div className="divide-y divide-emerald-100/70">
-                    {stepLog.map((entry, i) => (
-                      <div key={i} className="flex items-center gap-3 px-4 py-2 bg-white text-xs">
-                        <Calendar size={10} className="text-emerald-400 flex-shrink-0" />
-                        <span className="font-semibold text-slate-700">{fmtDate(entry.data)}</span>
-                        {entry.obs && <span className="text-slate-400 flex-1 truncate">{entry.obs}</span>}
-                        {entry.registrado_por && (
-                          <span className="ml-auto text-blue-500 flex items-center gap-1 flex-shrink-0 font-medium">
-                            <User size={9} />{entry.registrado_por}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </div>
       </div>
 
@@ -7300,6 +7356,8 @@ export const GpcProcessos = () => {
           isAdmin={isAdmin}
 
           onRecordUpdated={load}
+
+          onBackToView={modal.data ? (rec) => { setModal(null); setViewRow(rec); } : undefined}
 
         />
 
