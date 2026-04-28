@@ -881,7 +881,7 @@ const ProcessTimeline = ({ row, posicoes, parcelamentos }: {
       // Parcelamento authorization events
       for (const parc of (parcelamentos ?? [])) {
         const parcLog = (parc.autorizacoes_log ?? []) as ParcAutorizacaoEntry[];
-        const parcLabel = `${parc.tipo_parcelamento ?? 'Parcelamento'} #${parc.codigo}`;
+        const parcLabel = parc.proc_parcela ?? parc.tipo_parcelamento ?? 'Parcelamento';
         for (const entry of parcLog) {
           const stepLabel = PARC_FLUXO_STEPS.find(s => s.tipo === entry.tipo)?.label ?? entry.tipo;
           ev.push({
@@ -1443,6 +1443,14 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
         };
         const updatedLog = [...((parc.autorizacoes_log ?? []) as ParcAutorizacaoEntry[]), newEntry];
         await onSaveParc({ ...parc, autorizacoes_log: updatedLog });
+        // Also record in produtividade so it appears in the productivity report
+        await GpcService.saveProdutividade({
+          registro_id: registroId,
+          responsavel: currentUserName ?? null,
+          evento: 'MOVIMENTO',
+          obs: PARC_FLUXO_STEPS.find(s => s.tipo === stepTipo)?.label ?? stepTipo,
+          data_evento: now_iso,
+        });
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
         onSaved();
       } else {
@@ -1544,7 +1552,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
             {hasParcs && parcelamentos!.map(parc => {
               const visSteps = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || (parc.parcelas ?? 0) > 60);
-              const parcLabel = `${parc.tipo_parcelamento ?? 'Parcelamento'} #${parc.codigo}`;
+              const parcLabel = parc.proc_parcela ?? parc.tipo_parcelamento ?? 'Parcelamento';
               return (
                 <optgroup key={parc.codigo} label={`── ${parcLabel}`}>
                   {visSteps.map(s => (
@@ -1963,8 +1971,25 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
 
       {/* Timeline */}
+      {(() => {
+        // Build unified display: fluxo técnico items + parcelamento log entries
+        type DispItem =
+          | { kind: 'fluxo'; data: GpcFluxoTecnico }
+          | { kind: 'parc'; entry: ParcAutorizacaoEntry; parcLabel: string };
+        const merged: DispItem[] = [
+          ...items.map(it => ({ kind: 'fluxo' as const, data: it })),
+          ...(parcelamentos ?? []).flatMap(parc => {
+            const plog = (parc.autorizacoes_log ?? []) as ParcAutorizacaoEntry[];
+            const parcLabel = parc.proc_parcela ?? parc.tipo_parcelamento ?? 'Parcelamento';
+            return plog.map(entry => ({ kind: 'parc' as const, entry, parcLabel }));
+          }),
+        ].sort((a, b) => {
+          const da = a.kind === 'fluxo' ? a.data.data_evento : a.entry.registrado_em;
+          const db = b.kind === 'fluxo' ? b.data.data_evento : b.entry.registrado_em;
+          return new Date(da).getTime() - new Date(db).getTime();
+        });
 
-      {items.length === 0 ? (
+        if (merged.length === 0) return (
 
         <div className="py-10 text-center text-slate-400 text-sm">
 
@@ -1976,13 +2001,15 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
         </div>
 
-      ) : (
+        );
+
+        return (
 
         <div className="space-y-0">
 
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
 
-            <Activity size={12} />Eventos do Fluxo Técnico ({items.length})
+            <Activity size={12} />Eventos do Fluxo ({merged.length})
 
           </div>
 
@@ -1992,35 +2019,33 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
             <div className="absolute left-[11px] top-3 bottom-3 w-0.5 bg-gradient-to-b from-blue-300 via-slate-200 to-green-300 rounded-full" />
 
-
-
-            {items.map((it, idx) => {
-
+            {merged.map((mi, idx) => {
+              if (mi.kind === 'fluxo') {
+              const it = mi.data;
               const cfg = ACAO_COLORS[it.acao ?? ''] ?? ACAO_DEF;
 
               const isFirst = idx === 0;
 
-              const isLast = idx === items.length - 1;
+              const isLast = idx === merged.length - 1;
 
               // Calculate time from previous event
 
               let daysSincePrev: number | null = null;
 
               if (idx > 0) {
-
+                const prev = merged[idx - 1];
+                const prevDate = prev.kind === 'fluxo' ? prev.data.data_evento : prev.entry.registrado_em;
                 daysSincePrev = Math.round(
 
-                  (new Date(it.data_evento).getTime() - new Date(items[idx - 1].data_evento).getTime()) / 86400000
+                  (new Date(it.data_evento).getTime() - new Date(prevDate).getTime()) / 86400000
 
                 );
 
               }
 
-
-
               return (
 
-                <div key={it.id} className={`relative flex gap-3 ${idx < items.length - 1 ? 'pb-4' : ''}`}>
+                <div key={`ft-${it.id}`} className={`relative flex gap-3 ${idx < merged.length - 1 ? 'pb-4' : ''}`}>
 
                   {/* Dot */}
 
@@ -2151,14 +2176,49 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
                 </div>
 
               );
-
+              } else {
+                // Parcelamento authorization event
+                const { entry, parcLabel } = mi;
+                const stepLabel = PARC_FLUXO_STEPS.find(s => s.tipo === entry.tipo)?.label ?? entry.tipo;
+                const dotColor = PARC_STEP_COLOR[entry.tipo] ?? 'bg-slate-400';
+                return (
+                  <div key={`parc-${entry.tipo}-${entry.registrado_em}`} className={`relative flex gap-3 ${idx < merged.length - 1 ? 'pb-4' : ''}`}>
+                    <div className={`absolute -left-[13px] top-2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm z-10 ${dotColor}`} />
+                    <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 w-full shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                              <DollarSign size={9} />{stepLabel}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">{parcLabel}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-2 text-xs text-slate-600">
+                            <span className="flex items-center gap-1 font-medium">
+                              <Calendar size={10} className="text-slate-400" />{fmtTs(entry.registrado_em)}
+                            </span>
+                            {entry.registrado_por && (
+                              <span className="flex items-center gap-1">
+                                <User size={10} className="text-slate-400" />
+                                <span className="font-semibold">{entry.registrado_por}</span>
+                              </span>
+                            )}
+                          </div>
+                          {entry.obs && <p className="mt-1.5 text-xs text-slate-500 italic">{entry.obs}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
             })}
 
           </div>
 
         </div>
 
-      )}
+        );
+      })()}
 
     </div>
 
@@ -5367,7 +5427,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                             <div className={`text-[11px] ${diasUltimo === 0 ? 'text-green-600 font-semibold' : diasUltimo <= 3 ? 'text-green-500' : diasUltimo <= 7 ? 'text-amber-500' : 'text-slate-400'}`}>
 
-                              {diasUltimo === 0 ? '? Ativo hoje' : `Ativo há ${diasUltimo}d`}
+                              {diasUltimo === 0 ? 'Ativo hoje' : `Ativo há ${diasUltimo}d`}
 
                             </div>
 
