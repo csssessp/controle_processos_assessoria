@@ -2770,10 +2770,11 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                                 {entries.length > 0 && (
                                   <div className="divide-y divide-emerald-100">
                                     {entries.map((entry, j) => (
-                                      <div key={j} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50/30 text-[11px]">
-                                        <span className="font-mono text-slate-600">{entry.data}</span>
+                                      <div key={j} className="flex items-center gap-2 px-3 py-1.5 bg-white text-[11px]">
+                                        <Calendar size={9} className="text-emerald-400 flex-shrink-0" />
+                                        <span className="font-semibold text-slate-700">{fmtDate(entry.data)}</span>
                                         {entry.obs && <span className="text-slate-400 flex-1 truncate">{entry.obs}</span>}
-                                        {entry.registrado_por && <span className="ml-auto text-slate-300 flex items-center gap-0.5"><User size={8} />{entry.registrado_por}</span>}
+                                        {entry.registrado_por && <span className="ml-auto text-blue-600 font-semibold flex items-center gap-0.5 flex-shrink-0"><User size={9} />{entry.registrado_por}</span>}
                                       </div>
                                     ))}
                                   </div>
@@ -3011,7 +3012,15 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
     setLoadingFull(true);
 
-    GpcService.getProcessoFull(liveRecord.processo_codigo).then(d => { setFull(d); setLoadingFull(false); });
+    GpcService.getProcessoFull(liveRecord.processo_codigo).then(d => {
+      setFull(d);
+      setLoadingFull(false);
+      // Auto-preenche tipoParc a partir do primeiro parcelamento cadastrado
+      if (d?.parcelamentos?.length) {
+        const tp = d.parcelamentos[0].tipo_parcelamento;
+        if (tp) setTipoParc(tp);
+      }
+    });
 
   }, [liveRecord?.processo_codigo]);
 
@@ -3116,13 +3125,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       {/* ── Barra de abas ── */}
       <div className="flex border-b border-slate-200 mb-4 gap-0 flex-wrap -mx-1">
         {([
-          { id: 'ident',      label: 'Identificação', icon: '📄' },
-          { id: 'analise',    label: 'Análise',       icon: '🔍' },
+          { id: 'ident',      label: 'Identificação', icon: <FileText size={13} /> },
+          { id: 'analise',    label: 'Análise',       icon: <Search size={13} /> },
           ...(isEditing ? [
-            { id: 'fluxo',      label: 'Fluxo',         icon: '⚡' },
-            { id: 'financeiro', label: 'Financeiro',     icon: '💰' },
+            { id: 'fluxo',      label: 'Fluxo',         icon: <Activity size={13} /> },
+            { id: 'financeiro', label: 'Financeiro',     icon: <BarChart2 size={13} /> },
           ] : []),
-        ] as { id: string; label: string; icon: string }[]).map(tab => (
+        ] as { id: string; label: string; icon: React.ReactNode }[]).map(tab => (
           <button
             key={tab.id}
             type="button"
@@ -3133,7 +3142,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
             }`}
           >
-            <span className="text-base leading-none">{tab.icon}</span>{tab.label}
+            {tab.icon}{tab.label}
           </button>
         ))}
       </div>
@@ -3576,7 +3585,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                             {fmt(saldo)}
 
-                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal">? Totalmente quitado</span>}
+                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal flex items-center gap-1"><Check size={10} />Totalmente quitado</span>}
 
                           </div>
 
@@ -3692,7 +3701,55 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
             </section>
 
-
+            {/* Parcelamento / Reparcelamento — fluxo de autorização */}
+            {tipoParc !== '' && full && (
+              <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                <Sec
+                  icon={<DollarSign size={13} />}
+                  title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
+                  action={
+                    <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
+                      <Plus size={12} />Adicionar
+                    </button>
+                  }
+                />
+                <InlineTable
+                  cols={[
+                    { label: 'Tipo', render: (r: GpcParcelamento) => (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                        r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {r.tipo_parcelamento ?? r.tipo ?? '-'}
+                      </span>
+                    )},
+                    { label: 'Exercício', render: (r: GpcParcelamento) => r.exercicio ?? '-' },
+                    { label: 'Valor',     render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
+                    { label: 'Parcelas',  render: (r: GpcParcelamento) => r.parcelas ?? '-' },
+                    { label: 'Fluxo', render: (r: GpcParcelamento) => {
+                      const plog = (r.autorizacoes_log ?? []) as import('../types').ParcAutorizacaoEntry[];
+                      const vSteps = PARC_FLUXO_STEPS.filter(s => !s.onlyGov || (r.parcelas ?? 0) > 60);
+                      const done = vSteps.filter(s => plog.some(e => e.tipo === s.tipo)).length;
+                      return (
+                        <span className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-bold ${done === vSteps.length ? 'text-emerald-600' : done > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{done}/{vSteps.length}</span>
+                          <span className="flex gap-0.5">
+                            {vSteps.map((s, i) => (
+                              <span key={i} className={`w-2 h-2 rounded-full ${plog.some(e => e.tipo === s.tipo) ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                            ))}
+                          </span>
+                        </span>
+                      );
+                    }},
+                    { label: 'Em Dia',    render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+                    { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+                  ]}
+                  rows={full.parcelamentos ?? []}
+                  onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
+                  onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
+                  emptyMsg="Nenhum parcelamento cadastrado"
+                />
+              </section>
+            )}
 
           </div>
 
@@ -3860,80 +3917,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
 
-                {/* Parcelamentos */}
-
-                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-                  <Sec
-
-                    icon={<DollarSign size={13} />}
-
-                    title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
-
-                    action={
-
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
-
-                        <Plus size={12} />Adicionar
-
-                      </button>
-
-                    }
-
-                  />
-
-                  <InlineTable
-
-                    cols={[
-
-                      { label: 'Tipo', render: (r: GpcParcelamento) => (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                          r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {r.tipo_parcelamento ?? r.tipo ?? '-'}
-                        </span>
-                      )},
-
-                      { label: 'Exercício',      render: (r: GpcParcelamento) => r.exercicio ?? '-' },
-
-                      { label: 'Valor',          render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
-
-                      { label: 'Parcelas',       render: (r: GpcParcelamento) => r.parcelas ?? '-' },
-
-                      { label: 'Fluxo', render: (r: GpcParcelamento) => {
-                        const steps = [!!r.autorizo_secretario, !!r.autorizo_casa_civil, !!r.data_assinatura, ...((r.parcelas ?? 0) > 60 ? [!!r.autorizo_governador] : [])];
-                        const done = steps.filter(Boolean).length;
-                        return (
-                          <span className="flex items-center gap-1.5">
-                            <span className={`text-[10px] font-bold ${done === steps.length ? 'text-emerald-600' : done > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{done}/{steps.length}</span>
-                            <span className="flex gap-0.5">
-                              {steps.map((ok, i) => (
-                                <span key={i} className={`w-2 h-2 rounded-full ${ok ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-                              ))}
-                            </span>
-                          </span>
-                        );
-                      }},
-
-                      { label: 'Em Dia',         render: (r: GpcParcelamento) => r.em_dia ? <span className="text-green-600 font-bold">✓</span> : <span className="text-red-500">✗</span> },
-
-                      { label: 'Concluído',      render: (r: GpcParcelamento) => r.parcelas_concluidas ? <span className="text-green-600 font-bold">✓</span> : <span className="text-red-500">✗</span> },
-
-                    ]}
-
-                    rows={full.parcelamentos ?? []}
-
-                    onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
-
-                    onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
-
-                    emptyMsg="Nenhum parcelamento cadastrado"
-
-                  />
-
-                </section>
-
-
+                {/* Parcelamentos — movido para aba Fluxo */}
 
                 {/* TAs */}
 
@@ -4433,32 +4417,20 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
 
-      {/* Tipo */}
-      <div>
-        <label className={LABEL}>Tipo *</label>
-        <div className="grid grid-cols-2 gap-3 mt-1">
-          {(['PARCELAMENTO', 'REPARCELAMENTO'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => set('tipo_parcelamento', t)}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
-                f.tipo_parcelamento === t
-                  ? t === 'PARCELAMENTO'
-                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                    : 'bg-purple-50 border-purple-500 text-purple-700'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
-              }`}
-            >
-              {t === 'PARCELAMENTO' ? <DollarSign size={20} /> : <GitBranch size={20} />}
-              {t === 'PARCELAMENTO' ? 'Parcelamento' : 'Reparcelamento'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Dados básicos */}
+      {/* Tipo + dados básicos numa grid compacta */}
       <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className={LABEL}>Tipo *</label>
+          <select
+            className={INPUT}
+            value={f.tipo_parcelamento ?? ''}
+            onChange={e => set('tipo_parcelamento', (e.target.value || null) as any)}
+          >
+            <option value="">— selecione —</option>
+            <option value="PARCELAMENTO">Parcelamento</option>
+            <option value="REPARCELAMENTO">Reparcelamento</option>
+          </select>
+        </div>
         <div>
           <label className={LABEL}>Exercício</label>
           <input className={INPUT} type="number" placeholder="ex: 2024" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} />
@@ -4482,7 +4454,7 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
         </div>
       </div>
 
-      {/* Fluxo de autorização — lista com log de eventos */}
+      {/* Fluxo de autorização — listbox para escolher etapa + log */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Fluxo de Autorização</span>
@@ -4502,56 +4474,70 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
           </div>
         )}
 
+        {/* Listbox para selecionar etapa a registrar */}
+        <div className="flex gap-2 mb-3">
+          <select
+            className={INPUT + ' flex-1 text-sm'}
+            value={registeringStep ?? ''}
+            onChange={e => {
+              setRegisteringStep(e.target.value || null);
+              setRegDate(new Date().toISOString().split('T')[0]);
+              setRegObs('');
+            }}
+          >
+            <option value="">+ Selecione etapa para registrar...</option>
+            {visibleSteps.map(s => (
+              <option key={s.tipo} value={s.tipo}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Formulário inline ao selecionar */}
+        {registeringStep && (
+          <div className="border border-blue-200 bg-blue-50/60 rounded-xl px-4 py-3 flex flex-wrap gap-2 items-end mb-3">
+            <div>
+              <label className={LABEL}>Data</label>
+              <input type="date" value={regDate} onChange={e => setRegDate(e.target.value)} className={INPUT} />
+            </div>
+            <div className="flex-1 min-w-32">
+              <label className={LABEL}>Observação (opcional)</label>
+              <input type="text" value={regObs} onChange={e => setRegObs(e.target.value)} placeholder="Detalhes sobre a autorização..." className={INPUT} />
+            </div>
+            <button type="button" onClick={() => addToLog(registeringStep)} className={BTN_PRI + ' text-xs px-3 py-2'}>
+              <Check size={12} />Confirmar Registro
+            </button>
+            <button type="button" onClick={() => setRegisteringStep(null)} className={BTN_SEC + ' text-xs px-3 py-2'}>
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
+        {/* Steps com log de eventos */}
         <div className="space-y-2">
           {visibleSteps.map((step, idx) => {
             const stepLog = log.filter(e => e.tipo === step.tipo);
             const isDone = stepLog.length > 0;
-            const isRegistering = registeringStep === step.tipo;
             return (
               <div key={step.tipo} className={`border rounded-xl overflow-hidden transition-all ${isDone ? 'border-emerald-200' : 'border-slate-200'}`}>
-                {/* Header */}
-                <div className={`flex items-center gap-3 px-4 py-3 ${isDone ? 'bg-emerald-50' : 'bg-white'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isDone ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                    {isDone ? <Check size={11} /> : idx + 1}
+                <div className={`flex items-center gap-3 px-4 py-2.5 ${isDone ? 'bg-emerald-50' : 'bg-slate-50/40'}`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isDone ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                    {isDone ? <Check size={10} /> : idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold ${isDone ? 'text-emerald-700' : 'text-slate-700'}`}>{step.label}</div>
-                    <div className="text-[11px] text-slate-400">{step.desc}</div>
+                    <span className={`text-sm font-semibold ${isDone ? 'text-emerald-700' : 'text-slate-600'}`}>{step.label}</span>
+                    <span className="ml-2 text-[11px] text-slate-400">{step.desc}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setRegisteringStep(isRegistering ? null : step.tipo); setRegDate(new Date().toISOString().split('T')[0]); setRegObs(''); }}
-                    className={`flex-shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition-colors ${isRegistering ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
-                  >
-                    <Plus size={11} />{isRegistering ? 'Cancelar' : 'Registrar'}
-                  </button>
+                  {!isDone && <span className="text-[10px] text-slate-300 font-medium">Pendente</span>}
                 </div>
-                {/* Inline register form */}
-                {isRegistering && (
-                  <div className="border-t border-blue-100 bg-blue-50/50 px-4 py-3 flex flex-wrap gap-2 items-end">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Data</label>
-                      <input type="date" value={regDate} onChange={e => setRegDate(e.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white" />
-                    </div>
-                    <div className="flex-1 min-w-32">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Observação</label>
-                      <input type="text" value={regObs} onChange={e => setRegObs(e.target.value)} placeholder="Opcional..." className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white" />
-                    </div>
-                    <button type="button" onClick={() => addToLog(step.tipo)} className="flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
-                      <Check size={11} />Confirmar
-                    </button>
-                  </div>
-                )}
-                {/* Entradas do log */}
                 {stepLog.length > 0 && (
-                  <div className="divide-y divide-emerald-100">
+                  <div className="divide-y divide-emerald-100/70">
                     {stepLog.map((entry, i) => (
-                      <div key={i} className="flex items-center gap-3 px-4 py-2 bg-emerald-50/40 text-xs">
-                        <Check size={10} className="text-emerald-500 flex-shrink-0" />
-                        <span className="font-mono font-semibold text-slate-600">{entry.data}</span>
-                        {entry.obs && <span className="text-slate-500 flex-1 truncate">{entry.obs}</span>}
+                      <div key={i} className="flex items-center gap-3 px-4 py-2 bg-white text-xs">
+                        <Calendar size={10} className="text-emerald-400 flex-shrink-0" />
+                        <span className="font-semibold text-slate-700">{fmtDate(entry.data)}</span>
+                        {entry.obs && <span className="text-slate-400 flex-1 truncate">{entry.obs}</span>}
                         {entry.registrado_por && (
-                          <span className="ml-auto text-slate-400 flex items-center gap-1 flex-shrink-0">
+                          <span className="ml-auto text-blue-500 flex items-center gap-1 flex-shrink-0 font-medium">
                             <User size={9} />{entry.registrado_por}
                           </span>
                         )}
