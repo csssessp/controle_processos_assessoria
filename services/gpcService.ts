@@ -240,6 +240,7 @@ export const GpcService = {
       processo_id: p.processo_id ?? null,
       proc_parcela: p.proc_parcela ?? null,
       tipo: p.tipo ?? null,
+      tipo_parcelamento: p.tipo_parcelamento ?? null,
       exercicio: p.exercicio ?? null,
       valor_parcelado: p.valor_parcelado ?? null,
       valor_corrigido: p.valor_corrigido ?? null,
@@ -248,6 +249,10 @@ export const GpcService = {
       parcelas_concluidas: p.parcelas_concluidas ?? false,
       providencias: p.providencias ?? null,
       obs: p.obs ?? null,
+      autorizo_secretario: p.autorizo_secretario ?? false,
+      autorizo_casa_civil: p.autorizo_casa_civil ?? false,
+      data_assinatura: p.data_assinatura ?? null,
+      autorizo_governador: p.autorizo_governador ?? false,
     };
     if (p.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_parcelamento').update(payload).eq('codigo', p.codigo).select().single();

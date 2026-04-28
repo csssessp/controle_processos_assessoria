@@ -220,6 +220,7 @@ export interface GpcParcelamento {
   processo_id: number | null;
   proc_parcela: string | null;
   tipo: string | null;
+  tipo_parcelamento: 'PARCELAMENTO' | 'REPARCELAMENTO' | null;
   exercicio: number | null;
   valor_parcelado: number | null;
   valor_corrigido: number | null;
@@ -228,6 +229,10 @@ export interface GpcParcelamento {
   parcelas_concluidas: boolean;
   providencias: string | null;
   obs: string | null;
+  autorizo_secretario: boolean;
+  autorizo_casa_civil: boolean;
+  data_assinatura: string | null;
+  autorizo_governador: boolean;
 }
 
 export interface GpcTa {

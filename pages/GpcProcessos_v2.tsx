@@ -16,7 +16,7 @@ import {
 
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine,
 
-  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock,
+  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star,
 
 } from 'lucide-react';
 
@@ -3784,7 +3784,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     icon={<DollarSign size={13} />}
 
-                    title={`Parcelamentos (${full.parcelamentos?.length ?? 0})`}
+                    title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
 
                     action={
 
@@ -3802,9 +3802,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     cols={[
 
-                      { label: 'Proc. Parcela', render: (r: GpcParcelamento) => <span className="font-medium">{r.proc_parcela ?? '-'}</span> },
-
-                      { label: 'Tipo',           render: (r: GpcParcelamento) => r.tipo ?? '-' },
+                      { label: 'Tipo', render: (r: GpcParcelamento) => (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                          r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {r.tipo_parcelamento ?? r.tipo ?? '-'}
+                        </span>
+                      )},
 
                       { label: 'Exercício',      render: (r: GpcParcelamento) => r.exercicio ?? '-' },
 
@@ -3812,9 +3816,24 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                       { label: 'Parcelas',       render: (r: GpcParcelamento) => r.parcelas ?? '-' },
 
-                      { label: 'Em Dia',         render: (r: GpcParcelamento) => r.em_dia ? <span className="text-green-600 font-bold">?</span> : <span className="text-red-500">?</span> },
+                      { label: 'Fluxo', render: (r: GpcParcelamento) => {
+                        const steps = [!!r.autorizo_secretario, !!r.autorizo_casa_civil, !!r.data_assinatura, ...((r.parcelas ?? 0) > 60 ? [!!r.autorizo_governador] : [])];
+                        const done = steps.filter(Boolean).length;
+                        return (
+                          <span className="flex items-center gap-1.5">
+                            <span className={`text-[10px] font-bold ${done === steps.length ? 'text-emerald-600' : done > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{done}/{steps.length}</span>
+                            <span className="flex gap-0.5">
+                              {steps.map((ok, i) => (
+                                <span key={i} className={`w-2 h-2 rounded-full ${ok ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                              ))}
+                            </span>
+                          </span>
+                        );
+                      }},
 
-                      { label: 'Concluído',      render: (r: GpcParcelamento) => r.parcelas_concluidas ? <span className="text-green-600 font-bold">?</span> : <span className="text-red-500">?</span> },
+                      { label: 'Em Dia',         render: (r: GpcParcelamento) => r.em_dia ? <span className="text-green-600 font-bold">✓</span> : <span className="text-red-500">✗</span> },
+
+                      { label: 'Concluído',      render: (r: GpcParcelamento) => r.parcelas_concluidas ? <span className="text-green-600 font-bold">✓</span> : <span className="text-red-500">✗</span> },
 
                     ]}
 
@@ -3964,7 +3983,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
           {subModal.type === 'parcelamento' && (
 
-            <Modal title={subModal.data ? 'Editar Parcelamento' : 'Novo Parcelamento'} onClose={() => setSubModal(null)} size="lg">
+            <Modal title={subModal.data ? 'Editar Parcelamento / Reparcelamento' : 'Novo Parcelamento / Reparcelamento'} onClose={() => setSubModal(null)} size="lg">
 
               <ParcelamentoForm
 
@@ -4263,7 +4282,14 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
 }) => {
 
-  const [f, setF] = useState<Partial<GpcParcelamento>>(initial ?? { processo_id: processoId, em_dia: false, parcelas_concluidas: false });
+  const [f, setF] = useState<Partial<GpcParcelamento>>(initial ?? {
+    processo_id: processoId,
+    em_dia: false,
+    parcelas_concluidas: false,
+    autorizo_secretario: false,
+    autorizo_casa_civil: false,
+    autorizo_governador: false,
+  });
 
   const [saving, setSaving] = useState(false);
 
@@ -4272,6 +4298,48 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
   const set = (k: keyof GpcParcelamento, v: any) => setF(p => ({ ...p, [k]: v }));
 
   const n = (v: string) => v === '' ? null : Number(v);
+
+  const parcelas = f.parcelas ?? 0;
+
+  const needsGov = parcelas > 60;
+
+  // Fluxo de autorização — passos em ordem
+  const fluxoSteps = [
+    {
+      key: 'autorizo_secretario' as keyof GpcParcelamento,
+      label: 'Autorizo do Secretário',
+      desc: 'Despacho autorizador do Secretário de Estado',
+      icon: <ShieldCheck size={18} />,
+      color: { on: 'bg-blue-600 border-blue-700', off: 'bg-white border-slate-300', icon: { on: 'text-white', off: 'text-slate-400' }, text: { on: 'text-blue-700', off: 'text-slate-500' }, ring: 'ring-blue-200' },
+    },
+    {
+      key: 'autorizo_casa_civil' as keyof GpcParcelamento,
+      label: 'Autorizo Casa Civil',
+      desc: 'Manifestação favorável da Casa Civil do Estado',
+      icon: <ShieldCheck size={18} />,
+      color: { on: 'bg-indigo-600 border-indigo-700', off: 'bg-white border-slate-300', icon: { on: 'text-white', off: 'text-slate-400' }, text: { on: 'text-indigo-700', off: 'text-slate-500' }, ring: 'ring-indigo-200' },
+    },
+    {
+      key: '_assinatura' as any, // special: date field
+      label: 'Assinatura do Termo',
+      desc: 'Data da assinatura do termo de parcelamento',
+      icon: <PenLine size={18} />,
+      color: { on: 'bg-emerald-600 border-emerald-700', off: 'bg-white border-slate-300', icon: { on: 'text-white', off: 'text-slate-400' }, text: { on: 'text-emerald-700', off: 'text-slate-500' }, ring: 'ring-emerald-200' },
+    },
+    ...(needsGov ? [{
+      key: 'autorizo_governador' as keyof GpcParcelamento,
+      label: 'Autorizo do Governador',
+      desc: 'Obrigatório para parcelamentos acima de 60 parcelas',
+      icon: <Star size={18} />,
+      color: { on: 'bg-amber-500 border-amber-600', off: 'bg-white border-slate-300', icon: { on: 'text-white', off: 'text-slate-400' }, text: { on: 'text-amber-700', off: 'text-slate-500' }, ring: 'ring-amber-200' },
+    }] : []),
+  ];
+
+  // Calcula progresso
+  const doneCount = fluxoSteps.filter(s => {
+    if (s.key === '_assinatura') return !!f.data_assinatura;
+    return !!(f as any)[s.key];
+  }).length;
 
   const submit = async (e: React.FormEvent) => {
 
@@ -4285,44 +4353,142 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
   return (
 
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="space-y-5">
 
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
 
+      {/* Tipo */}
+      <div>
+        <label className={LABEL}>Tipo *</label>
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          {(['PARCELAMENTO', 'REPARCELAMENTO'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => set('tipo_parcelamento', t)}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                f.tipo_parcelamento === t
+                  ? t === 'PARCELAMENTO'
+                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : 'bg-purple-50 border-purple-500 text-purple-700'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              {t === 'PARCELAMENTO' ? <DollarSign size={20} /> : <GitBranch size={20} />}
+              {t === 'PARCELAMENTO' ? 'Parcelamento' : 'Reparcelamento'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Dados básicos */}
       <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={LABEL}>Exercício</label>
+          <input className={INPUT} type="number" placeholder="ex: 2024" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} />
+        </div>
+        <div>
+          <label className={LABEL}>Nº de Parcelas</label>
+          <input className={INPUT} type="number" min={1} placeholder="ex: 36" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} />
+          {needsGov && (
+            <p className="mt-1 text-[11px] text-amber-600 font-semibold flex items-center gap-1">
+              <Star size={10} />Acima de 60 parcelas — requer Autorizo do Governador
+            </p>
+          )}
+        </div>
+        <div>
+          <label className={LABEL}>Valor Parcelado (R$)</label>
+          <CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} />
+        </div>
+        <div>
+          <label className={LABEL}>Valor Corrigido (R$)</label>
+          <CurrencyInput value={f.valor_corrigido} onChange={v => set('valor_corrigido', v)} />
+        </div>
+      </div>
 
-        <div><label className={LABEL}>Proc. Parcela</label><input className={INPUT} value={f.proc_parcela ?? ''} onChange={e => set('proc_parcela', e.target.value)} /></div>
-
-        <div><label className={LABEL}>Tipo</label><input className={INPUT} value={f.tipo ?? ''} onChange={e => set('tipo', e.target.value)} /></div>
-
-        <div><label className={LABEL}>Exercício</label><input className={INPUT} type="number" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} /></div>
-
-        <div><label className={LABEL}>Nº Parcelas</label><input className={INPUT} type="number" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} /></div>
-
-        <div><label className={LABEL}>Valor Parcelado (R$)</label><CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} /></div>
-
-        <div><label className={LABEL}>Valor Corrigido (R$)</label><CurrencyInput value={f.valor_corrigido} onChange={v => set('valor_corrigido', v)} /></div>
-
-        <div className="col-span-2 flex items-center gap-6">
-
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-
-            <input type="checkbox" checked={f.em_dia ?? false} onChange={e => set('em_dia', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />Em Dia
-
-          </label>
-
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-
-            <input type="checkbox" checked={f.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />Concluídas
-
-          </label>
-
+      {/* Fluxo de autorização */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Fluxo de Autorização</span>
+          <span className="text-xs font-semibold text-slate-400">{doneCount}/{fluxoSteps.length} etapas concluídas</span>
         </div>
 
-        <div className="col-span-2"><label className={LABEL}>Providências</label><textarea className={INPUT} rows={2} value={f.providencias ?? ''} onChange={e => set('providencias', e.target.value)} /></div>
+        {/* Barra de progresso */}
+        <div className="w-full bg-slate-100 rounded-full h-1.5 mb-4">
+          <div
+            className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
+            style={{ width: fluxoSteps.length > 0 ? `${(doneCount / fluxoSteps.length) * 100}%` : '0%' }}
+          />
+        </div>
 
-        <div className="col-span-2"><label className={LABEL}>Observações</label><textarea className={INPUT} rows={2} value={f.obs ?? ''} onChange={e => set('obs', e.target.value)} /></div>
+        {/* Steps */}
+        <div className="space-y-2">
+          {fluxoSteps.map((step, idx) => {
+            const isDone = step.key === '_assinatura' ? !!f.data_assinatura : !!(f as any)[step.key];
+            return (
+              <div key={step.key} className={`rounded-xl border-2 transition-all ${isDone ? step.color.on + ' shadow-sm' : step.color.off}`}>
+                <div className="flex items-center gap-3 p-3">
+                  {/* Número */}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isDone ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {isDone ? <Check size={13} /> : idx + 1}
+                  </div>
+                  {/* Ícone */}
+                  <div className={`flex-shrink-0 ${isDone ? step.color.icon.on : step.color.icon.off}`}>
+                    {step.icon}
+                  </div>
+                  {/* Texto */}
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-bold ${isDone ? 'text-white' : step.color.text.off}`}>{step.label}</div>
+                    <div className={`text-[11px] ${isDone ? 'text-white/70' : 'text-slate-400'}`}>{step.desc}</div>
+                    {/* Campo de data para assinatura */}
+                    {step.key === '_assinatura' && (
+                      <input
+                        type="date"
+                        className={`mt-1.5 text-xs rounded-lg border px-2 py-1 ${isDone ? 'bg-white/20 border-white/30 text-white placeholder-white/50' : 'bg-white border-slate-200 text-slate-700'}`}
+                        value={f.data_assinatura ?? ''}
+                        onChange={e => set('data_assinatura', e.target.value || null)}
+                      />
+                    )}
+                  </div>
+                  {/* Toggle */}
+                  {step.key !== '_assinatura' && (
+                    <button
+                      type="button"
+                      onClick={() => set(step.key as keyof GpcParcelamento, !isDone)}
+                      className={`flex-shrink-0 w-9 h-5 rounded-full transition-all relative ${isDone ? 'bg-white/30' : 'bg-slate-200'}`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-all ${isDone ? 'left-4 bg-white' : 'left-0.5 bg-white'}`} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
+      {/* Status */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${f.em_dia ? 'bg-green-50 border-green-400' : 'bg-white border-slate-200'}`}>
+          <input type="checkbox" checked={f.em_dia ?? false} onChange={e => set('em_dia', e.target.checked)} className="w-4 h-4 accent-green-600 rounded" />
+          <div>
+            <div className={`text-sm font-semibold ${f.em_dia ? 'text-green-700' : 'text-slate-600'}`}>Em Dia</div>
+            <div className="text-[11px] text-slate-400">Parcelas em dia</div>
+          </div>
+        </label>
+        <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${f.parcelas_concluidas ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200'}`}>
+          <input type="checkbox" checked={f.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />
+          <div>
+            <div className={`text-sm font-semibold ${f.parcelas_concluidas ? 'text-blue-700' : 'text-slate-600'}`}>Concluído</div>
+            <div className="text-[11px] text-slate-400">Parcelamento quitado</div>
+          </div>
+        </label>
+      </div>
+
+      {/* Providências e Observações */}
+      <div className="space-y-3">
+        <div><label className={LABEL}>Providências</label><textarea className={INPUT} rows={2} value={f.providencias ?? ''} onChange={e => set('providencias', e.target.value || null)} placeholder="Providências a adotar..." /></div>
+        <div><label className={LABEL}>Observações</label><textarea className={INPUT} rows={2} value={f.obs ?? ''} onChange={e => set('obs', e.target.value || null)} placeholder="Informações adicionais..." /></div>
       </div>
 
       <div className="flex justify-end gap-3">
