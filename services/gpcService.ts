@@ -425,6 +425,8 @@ export const GpcService = {
       movimento: r.movimento ?? null,
       link_processo: r.link_processo ?? null,
       is_parcelamento: r.is_parcelamento ?? false,
+      tipo_parcelamento: r.tipo_parcelamento ?? null,
+      exercicios: r.exercicios ?? [],
       remessa: r.remessa ?? null,
       num_paginas: r.num_paginas ?? null,
       responsavel_assinatura: r.responsavel_assinatura ?? null,

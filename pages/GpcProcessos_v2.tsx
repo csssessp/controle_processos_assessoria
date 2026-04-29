@@ -3175,8 +3175,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   const [subModal, setSubModal] = useState<null | { type: string; data?: any }>(null);
 
   const [tipoParc, setTipoParc] = useState<'' | 'PARCELAMENTO' | 'REPARCELAMENTO'>(
-    initial?.is_parcelamento ? 'PARCELAMENTO' : ''
+    (initial?.tipo_parcelamento ?? (initial?.is_parcelamento ? 'PARCELAMENTO' : '')) as '' | 'PARCELAMENTO' | 'REPARCELAMENTO'
   );
+  const [yearInputProc, setYearInputProc] = useState('');
 
   const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
 
@@ -3421,6 +3422,118 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
           {activeTab === 'ident' && (<>
 
+          {/* -- Tipo do Processo -- PRIMEIRO CAMPO */}
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <Sec icon={<DollarSign size={13} />} title="Tipo do Processo" />
+            <div className="space-y-4">
+              {/* Selector */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {([
+                  { v: '', label: 'Prestação de Contas', desc: 'Processo de prestação de contas padrão', color: 'blue' },
+                  { v: 'PARCELAMENTO', label: 'Parcelamento', desc: 'Débito parcelado em prestações', color: 'amber' },
+                  { v: 'REPARCELAMENTO', label: 'Reparcelamento', desc: 'Renegociação de parcelamento anterior', color: 'purple' },
+                ] as { v: string; label: string; desc: string; color: string }[]).map(opt => {
+                  const active = tipoParc === opt.v;
+                  const colors: Record<string, string> = {
+                    blue:   active ? 'border-blue-500 bg-blue-50'     : 'border-slate-200 hover:border-blue-300',
+                    amber:  active ? 'border-amber-500 bg-amber-50'   : 'border-slate-200 hover:border-amber-300',
+                    purple: active ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-purple-300',
+                  };
+                  const textColors: Record<string, string> = {
+                    blue:   active ? 'text-blue-700'   : 'text-slate-600',
+                    amber:  active ? 'text-amber-700'  : 'text-slate-600',
+                    purple: active ? 'text-purple-700' : 'text-slate-600',
+                  };
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => {
+                        const v = opt.v as '' | 'PARCELAMENTO' | 'REPARCELAMENTO';
+                        setTipoParc(v);
+                        set('tipo_parcelamento', v || null);
+                        set('is_parcelamento', v ? true : null);
+                        if (!v) set('exercicios', null);
+                      }}
+                      className={`flex flex-col items-start gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition-all text-left ${colors[opt.color]}`}
+                    >
+                      <span className={`text-sm font-bold ${textColors[opt.color]}`}>{opt.label}</span>
+                      <span className="text-[11px] text-slate-400">{opt.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Multi-year exercicios — only for parcelamento/reparcelamento */}
+              {tipoParc !== '' && (
+                <div>
+                  <label className={LABEL}>Exercícios (anos referenciados)</label>
+                  <div className="flex gap-2">
+                    <input
+                      className={INPUT + ' flex-1'}
+                      type="number"
+                      placeholder="ex: 2024"
+                      value={yearInputProc}
+                      onChange={e => setYearInputProc(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const y = parseInt(yearInputProc, 10);
+                          if (!y || y < 1990 || y > 2099) return;
+                          const cur = (form.exercicios as number[] | null | undefined) ?? [];
+                          if (cur.includes(y)) { setYearInputProc(''); return; }
+                          const next = [...cur, y].sort((a, b) => a - b);
+                          set('exercicios', next);
+                          set('exercicio', String(next[0]));
+                          setYearInputProc('');
+                        }
+                      }}
+                      min={1990} max={2099}
+                    />
+                    <button
+                      type="button"
+                      className={BTN_SEC + ' px-3 py-2 text-xs whitespace-nowrap'}
+                      onClick={() => {
+                        const y = parseInt(yearInputProc, 10);
+                        if (!y || y < 1990 || y > 2099) return;
+                        const cur = (form.exercicios as number[] | null | undefined) ?? [];
+                        if (cur.includes(y)) { setYearInputProc(''); return; }
+                        const next = [...cur, y].sort((a, b) => a - b);
+                        set('exercicios', next);
+                        set('exercicio', String(next[0]));
+                        setYearInputProc('');
+                      }}
+                    >
+                      <Plus size={13} />Adicionar
+                    </button>
+                  </div>
+                  {((form.exercicios as number[] | null | undefined) ?? []).length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {((form.exercicios as number[] | null | undefined) ?? []).map(y => (
+                        <span key={y} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
+                          {y}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = ((form.exercicios as number[] | null | undefined) ?? []).filter(x => x !== y);
+                              set('exercicios', next.length > 0 ? next : null);
+                              set('exercicio', next.length > 0 ? String(next[0]) : null);
+                            }}
+                            className="ml-0.5 hover:text-red-600 transition-colors"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400 italic">Digite um ano e clique em Adicionar (ou pressione Enter)</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* -- Identificação do Processo -- */}
 
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
@@ -3592,26 +3705,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                   <option value="ACIMA">Acima de Remessa</option>
 
                   <option value="ABAIXO">Abaixo de Remessa</option>
-
-                </select>
-
-              </div>
-
-              <div>
-
-                <label className={LABEL}>Tipo de Parcelamento</label>
-
-                <select className={INPUT} value={tipoParc} onChange={e => {
-                  const v = e.target.value as '' | 'PARCELAMENTO' | 'REPARCELAMENTO';
-                  setTipoParc(v);
-                  set('is_parcelamento', v ? true : null);
-                }}>
-
-                  <option value="">— nenhum —</option>
-
-                  <option value="PARCELAMENTO">Parcelamento</option>
-
-                  <option value="REPARCELAMENTO">Reparcelamento</option>
 
                 </select>
 
@@ -4118,7 +4211,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
 
-                {/* Parcelamentos — cadastro básico (fluxo de autorização na aba Fluxo) */}
+                {/* Parcelamentos — only for non-parcelamento-type processes */}
+                {!tipoParc && (
                 <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <Sec
                     icon={<DollarSign size={13} />}
@@ -4158,6 +4252,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     emptyMsg="Nenhum parcelamento cadastrado"
                   />
                 </section>
+                )}
 
                 {/* TAs */}
 

@@ -276,6 +276,8 @@ export interface GpcRecebido {
   movimento: string | null;
   link_processo?: string | null;
   is_parcelamento?: boolean | null;
+  tipo_parcelamento?: 'PARCELAMENTO' | 'REPARCELAMENTO' | null;
+  exercicios?: number[] | null; // multiple exercise years for parcelamento/reparcelamento
   remessa?: 'ACIMA' | 'ABAIXO' | null;
   num_paginas?: number | null;
   responsavel_assinatura?: string | null;
