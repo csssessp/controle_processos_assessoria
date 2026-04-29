@@ -1649,11 +1649,17 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
     const next = [...assinaturasLocal, name];
     setAssinaturasLocal(next);
     onAssinaturaChange?.(next.join(' | '), '');
+    if (registroId) {
+      GpcService.updateAssinatura(registroId, next.join(' | '), null).catch(console.error);
+    }
   };
   const removeAssinatura = (name: string) => {
     const next = assinaturasLocal.filter(n => n !== name);
     setAssinaturasLocal(next);
     onAssinaturaChange?.(next.join(' | '), '');
+    if (registroId) {
+      GpcService.updateAssinatura(registroId, next.join(' | ') || null, null).catch(console.error);
+    }
   };
 
 
@@ -2580,7 +2586,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
         </div>
 
         {/* ── Responsáveis pela Assinatura ── */}
-        {(row.responsavel_assinatura || row.responsavel_assinatura_2) && (() => {
+        {(() => {
           const names = [
             ...(row.responsavel_assinatura ?? '').split(' | ').map((s: string) => s.trim()).filter(Boolean),
             ...(row.responsavel_assinatura_2?.trim() ? [row.responsavel_assinatura_2.trim()] : []),
@@ -2591,16 +2597,20 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                 <PenLine size={14} className="text-indigo-400" />
                 <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">Responsável pela Assinatura</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {names.map(name => (
-                  <div key={name} className="flex items-center gap-2 bg-white border border-indigo-100 rounded-xl px-3.5 py-2 shadow-sm">
-                    <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                      <PenLine size={13} className="text-indigo-500" />
+              {names.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {names.map(name => (
+                    <div key={name} className="flex items-center gap-2 bg-white border border-indigo-100 rounded-xl px-3.5 py-2 shadow-sm">
+                      <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                        <PenLine size={13} className="text-indigo-500" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">{name}</span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-700">{name}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 italic">Nenhum responsável definido</p>
+              )}
             </div>
           );
         })()}
