@@ -2617,138 +2617,103 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
           <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
 
-            <div className={`rounded-2xl overflow-hidden border-2 shadow-sm ${
+          <div className={`rounded-2xl border p-5 shadow-sm ${
+            row.situacao === 'REGULAR'
+              ? 'bg-[#F0FDF4] border-green-200'
+              : row.situacao === 'IRREGULAR'
+              ? 'bg-[#FEF2F2] border-red-200'
+              : 'bg-amber-50 border-amber-200'
+          }`}>
 
-              row.situacao === 'REGULAR' ? 'border-green-200' :
-
-              row.situacao === 'IRREGULAR' ? 'border-red-300' : 'border-amber-300'
-
-            }`}>
-
-              <div className={`px-5 py-3.5 flex items-center gap-3 ${
-
-                row.situacao === 'REGULAR' ? 'bg-green-600' :
-
-                row.situacao === 'IRREGULAR' ? 'bg-red-600' : 'bg-amber-500'
-
+            {/* Header */}
+            <div className="flex items-start gap-3 mb-4">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                row.situacao === 'REGULAR' ? 'bg-green-100' :
+                row.situacao === 'IRREGULAR' ? 'bg-red-100' : 'bg-amber-100'
               }`}>
-
                 {row.situacao === 'REGULAR'
-
-                  ? <ShieldCheck size={18} className="text-white" />
-
+                  ? <ShieldCheck size={17} className="text-[#15803D]" />
                   : row.situacao === 'IRREGULAR'
-
-                    ? <ShieldAlert size={18} className="text-white" />
-
-                    : <ShieldOff size={18} className="text-white" />}
-
-                <span className="text-white font-bold text-sm">
-
-                  {row.situacao === 'REGULAR' ? 'Processo Regular — sem pendências financeiras'
-
-                    : row.situacao === 'IRREGULAR' ? 'Processo Irregular — com pendências financeiras'
-
-                    : 'Parcialmente Regular — pendências parciais'}
-
-                </span>
-
+                  ? <ShieldAlert size={17} className="text-[#B91C1C]" />
+                  : <ShieldOff size={17} className="text-amber-700" />}
               </div>
-
-              <div className={`px-5 py-4 space-y-3 ${
-
-                row.situacao === 'REGULAR' ? 'bg-green-50' :
-
-                row.situacao === 'IRREGULAR' ? 'bg-red-50' : 'bg-amber-50'
-
-              }`}>
-
-                {row.situacao === 'REGULAR' && (
-
-                  <p className="text-sm text-green-700 flex items-center gap-2">
-
-                    <Check size={14} className="text-green-600 flex-shrink-0" />Processo sem pendências financeiras identificadas.
-
-                  </p>
-
-                )}
-
-                {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (
-
-                  <div className="grid grid-cols-3 gap-3">
-
-                    <div className="bg-white rounded-xl p-3.5 border border-red-200 text-center shadow-sm">
-
-                      <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider mb-1">A Devolver</div>
-
-                      <div className="text-lg font-bold text-red-700">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : '—'}</div>
-
-                    </div>
-
-                    <div className="bg-white rounded-xl p-3.5 border border-green-200 text-center shadow-sm">
-
-                      <div className="text-[10px] text-green-600 font-bold uppercase tracking-wider mb-1">Já Devolvido</div>
-
-                      <div className="text-lg font-bold text-green-700">{row.valor_devolvido ? fmt(row.valor_devolvido) : '—'}</div>
-
-                    </div>
-
-                    {(row.valor_a_devolver ?? 0) > 0 && (() => {
-
-                      const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
-
-                      return (
-
-                        <div className={`bg-white rounded-xl p-3.5 border text-center shadow-sm ${saldo <= 0 ? 'border-green-200' : 'border-red-200'}`}>
-
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Saldo</div>
-
-                          <div className={`text-lg font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-
-                            {saldo <= 0 ? '✓ Quitado' : fmt(saldo)}
-
-                          </div>
-
-                        </div>
-
-                      );
-
-                    })()}
-
-                  </div>
-
-                )}
-
-                {/* Irregular sub-types badges */}
-                {row.situacao === 'IRREGULAR' && (row.irregular_tipos ?? []).length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Tipo de Irregularidade</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(row.irregular_tipos ?? []).map((tipo: string) => (
-                        <span key={tipo} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-red-200 bg-red-50 text-red-700">
-                          <ShieldAlert size={11} />
-                          {tipo === 'DIVIDA_ATIVA' ? 'Dívida Ativa' : tipo === 'CONTENCIOSO' ? 'Contencioso' : 'Cadin'}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {row.situacao_obs && (
-
-                  <div className="bg-white/80 rounded-xl p-4 border border-current/10">
-
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Observações</p>
-
-                    <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
-
-                  </div>
-
-                )}
-
+              <div>
+                <div className={`text-base font-semibold ${
+                  row.situacao === 'REGULAR' ? 'text-[#15803D]' :
+                  row.situacao === 'IRREGULAR' ? 'text-[#B91C1C]' : 'text-amber-800'
+                }`}>
+                  {row.situacao === 'REGULAR' ? 'Processo Regular'
+                    : row.situacao === 'IRREGULAR' ? 'Processo Irregular'
+                    : 'Parcialmente Regular'}
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {row.situacao === 'REGULAR'
+                    ? 'Sem pendências financeiras identificadas.'
+                    : row.situacao === 'IRREGULAR'
+                    ? 'Existem pendências financeiras que exigem regularização.'
+                    : 'Existem pendências financeiras parciais.'}
+                </div>
               </div>
-
             </div>
+
+            {/* KPI cards */}
+            {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (() => {
+              const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
+              return (
+                <div className={`grid gap-3 mb-4 ${(row.valor_a_devolver ?? 0) > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="h-1 bg-red-400" />
+                    <div className="px-4 py-3">
+                      <div className="text-[11px] font-medium text-slate-500 mb-1">A Devolver</div>
+                      <div className="text-xl font-bold text-[#B91C1C]">{row.valor_a_devolver ? fmt(row.valor_a_devolver) : <span className="text-slate-300">—</span>}</div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="h-1 bg-green-400" />
+                    <div className="px-4 py-3">
+                      <div className="text-[11px] font-medium text-slate-500 mb-1">Já Devolvido</div>
+                      <div className="text-xl font-bold text-[#15803D]">{row.valor_devolvido ? fmt(row.valor_devolvido) : <span className="text-slate-300">—</span>}</div>
+                    </div>
+                  </div>
+                  {(row.valor_a_devolver ?? 0) > 0 && (
+                    <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden`}>
+                      <div className={`h-1 ${saldo <= 0 ? 'bg-green-400' : 'bg-red-400'}`} />
+                      <div className="px-4 py-3">
+                        <div className="text-[11px] font-medium text-slate-500 mb-1">Saldo Pendente</div>
+                        <div className={`text-xl font-bold ${saldo <= 0 ? 'text-[#15803D]' : 'text-[#B91C1C]'}`}>
+                          {saldo <= 0 ? <span className="flex items-center gap-1"><Check size={14} />Quitado</span> : fmt(saldo)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Irregular tipos */}
+            {row.situacao === 'IRREGULAR' && (row.irregular_tipos ?? []).length > 0 && (
+              <div className="mb-4">
+                <p className="text-[11px] font-medium text-slate-500 mb-2">Tipo de Irregularidade</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(row.irregular_tipos ?? []).map((tipo: string) => (
+                    <span key={tipo} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#FEF2F2] border border-red-200 text-[#B91C1C]">
+                      <ShieldAlert size={10} />
+                      {tipo === 'DIVIDA_ATIVA' ? 'Dívida Ativa' : tipo === 'CONTENCIOSO' ? 'Contencioso' : 'Cadin'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Obs */}
+            {row.situacao_obs && (
+              <div className="bg-white/70 rounded-xl p-3.5 border border-slate-200">
+                <p className="text-[11px] font-medium text-slate-500 mb-1.5">Observações</p>
+                <p className="text-sm text-slate-600 leading-relaxed">{row.situacao_obs}</p>
+              </div>
+            )}
+
+          </div>
 
         </section>
 
@@ -2814,40 +2779,49 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
               <div className="grid grid-cols-3 gap-3">
 
-                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
-
-                  <ClipboardList size={20} className="text-blue-300 mx-auto mb-2" />
-
-                  <div className="text-2xl font-bold text-blue-700">{full.objetos?.length ?? 0}</div>
-
-                  <div className="text-xs text-blue-500 font-semibold mt-0.5">Objetos</div>
-
-                  {(full.objetos?.length ?? 0) > 0 && <div className="text-xs text-blue-600 font-bold mt-1.5">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>}
-
+                {/* Objetos */}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="h-1 bg-[#1D4ED8]" />
+                  <div className="p-4 flex flex-col items-center text-center">
+                    <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] flex items-center justify-center mb-2.5">
+                      <ClipboardList size={17} className="text-[#1D4ED8]" />
+                    </div>
+                    <div className="text-2xl font-bold text-slate-800">{full.objetos?.length ?? 0}</div>
+                    <div className="text-xs font-medium text-slate-500 mt-0.5">Objetos</div>
+                    {(full.objetos?.length ?? 0) > 0 && (
+                      <div className="text-xs font-semibold text-[#1D4ED8] mt-1.5">{fmt(full.objetos!.reduce((s, o) => s + (o.custo ?? 0), 0))}</div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center">
-
-                  <DollarSign size={20} className="text-amber-300 mx-auto mb-2" />
-
-                  <div className="text-2xl font-bold text-amber-700">{full.parcelamentos?.length ?? 0}</div>
-
-                  <div className="text-xs text-amber-500 font-semibold mt-0.5">Parcelamentos</div>
-
-                  {(full.parcelamentos?.length ?? 0) > 0 && <div className="text-xs text-amber-600 font-bold mt-1.5">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>}
-
+                {/* Parcelamentos */}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="h-1 bg-amber-400" />
+                  <div className="p-4 flex flex-col items-center text-center">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center mb-2.5">
+                      <DollarSign size={17} className="text-amber-600" />
+                    </div>
+                    <div className="text-2xl font-bold text-slate-800">{full.parcelamentos?.length ?? 0}</div>
+                    <div className="text-xs font-medium text-slate-500 mt-0.5">Parcelamentos</div>
+                    {(full.parcelamentos?.length ?? 0) > 0 && (
+                      <div className="text-xs font-semibold text-amber-600 mt-1.5">{fmt(full.parcelamentos!.reduce((s, p) => s + (p.valor_parcelado ?? 0), 0))}</div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 text-center">
-
-                  <GitBranch size={20} className="text-purple-300 mx-auto mb-2" />
-
-                  <div className="text-2xl font-bold text-purple-700">{full.tas?.length ?? 0}</div>
-
-                  <div className="text-xs text-purple-500 font-semibold mt-0.5">Termos Aditivos</div>
-
-                  {(full.tas?.length ?? 0) > 0 && <div className="text-xs text-purple-600 font-bold mt-1.5">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>}
-
+                {/* Termos Aditivos */}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="h-1 bg-[#7C3AED]" />
+                  <div className="p-4 flex flex-col items-center text-center">
+                    <div className="w-9 h-9 rounded-xl bg-[#F5F3FF] flex items-center justify-center mb-2.5">
+                      <GitBranch size={17} className="text-[#7C3AED]" />
+                    </div>
+                    <div className="text-2xl font-bold text-slate-800">{full.tas?.length ?? 0}</div>
+                    <div className="text-xs font-medium text-slate-500 mt-0.5">Termos Aditivos</div>
+                    {(full.tas?.length ?? 0) > 0 && (
+                      <div className="text-xs font-semibold text-[#7C3AED] mt-1.5">{fmt(full.tas!.reduce((s, t) => s + (t.custo ?? 0), 0))}</div>
+                    )}
+                  </div>
                 </div>
 
               </div>
