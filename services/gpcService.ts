@@ -363,7 +363,7 @@ export const GpcService = {
       const { data, error } = await supabase
         .from('cgof_gpc_recebidos')
         .select('*, cgof_gpc_posicao(posicao)')
-        .order('data', { ascending: false })
+        .order('codigo', { ascending: false })
         .range(from, from + BATCH - 1);
       if (error) { console.error(error); break; }
       const rows = ((data ?? []) as any[]).map((r) => ({
@@ -381,7 +381,7 @@ export const GpcService = {
     let query = supabase
       .from('cgof_gpc_recebidos')
       .select('*, cgof_gpc_posicao(posicao)', { count: 'exact' })
-      .order('data', { ascending: false })
+      .order('codigo', { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (search.trim()) {
