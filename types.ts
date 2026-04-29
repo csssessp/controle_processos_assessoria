@@ -234,6 +234,8 @@ export interface GpcParcelamento {
   valor_parcelado: number | null;
   valor_corrigido: number | null;
   parcelas: number | null;
+  data_parou_pagar: string | null;  // date when debtor stopped paying (for reparcelamento)
+  valor_por_parcela: number | null; // value per installment
   em_dia: boolean;
   parcelas_concluidas: boolean;
   providencias: string | null;

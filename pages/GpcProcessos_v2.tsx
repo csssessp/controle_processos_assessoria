@@ -3166,7 +3166,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const [savedOk, setSavedOk] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'analise' | 'ident' | 'fluxo' | 'financeiro'>('ident');
+  const [activeTab, setActiveTab] = useState<'analise' | 'ident' | 'fluxo' | 'financeiro' | 'parcelamento'>('ident');
 
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
 
@@ -3370,11 +3370,14 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       {/* ── Barra de abas ── */}
       <div className="flex border-b border-slate-200 mb-4 gap-0 flex-wrap -mx-1">
         {([
-          { id: 'ident',      label: 'Identificação', icon: <FileText size={13} /> },
-          { id: 'analise',    label: 'Análise',       icon: <Search size={13} /> },
+          { id: 'ident',         label: 'Identificação',           icon: <FileText size={13} /> },
+          { id: 'analise',       label: 'Análise',                  icon: <Search size={13} /> },
           ...(isEditing ? [
-            { id: 'fluxo',      label: 'Fluxo',         icon: <Activity size={13} /> },
-            { id: 'financeiro', label: 'Financeiro',     icon: <BarChart2 size={13} /> },
+            { id: 'fluxo',         label: 'Fluxo',                    icon: <Activity size={13} /> },
+            { id: 'financeiro',    label: 'Financeiro',               icon: <BarChart2 size={13} /> },
+            ...(tipoParc !== '' ? [
+              { id: 'parcelamento', label: 'Parcelamento / Reparcelamento', icon: <DollarSign size={13} /> },
+            ] : []),
           ] : []),
         ] as { id: string; label: string; icon: React.ReactNode }[]).map(tab => (
           <button
@@ -3425,112 +3428,39 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           {/* -- Tipo do Processo -- PRIMEIRO CAMPO */}
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
             <Sec icon={<DollarSign size={13} />} title="Tipo do Processo" />
-            <div className="space-y-4">
-              {/* Selector */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {([
-                  { v: '', label: 'Prestação de Contas', desc: 'Processo de prestação de contas padrão', color: 'blue' },
-                  { v: 'PARCELAMENTO', label: 'Parcelamento', desc: 'Débito parcelado em prestações', color: 'amber' },
-                  { v: 'REPARCELAMENTO', label: 'Reparcelamento', desc: 'Renegociação de parcelamento anterior', color: 'purple' },
-                ] as { v: string; label: string; desc: string; color: string }[]).map(opt => {
-                  const active = tipoParc === opt.v;
-                  const colors: Record<string, string> = {
-                    blue:   active ? 'border-blue-500 bg-blue-50'     : 'border-slate-200 hover:border-blue-300',
-                    amber:  active ? 'border-amber-500 bg-amber-50'   : 'border-slate-200 hover:border-amber-300',
-                    purple: active ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-purple-300',
-                  };
-                  const textColors: Record<string, string> = {
-                    blue:   active ? 'text-blue-700'   : 'text-slate-600',
-                    amber:  active ? 'text-amber-700'  : 'text-slate-600',
-                    purple: active ? 'text-purple-700' : 'text-slate-600',
-                  };
-                  return (
-                    <button
-                      key={opt.v}
-                      type="button"
-                      onClick={() => {
-                        const v = opt.v as '' | 'PARCELAMENTO' | 'REPARCELAMENTO';
-                        setTipoParc(v);
-                        set('tipo_parcelamento', v || null);
-                        set('is_parcelamento', v ? true : null);
-                        if (!v) set('exercicios', null);
-                      }}
-                      className={`flex flex-col items-start gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition-all text-left ${colors[opt.color]}`}
-                    >
-                      <span className={`text-sm font-bold ${textColors[opt.color]}`}>{opt.label}</span>
-                      <span className="text-[11px] text-slate-400">{opt.desc}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Multi-year exercicios — only for parcelamento/reparcelamento */}
-              {tipoParc !== '' && (
-                <div>
-                  <label className={LABEL}>Exercícios (anos referenciados)</label>
-                  <div className="flex gap-2">
-                    <input
-                      className={INPUT + ' flex-1'}
-                      type="number"
-                      placeholder="ex: 2024"
-                      value={yearInputProc}
-                      onChange={e => setYearInputProc(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const y = parseInt(yearInputProc, 10);
-                          if (!y || y < 1990 || y > 2099) return;
-                          const cur = (form.exercicios as number[] | null | undefined) ?? [];
-                          if (cur.includes(y)) { setYearInputProc(''); return; }
-                          const next = [...cur, y].sort((a, b) => a - b);
-                          set('exercicios', next);
-                          set('exercicio', String(next[0]));
-                          setYearInputProc('');
-                        }
-                      }}
-                      min={1990} max={2099}
-                    />
-                    <button
-                      type="button"
-                      className={BTN_SEC + ' px-3 py-2 text-xs whitespace-nowrap'}
-                      onClick={() => {
-                        const y = parseInt(yearInputProc, 10);
-                        if (!y || y < 1990 || y > 2099) return;
-                        const cur = (form.exercicios as number[] | null | undefined) ?? [];
-                        if (cur.includes(y)) { setYearInputProc(''); return; }
-                        const next = [...cur, y].sort((a, b) => a - b);
-                        set('exercicios', next);
-                        set('exercicio', String(next[0]));
-                        setYearInputProc('');
-                      }}
-                    >
-                      <Plus size={13} />Adicionar
-                    </button>
-                  </div>
-                  {((form.exercicios as number[] | null | undefined) ?? []).length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {((form.exercicios as number[] | null | undefined) ?? []).map(y => (
-                        <span key={y} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
-                          {y}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = ((form.exercicios as number[] | null | undefined) ?? []).filter(x => x !== y);
-                              set('exercicios', next.length > 0 ? next : null);
-                              set('exercicio', next.length > 0 ? String(next[0]) : null);
-                            }}
-                            className="ml-0.5 hover:text-red-600 transition-colors"
-                          >
-                            <X size={10} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-slate-400 italic">Digite um ano e clique em Adicionar (ou pressione Enter)</p>
-                  )}
-                </div>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {([
+                { v: '', label: 'Prestação de Contas', desc: 'Processo de prestação de contas padrão', color: 'blue' },
+                { v: 'PARCELAMENTO', label: 'Parcelamento', desc: 'Débito parcelado em prestações', color: 'amber' },
+                { v: 'REPARCELAMENTO', label: 'Reparcelamento', desc: 'Renegociação de parcelamento anterior', color: 'purple' },
+              ] as { v: string; label: string; desc: string; color: string }[]).map(opt => {
+                const active = tipoParc === opt.v;
+                const colors: Record<string, string> = {
+                  blue:   active ? 'border-blue-500 bg-blue-50'     : 'border-slate-200 hover:border-blue-300',
+                  amber:  active ? 'border-amber-500 bg-amber-50'   : 'border-slate-200 hover:border-amber-300',
+                  purple: active ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-purple-300',
+                };
+                const textColors: Record<string, string> = {
+                  blue:   active ? 'text-blue-700'   : 'text-slate-600',
+                  amber:  active ? 'text-amber-700'  : 'text-slate-600',
+                  purple: active ? 'text-purple-700' : 'text-slate-600',
+                };
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => {
+                      const v = opt.v as '' | 'PARCELAMENTO' | 'REPARCELAMENTO';
+                      setTipoParc(v);
+                      set('is_parcelamento', v ? true : null);
+                    }}
+                    className={`flex flex-col items-start gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition-all text-left ${colors[opt.color]}`}
+                  >
+                    <span className={`text-sm font-bold ${textColors[opt.color]}`}>{opt.label}</span>
+                    <span className="text-[11px] text-slate-400">{opt.desc}</span>
+                  </button>
+                );
+              })}
             </div>
           </section>
 
@@ -3588,13 +3518,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
             <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${classifLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
 
-              <div>
+              {!tipoParc && <div>
 
                 <label className={LABEL}>Exercício (ano)</label>
 
                 <input className={INPUT} value={form.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} placeholder="ex: 2024" />
 
-              </div>
+              </div>}
 
               <div>
 
@@ -4308,6 +4238,60 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
         )}
 
+        {/* ── Parcelamento / Reparcelamento tab ── */}
+        {isEditing && activeTab === 'parcelamento' && (
+          <div className="space-y-4 pb-4">
+            {loadingFull && (
+              <div className="flex items-center gap-2 py-5 justify-center text-slate-400 text-sm">
+                <Loader2 size={16} className="animate-spin" />Carregando...
+              </div>
+            )}
+            {!loadingFull && full && (
+              <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                <Sec
+                  icon={<DollarSign size={13} />}
+                  title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
+                  action={
+                    <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
+                      <Plus size={12} />Adicionar
+                    </button>
+                  }
+                />
+                <InlineTable
+                  cols={[
+                    { label: 'Tipo', render: (r: GpcParcelamento) => (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                        r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                      }`}>{r.tipo_parcelamento ?? r.tipo ?? '-'}</span>
+                    )},
+                    { label: 'Exercícios', render: (r: GpcParcelamento) => {
+                      const years = r.exercicios && r.exercicios.length > 0 ? r.exercicios : (r.exercicio ? [r.exercicio] : null);
+                      if (!years) return '-';
+                      return (
+                        <span className="flex flex-wrap gap-1">
+                          {years.map(y => (
+                            <span key={y} className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold border border-blue-100">{y}</span>
+                          ))}
+                        </span>
+                      );
+                    }},
+                    { label: 'Valor', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
+                    { label: 'Valor Corrigido', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_corrigido)}</span> },
+                    { label: 'Parcelas', render: (r: GpcParcelamento) => r.parcelas ?? '-' },
+                    { label: 'Vl/Parcela', render: (r: GpcParcelamento) => r.valor_por_parcela ? fmt(r.valor_por_parcela) : (r.valor_corrigido && r.parcelas ? fmt(r.valor_corrigido / r.parcelas) : '-') },
+                    { label: 'Em Dia', render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+                    { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+                  ]}
+                  rows={full.parcelamentos ?? []}
+                  onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
+                  onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
+                  emptyMsg="Nenhum registro de parcelamento/reparcelamento cadastrado"
+                />
+              </section>
+            )}
+          </div>
+        )}
+
       </div>
 
 
@@ -4709,6 +4693,14 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
   const n = (v: string) => v === '' ? null : Number(v);
 
   const needsGov = (f.parcelas ?? 0) > 60;
+  const isRepacelamento = f.tipo_parcelamento === 'REPARCELAMENTO';
+
+  // Auto-calculate valor_por_parcela
+  const calcVlParcela = () => {
+    if (f.valor_corrigido && f.parcelas && f.parcelas > 0) {
+      setF(p => ({ ...p, valor_por_parcela: parseFloat((f.valor_corrigido! / f.parcelas!).toFixed(2)) }));
+    }
+  };
 
   // Multi-year helpers
   const years = f.exercicios ?? (f.exercicio ? [f.exercicio] : []);
@@ -4741,7 +4733,7 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
       {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
 
-      {/* Tipo + dados básicos numa grid compacta */}
+      {/* Tipo + dados básicos */}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className={LABEL}>Tipo *</label>
@@ -4758,7 +4750,7 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
         {/* Multi-year exercicio */}
         <div className="col-span-2">
-          <label className={LABEL}>Exercícios (anos)</label>
+          <label className={LABEL}>Exercícios (anos referenciados)</label>
           <div className="flex gap-2">
             <input
               className={INPUT + ' flex-1'}
@@ -4773,7 +4765,7 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
               <Plus size={13} />Adicionar
             </button>
           </div>
-          {years.length > 0 && (
+          {years.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {years.map(y => (
                 <span key={y} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
@@ -4784,15 +4776,22 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
                 </span>
               ))}
             </div>
-          )}
-          {years.length === 0 && (
+          ) : (
             <p className="mt-1 text-[11px] text-slate-400 italic">Digite um ano e clique em Adicionar (ou pressione Enter)</p>
           )}
         </div>
 
         <div>
-          <label className={LABEL}>Nº de Parcelas</label>
-          <input className={INPUT} type="number" min={1} placeholder="ex: 36" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} />
+          <label className={LABEL}>Valor {isRepacelamento ? 'Original do Parcelamento' : 'Parcelado'} (R$)</label>
+          <CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} />
+        </div>
+        <div>
+          <label className={LABEL}>Valor Corrigido / Atualizado (R$)</label>
+          <CurrencyInput value={f.valor_corrigido} onChange={v => { set('valor_corrigido', v); }} />
+        </div>
+        <div>
+          <label className={LABEL}>Nº de Parcelas {isRepacelamento ? 'do Reparcelamento' : ''}</label>
+          <input className={INPUT} type="number" min={1} placeholder="ex: 36" value={f.parcelas ?? ''} onChange={e => { set('parcelas', n(e.target.value)); }} onBlur={calcVlParcela} />
           {needsGov && (
             <p className="mt-1 text-[11px] text-amber-600 font-semibold flex items-center gap-1">
               <Star size={10} />Acima de 60 parcelas — requer Autorizo do Governador
@@ -4800,14 +4799,36 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
           )}
         </div>
         <div>
-          <label className={LABEL}>Valor Parcelado (R$)</label>
-          <CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} />
-        </div>
-        <div>
-          <label className={LABEL}>Valor Corrigido (R$)</label>
-          <CurrencyInput value={f.valor_corrigido} onChange={v => set('valor_corrigido', v)} />
+          <label className={LABEL}>Valor por Parcela (R$)</label>
+          <div className="flex gap-1.5">
+            <CurrencyInput value={f.valor_por_parcela} onChange={v => set('valor_por_parcela', v)} />
+            <button type="button" className={BTN_SEC + ' px-2.5 py-2 text-xs whitespace-nowrap'} onClick={calcVlParcela} title="Calcular automaticamente">
+              <span className="text-[10px]">Auto</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Campos exclusivos de Reparcelamento */}
+      {isRepacelamento && (
+        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Dados do Reparcelamento</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <label className={LABEL}>Data que Parou de Pagar</label>
+              <input
+                className={INPUT}
+                type="date"
+                value={f.data_parou_pagar ?? ''}
+                onChange={e => set('data_parou_pagar', e.target.value || null)}
+              />
+              <p className="mt-1 text-[11px] text-slate-400">Data em que o devedor interrompeu os pagamentos</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status */}
       <div className="grid grid-cols-2 gap-3">
