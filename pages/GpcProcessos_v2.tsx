@@ -3179,6 +3179,32 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
   );
   const [yearInputProc, setYearInputProc] = useState('');
 
+  // Inline parcelamento form state (saved automatically after processo save)
+  const [parcForm, setParcForm] = useState<Partial<GpcParcelamento>>({
+    em_dia: false, parcelas_concluidas: false, autorizacoes_log: [], exercicios: [],
+  });
+  const setParc = (k: keyof GpcParcelamento, v: any) => setParcForm(p => ({ ...p, [k]: v }));
+  const nParc = (v: string) => v === '' ? null : Number(v);
+  const [yearInputParc, setYearInputParc] = useState('');
+  const addYearParc = () => {
+    const y = parseInt(yearInputParc, 10);
+    if (!y || y < 1990 || y > 2099) return;
+    const cur = parcForm.exercicios ?? [];
+    if (cur.includes(y)) { setYearInputParc(''); return; }
+    const next = [...cur, y].sort((a, b) => a - b);
+    setParcForm(p => ({ ...p, exercicios: next, exercicio: next[0] }));
+    setYearInputParc('');
+  };
+  const removeYearParc = (y: number) => {
+    const next = (parcForm.exercicios ?? []).filter(x => x !== y);
+    setParcForm(p => ({ ...p, exercicios: next, exercicio: next[0] ?? null }));
+  };
+  const calcParcVlParcela = () => {
+    if (parcForm.valor_corrigido && parcForm.parcelas && parcForm.parcelas > 0) {
+      setParcForm(p => ({ ...p, valor_por_parcela: parseFloat((parcForm.valor_corrigido! / parcForm.parcelas!).toFixed(2)) }));
+    }
+  };
+
   const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
 
   const [signatoryUsers, setSignatoryUsers] = useState<{ id: string; name: string }[]>([]);
@@ -3262,6 +3288,24 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
       if (d?.parcelamentos?.length) {
         const tp = d.parcelamentos[0].tipo_parcelamento;
         if (tp) setTipoParc(tp);
+        // Populate inline form with existing parcelamento data
+        const p = d.parcelamentos[0];
+        setParcForm({
+          codigo: p.codigo,
+          tipo_parcelamento: p.tipo_parcelamento,
+          exercicios: p.exercicios ?? (p.exercicio ? [p.exercicio] : []),
+          exercicio: p.exercicio,
+          valor_parcelado: p.valor_parcelado,
+          valor_corrigido: p.valor_corrigido,
+          parcelas: p.parcelas,
+          valor_por_parcela: p.valor_por_parcela,
+          data_parou_pagar: p.data_parou_pagar,
+          em_dia: p.em_dia,
+          parcelas_concluidas: p.parcelas_concluidas,
+          providencias: p.providencias,
+          obs: p.obs,
+          autorizacoes_log: p.autorizacoes_log ?? [],
+        });
       }
     });
 
@@ -3290,6 +3334,26 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
     try {
 
       const saved = await onSave(form, liveRecord);
+
+      // Auto-save parcelamento inline form when tipo is set
+      if (tipoParc !== '') {
+        const procId = saved.processo_codigo;
+        if (procId) {
+          // Check if there's already a parcelamento record (editing scenario)
+          const existingParcs = full?.parcelamentos ?? [];
+          const existing = existingParcs[0];
+          const parcPayload: Partial<GpcParcelamento> = {
+            ...parcForm,
+            processo_id: procId,
+            tipo_parcelamento: tipoParc,
+            ...(existing ? { codigo: existing.codigo } : {}),
+          };
+          // Only save if user filled some data
+          if (parcForm.valor_parcelado || parcForm.valor_corrigido || parcForm.parcelas || (parcForm.exercicios?.length ?? 0) > 0) {
+            await GpcService.saveParcelamento(parcPayload);
+          }
+        }
+      }
 
       if (!liveRecord?.codigo) {
 
@@ -3463,6 +3527,122 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
               })}
             </div>
           </section>
+
+          {/* ── Inline parcelamento fields (appear when tipo is set) ── */}
+          {tipoParc !== '' && (
+            <section className={`border rounded-2xl p-5 shadow-sm ${tipoParc === 'REPARCELAMENTO' ? 'bg-purple-50/60 border-purple-100' : 'bg-amber-50/60 border-amber-100'}`}>
+              <Sec
+                icon={<DollarSign size={13} />}
+                title={tipoParc === 'REPARCELAMENTO' ? 'Dados do Reparcelamento' : 'Dados do Parcelamento'}
+              />
+              <div className="grid grid-cols-2 gap-3">
+
+                {/* Multi-year exercicios */}
+                <div className="col-span-2">
+                  <label className={LABEL}>Exercícios (anos referenciados)</label>
+                  <div className="flex gap-2">
+                    <input
+                      className={INPUT + ' flex-1'}
+                      type="number"
+                      placeholder="ex: 2024"
+                      value={yearInputParc}
+                      onChange={e => setYearInputParc(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addYearParc(); } }}
+                      min={1990} max={2099}
+                    />
+                    <button type="button" className={BTN_SEC + ' px-3 py-2 text-xs whitespace-nowrap'} onClick={addYearParc}>
+                      <Plus size={13} />Adicionar
+                    </button>
+                  </div>
+                  {(parcForm.exercicios ?? []).length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {(parcForm.exercicios ?? []).map(y => (
+                        <span key={y} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
+                          {y}
+                          <button type="button" onClick={() => removeYearParc(y)} className="ml-0.5 hover:text-red-600 transition-colors"><X size={10} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400 italic">Digite um ano e clique em Adicionar (ou pressione Enter)</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className={LABEL}>{tipoParc === 'REPARCELAMENTO' ? 'Valor Original do Parcelamento (R$)' : 'Valor Parcelado (R$)'}</label>
+                  <CurrencyInput value={parcForm.valor_parcelado} onChange={v => setParc('valor_parcelado', v)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Valor Corrigido / Atualizado (R$)</label>
+                  <CurrencyInput value={parcForm.valor_corrigido} onChange={v => setParc('valor_corrigido', v)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Nº de Parcelas{tipoParc === 'REPARCELAMENTO' ? ' do Reparcelamento' : ''}</label>
+                  <input
+                    className={INPUT}
+                    type="number" min={1} placeholder="ex: 36"
+                    value={parcForm.parcelas ?? ''}
+                    onChange={e => setParc('parcelas', nParc(e.target.value))}
+                    onBlur={calcParcVlParcela}
+                  />
+                  {(parcForm.parcelas ?? 0) > 60 && (
+                    <p className="mt-1 text-[11px] text-amber-600 font-semibold flex items-center gap-1"><Star size={10} />Acima de 60 parcelas — requer Autorizo do Governador</p>
+                  )}
+                </div>
+                <div>
+                  <label className={LABEL}>Valor por Parcela (R$)</label>
+                  <div className="flex gap-1.5">
+                    <CurrencyInput value={parcForm.valor_por_parcela} onChange={v => setParc('valor_por_parcela', v)} />
+                    <button type="button" className={BTN_SEC + ' px-2.5 py-2 text-xs whitespace-nowrap'} onClick={calcParcVlParcela} title="Calcular automaticamente">
+                      <span className="text-[10px]">Auto</span>
+                    </button>
+                  </div>
+                </div>
+
+                {tipoParc === 'REPARCELAMENTO' && (
+                  <div className="col-span-2">
+                    <label className={LABEL}>Data que Parou de Pagar</label>
+                    <input
+                      className={INPUT}
+                      type="date"
+                      value={parcForm.data_parou_pagar ?? ''}
+                      onChange={e => setParc('data_parou_pagar', e.target.value || null)}
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">Data em que o devedor interrompeu os pagamentos do parcelamento anterior</p>
+                  </div>
+                )}
+
+                {/* Status */}
+                <div>
+                  <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${parcForm.em_dia ? 'bg-green-50 border-green-400' : 'bg-white border-slate-200'}`}>
+                    <input type="checkbox" checked={parcForm.em_dia ?? false} onChange={e => setParc('em_dia', e.target.checked)} className="w-4 h-4 accent-green-600 rounded" />
+                    <div>
+                      <div className={`text-sm font-semibold ${parcForm.em_dia ? 'text-green-700' : 'text-slate-600'}`}>Em Dia</div>
+                      <div className="text-[11px] text-slate-400">Parcelas em dia</div>
+                    </div>
+                  </label>
+                </div>
+                <div>
+                  <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${parcForm.parcelas_concluidas ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200'}`}>
+                    <input type="checkbox" checked={parcForm.parcelas_concluidas ?? false} onChange={e => setParc('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />
+                    <div>
+                      <div className={`text-sm font-semibold ${parcForm.parcelas_concluidas ? 'text-blue-700' : 'text-slate-600'}`}>Concluído</div>
+                      <div className="text-[11px] text-slate-400">Parcelamento quitado</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="col-span-2">
+                  <label className={LABEL}>Providências</label>
+                  <textarea className={INPUT} rows={2} value={parcForm.providencias ?? ''} onChange={e => setParc('providencias', e.target.value || null)} placeholder="Providências a adotar..." />
+                </div>
+                <div className="col-span-2">
+                  <label className={LABEL}>Observações</label>
+                  <textarea className={INPUT} rows={2} value={parcForm.obs ?? ''} onChange={e => setParc('obs', e.target.value || null)} placeholder="Informações adicionais..." />
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* -- Identificação do Processo -- */}
 
