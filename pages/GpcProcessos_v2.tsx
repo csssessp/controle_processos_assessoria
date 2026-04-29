@@ -3020,6 +3020,9 @@ const ParcFluxoCard = ({ parc, currentUserName, onSaveLog }: {
           parc.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
         }`}>{parc.tipo_parcelamento ?? parc.tipo ?? 'Parcelamento'}</span>
         {parc.exercicio && <span className="text-xs text-slate-500">Exercício {parc.exercicio}</span>}
+        {parc.exercicios && parc.exercicios.length > 1 && parc.exercicios.filter(y => y !== parc.exercicio).map(y => (
+          <span key={y} className="text-xs text-slate-500">/ {y}</span>
+        ))}
         {parc.valor_parcelado != null && <span className="text-xs font-semibold text-green-700">{fmt(parc.valor_parcelado)}</span>}
         {parc.parcelas != null && <span className="text-xs text-slate-400">{parc.parcelas} parcelas</span>}
         <span className={`ml-auto text-[11px] font-bold ${doneCnt === visSteps.length && visSteps.length > 0 ? 'text-emerald-600' : doneCnt > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
@@ -4133,7 +4136,17 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                           r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                         }`}>{r.tipo_parcelamento ?? r.tipo ?? '-'}</span>
                       )},
-                      { label: 'Exercício', render: (r: GpcParcelamento) => r.exercicio ?? '-' },
+                      { label: 'Exercício', render: (r: GpcParcelamento) => {
+                        const years = r.exercicios && r.exercicios.length > 0 ? r.exercicios : (r.exercicio ? [r.exercicio] : null);
+                        if (!years) return '-';
+                        return (
+                          <span className="flex flex-wrap gap-1">
+                            {years.map(y => (
+                              <span key={y} className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold border border-blue-100">{y}</span>
+                            ))}
+                          </span>
+                        );
+                      }},
                       { label: 'Valor',     render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
                       { label: 'Parcelas',  render: (r: GpcParcelamento) => r.parcelas ?? '-' },
                       { label: 'Em Dia',    render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
@@ -4588,17 +4601,34 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
     em_dia: false,
     parcelas_concluidas: false,
     autorizacoes_log: [],
+    exercicios: [],
   });
 
   const [saving, setSaving] = useState(false);
 
   const [err, setErr] = useState('');
+  const [yearInput, setYearInput] = useState('');
 
   const set = (k: keyof GpcParcelamento, v: any) => setF(p => ({ ...p, [k]: v }));
 
   const n = (v: string) => v === '' ? null : Number(v);
 
   const needsGov = (f.parcelas ?? 0) > 60;
+
+  // Multi-year helpers
+  const years = f.exercicios ?? (f.exercicio ? [f.exercicio] : []);
+  const addYear = () => {
+    const y = parseInt(yearInput, 10);
+    if (!y || y < 1990 || y > 2099) return;
+    if (years.includes(y)) { setYearInput(''); return; }
+    const next = [...years, y].sort((a, b) => a - b);
+    setF(p => ({ ...p, exercicios: next, exercicio: next[0] }));
+    setYearInput('');
+  };
+  const removeYear = (y: number) => {
+    const next = years.filter(x => x !== y);
+    setF(p => ({ ...p, exercicios: next, exercicio: next[0] ?? null }));
+  };
 
   const submit = async (e: React.FormEvent) => {
 
@@ -4630,10 +4660,41 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
             <option value="REPARCELAMENTO">Reparcelamento</option>
           </select>
         </div>
-        <div>
-          <label className={LABEL}>Exercício</label>
-          <input className={INPUT} type="number" placeholder="ex: 2024" value={f.exercicio ?? ''} onChange={e => set('exercicio', n(e.target.value))} />
+
+        {/* Multi-year exercicio */}
+        <div className="col-span-2">
+          <label className={LABEL}>Exercícios (anos)</label>
+          <div className="flex gap-2">
+            <input
+              className={INPUT + ' flex-1'}
+              type="number"
+              placeholder="ex: 2024"
+              value={yearInput}
+              onChange={e => setYearInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addYear(); } }}
+              min={1990} max={2099}
+            />
+            <button type="button" className={BTN_SEC + ' px-3 py-2 text-xs'} onClick={addYear}>
+              <Plus size={13} />Adicionar
+            </button>
+          </div>
+          {years.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {years.map(y => (
+                <span key={y} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold border border-blue-200">
+                  {y}
+                  <button type="button" onClick={() => removeYear(y)} className="ml-0.5 hover:text-red-600 transition-colors">
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {years.length === 0 && (
+            <p className="mt-1 text-[11px] text-slate-400 italic">Digite um ano e clique em Adicionar (ou pressione Enter)</p>
+          )}
         </div>
+
         <div>
           <label className={LABEL}>Nº de Parcelas</label>
           <input className={INPUT} type="number" min={1} placeholder="ex: 36" value={f.parcelas ?? ''} onChange={e => set('parcelas', n(e.target.value))} />

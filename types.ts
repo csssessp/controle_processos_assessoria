@@ -230,6 +230,7 @@ export interface GpcParcelamento {
   tipo: string | null;
   tipo_parcelamento: 'PARCELAMENTO' | 'REPARCELAMENTO' | null;
   exercicio: number | null;
+  exercicios: number[] | null; // multiple exercise years (JSONB array)
   valor_parcelado: number | null;
   valor_corrigido: number | null;
   parcelas: number | null;

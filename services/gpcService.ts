@@ -242,6 +242,7 @@ export const GpcService = {
       tipo: p.tipo ?? null,
       tipo_parcelamento: p.tipo_parcelamento ?? null,
       exercicio: p.exercicio ?? null,
+      exercicios: p.exercicios ?? [],
       valor_parcelado: p.valor_parcelado ?? null,
       valor_corrigido: p.valor_corrigido ?? null,
       parcelas: p.parcelas ?? null,
