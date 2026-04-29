@@ -2725,11 +2725,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Tipo de Irregularidade</p>
                     <div className="flex flex-wrap gap-2">
                       {(row.irregular_tipos ?? []).map((tipo: string) => (
-                        <span key={tipo} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${
-                          tipo === 'DIVIDA_ATIVA' ? 'bg-red-100 border-red-300 text-red-800' :
-                          tipo === 'CONTENCIOSO'  ? 'bg-orange-100 border-orange-300 text-orange-800' :
-                                                   'bg-purple-100 border-purple-300 text-purple-800'
-                        }`}>
+                        <span key={tipo} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-red-200 bg-red-50 text-red-700">
                           <ShieldAlert size={11} />
                           {tipo === 'DIVIDA_ATIVA' ? 'Dívida Ativa' : tipo === 'CONTENCIOSO' ? 'Contencioso' : 'Cadin'}
                         </span>
@@ -3397,9 +3393,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
       } else {
 
-        onRecordUpdated?.();
+        setLiveRecord(saved);
 
-        onClose();
+        setForm(saved);
+
+        setSavedOk(true);
+
+        onRecordUpdated?.();
 
       }
 
@@ -3511,7 +3511,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
             <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
 
-              <Check size={15} className="flex-shrink-0" />Registro cadastrado! Complete as informações adicionais abaixo.
+              <Check size={15} className="flex-shrink-0" />
+              {liveRecord?.codigo ? 'Alterações salvas com sucesso!' : 'Registro cadastrado! Complete as informações adicionais abaixo.'}
 
             </div>
 
@@ -4031,10 +4032,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                     <label className={LABEL}>Tipo de Irregularidade</label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {([
-                        { key: 'DIVIDA_ATIVA', label: 'Dívida Ativa', color: 'red' },
-                        { key: 'CONTENCIOSO',  label: 'Contencioso',  color: 'orange' },
-                        { key: 'CADIN',        label: 'Cadin',        color: 'purple' },
-                      ] as const).map(({ key, label, color }) => {
+                        { key: 'DIVIDA_ATIVA', label: 'Dívida Ativa' },
+                        { key: 'CONTENCIOSO',  label: 'Contencioso'  },
+                        { key: 'CADIN',        label: 'Cadin'        },
+                      ] as const).map(({ key, label }) => {
                         const active = (form.irregular_tipos ?? []).includes(key);
                         return (
                           <button
@@ -4044,10 +4045,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                               const cur = form.irregular_tipos ?? [];
                               set('irregular_tipos', active ? cur.filter(t => t !== key) : [...cur, key]);
                             }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 text-sm font-semibold transition-all ${
-                              color === 'red'    ? (active ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-red-300 text-red-600 hover:bg-red-50') :
-                              color === 'orange' ? (active ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-orange-300 text-orange-600 hover:bg-orange-50') :
-                                                   (active ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-purple-300 text-purple-600 hover:bg-purple-50')
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                              active
+                                ? 'bg-slate-700 border-slate-700 text-white'
+                                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
                             }`}
                           >
                             {active && <Check size={12} />}
