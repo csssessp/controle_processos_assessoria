@@ -291,6 +291,7 @@ export interface GpcRecebido {
   valor_convenio?: number | null;
   // Situação do processo
   situacao?: 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR' | null;
+  irregular_tipos?: ('DIVIDA_ATIVA' | 'CONTENCIOSO' | 'CADIN')[] | null; // sub-type when situacao = IRREGULAR
   valor_a_devolver?: number | null;
   valor_devolvido?: number | null;
   situacao_obs?: string | null;

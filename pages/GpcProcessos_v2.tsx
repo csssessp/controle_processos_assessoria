@@ -1638,9 +1638,23 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
   const [loading, setLoading] = useState(true);
 
-  const [assinatura1, setAssinatura1] = useState<string>(responsavelAssinatura ?? '');
-
-  const [assinatura2, setAssinatura2] = useState<string>(responsavelAssinatura2 ?? '');
+  // Multi-person assinatura list (replaces assinatura1/assinatura2)
+  const [assinaturasLocal, setAssinaturasLocal] = useState<string[]>(() => {
+    const r1 = (responsavelAssinatura ?? '').split(' | ').map(s => s.trim()).filter(Boolean);
+    const r2 = responsavelAssinatura2?.trim() ? [responsavelAssinatura2.trim()] : [];
+    return [...new Set([...r1, ...r2])];
+  });
+  const addAssinatura = (name: string) => {
+    if (!name || assinaturasLocal.includes(name)) return;
+    const next = [...assinaturasLocal, name];
+    setAssinaturasLocal(next);
+    onAssinaturaChange?.(next.join(' | '), '');
+  };
+  const removeAssinatura = (name: string) => {
+    const next = assinaturasLocal.filter(n => n !== name);
+    setAssinaturasLocal(next);
+    onAssinaturaChange?.(next.join(' | '), '');
+  };
 
 
 
@@ -1752,25 +1766,20 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-            <div className="bg-white border border-indigo-100 rounded-lg p-3">
-
-              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">1º Responsável</div>
-
-              <div className="text-sm font-medium text-slate-800">{assinatura1 || <span className="text-slate-300">—</span>}</div>
-
+          {assinaturasLocal.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {assinaturasLocal.map(name => (
+                <div key={name} className="flex items-center gap-2 bg-white border border-indigo-100 rounded-xl px-3.5 py-2 shadow-sm">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <PenLine size={13} className="text-indigo-500" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">{name}</span>
+                </div>
+              ))}
             </div>
-
-            <div className="bg-white border border-indigo-100 rounded-lg p-3">
-
-              <div className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">2º Responsável</div>
-
-              <div className="text-sm font-medium text-slate-800">{assinatura2 || <span className="text-slate-300">—</span>}</div>
-
-            </div>
-
-          </div>
+          ) : (
+            <p className="text-sm text-slate-400 italic">Nenhum responsável definido</p>
+          )}
 
         </div>
 
@@ -1786,37 +1795,35 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-            <div>
-
-              <label className={LABEL}>1º Responsável</label>
-
-              <select className={INPUT} value={assinatura1} onChange={e => { setAssinatura1(e.target.value); onAssinaturaChange?.(e.target.value, assinatura2); }}>
-
-                <option value="">— selecione —</option>
-
-                {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-
-              </select>
-
-            </div>
-
-            <div>
-
-              <label className={LABEL}>2º Responsável <span className="text-slate-400 font-normal">(opcional)</span></label>
-
-              <select className={INPUT} value={assinatura2} onChange={e => { setAssinatura2(e.target.value); onAssinaturaChange?.(assinatura1, e.target.value); }}>
-
-                <option value="">— nenhum —</option>
-
-                {signatoryUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-
-              </select>
-
-            </div>
-
+          <div>
+            <label className={LABEL}>Adicionar responsável</label>
+            <select
+              className={INPUT}
+              value=""
+              onChange={e => { if (e.target.value) addAssinatura(e.target.value); e.target.value = ''; }}
+            >
+              <option value="">— selecione para adicionar —</option>
+              {signatoryUsers.filter(u => !assinaturasLocal.includes(u.name)).map(u => (
+                <option key={u.id} value={u.name}>{u.name}</option>
+              ))}
+            </select>
           </div>
+
+          {assinaturasLocal.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {assinaturasLocal.map(name => (
+                <span key={name} className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-xl text-sm font-semibold">
+                  <PenLine size={12} className="text-indigo-500" />
+                  {name}
+                  <button type="button" onClick={() => removeAssinatura(name)} className="ml-0.5 hover:text-red-600 transition-colors">
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic">Nenhum responsável selecionado ainda</p>
+          )}
 
           {signatoryUsers.length === 0 && (
 
@@ -2573,24 +2580,30 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
         </div>
 
         {/* ── Responsáveis pela Assinatura ── */}
-        {(row.responsavel_assinatura || row.responsavel_assinatura_2) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { label: '1º Responsável pela Assinatura', value: row.responsavel_assinatura },
-              { label: '2º Responsável pela Assinatura', value: row.responsavel_assinatura_2 },
-            ].filter(r => r.value).map(({ label, value }) => (
-              <div key={label} className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                  <PenLine size={17} className="text-indigo-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</div>
-                  <div className="text-sm font-semibold text-slate-700 mt-0.5 truncate">{value}</div>
-                </div>
+        {(row.responsavel_assinatura || row.responsavel_assinatura_2) && (() => {
+          const names = [
+            ...(row.responsavel_assinatura ?? '').split(' | ').map((s: string) => s.trim()).filter(Boolean),
+            ...(row.responsavel_assinatura_2?.trim() ? [row.responsavel_assinatura_2.trim()] : []),
+          ].filter((v, i, a) => a.indexOf(v) === i);
+          return (
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <PenLine size={14} className="text-indigo-400" />
+                <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">Responsável pela Assinatura</span>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="flex flex-wrap gap-2">
+                {names.map(name => (
+                  <div key={name} className="flex items-center gap-2 bg-white border border-indigo-100 rounded-xl px-3.5 py-2 shadow-sm">
+                    <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <PenLine size={13} className="text-indigo-500" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
 
 
@@ -2692,7 +2705,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
                           <div className={`text-lg font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
 
-                            {saldo <= 0 ? '? Quitado' : fmt(saldo)}
+                            {saldo <= 0 ? '✓ Quitado' : fmt(saldo)}
 
                           </div>
 
@@ -2704,6 +2717,25 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
                   </div>
 
+                )}
+
+                {/* Irregular sub-types badges */}
+                {row.situacao === 'IRREGULAR' && (row.irregular_tipos ?? []).length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Tipo de Irregularidade</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(row.irregular_tipos ?? []).map((tipo: string) => (
+                        <span key={tipo} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${
+                          tipo === 'DIVIDA_ATIVA' ? 'bg-red-100 border-red-300 text-red-800' :
+                          tipo === 'CONTENCIOSO'  ? 'bg-orange-100 border-orange-300 text-orange-800' :
+                                                   'bg-purple-100 border-purple-300 text-purple-800'
+                        }`}>
+                          <ShieldAlert size={11} />
+                          {tipo === 'DIVIDA_ATIVA' ? 'Dívida Ativa' : tipo === 'CONTENCIOSO' ? 'Contencioso' : 'Cadin'}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {row.situacao_obs && (
@@ -3994,6 +4026,40 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                 </div>
 
+                {form.situacao === 'IRREGULAR' && (
+                  <div className="sm:col-span-2">
+                    <label className={LABEL}>Tipo de Irregularidade</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {([
+                        { key: 'DIVIDA_ATIVA', label: 'Dívida Ativa', color: 'red' },
+                        { key: 'CONTENCIOSO',  label: 'Contencioso',  color: 'orange' },
+                        { key: 'CADIN',        label: 'Cadin',        color: 'purple' },
+                      ] as const).map(({ key, label, color }) => {
+                        const active = (form.irregular_tipos ?? []).includes(key);
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              const cur = form.irregular_tipos ?? [];
+                              set('irregular_tipos', active ? cur.filter(t => t !== key) : [...cur, key]);
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                              color === 'red'    ? (active ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-red-300 text-red-600 hover:bg-red-50') :
+                              color === 'orange' ? (active ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-orange-300 text-orange-600 hover:bg-orange-50') :
+                                                   (active ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-purple-300 text-purple-600 hover:bg-purple-50')
+                            }`}
+                          >
+                            {active && <Check size={12} />}
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-slate-400">Selecione todos os tipos que se aplicam — aparecerão na linha do tempo do processo</p>
+                  </div>
+                )}
+
                 {(form.situacao === 'IRREGULAR' || form.situacao === 'PARCIALMENTE_REGULAR') && (
 
                   <>
@@ -4149,7 +4215,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                   await refreshFull();
                 }}
 
-                onAssinaturaChange={(a1, a2) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: a2 || null }))}
+                onAssinaturaChange={(a1, a2) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: null }))}
 
               />
 

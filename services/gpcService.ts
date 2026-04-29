@@ -432,6 +432,7 @@ export const GpcService = {
       responsavel_assinatura: r.responsavel_assinatura ?? null,
       responsavel_assinatura_2: r.responsavel_assinatura_2 ?? null,
       situacao: r.situacao ?? null,
+      irregular_tipos: r.irregular_tipos ?? null,
       valor_a_devolver: r.valor_a_devolver ?? null,
       valor_devolvido: r.valor_devolvido ?? null,
       situacao_obs: r.situacao_obs ?? null,
