@@ -72,23 +72,28 @@ interface ComboboxProps {
   required?: boolean;
   placeholder?: string;
   uppercase?: boolean;
+  formatValue?: (v: string) => string;
   onLoadOptions?: () => Promise<string[]>;
 }
 
-const Combobox = ({ label, name, options, defaultValue = '', required = false, placeholder = '', uppercase = false, onLoadOptions }: ComboboxProps) => {
-  const normalize = (v: string) => uppercase ? v.toUpperCase() : v;
-  const [inputValue, setInputValue] = useState(normalize(defaultValue || ''));
+const Combobox = ({ label, name, options, defaultValue = '', required = false, placeholder = '', uppercase = false, formatValue, onLoadOptions }: ComboboxProps) => {
+  const normalizeTyping = (v: string) => uppercase ? v.toUpperCase() : v;
+  const applyFormat = (v: string) => {
+    const s = normalizeTyping(v);
+    return formatValue ? formatValue(s) : s;
+  };
+  const [inputValue, setInputValue] = useState(applyFormat(defaultValue || ''));
   const [filteredOptions, setFilteredOptions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { 
-    setInputValue(normalize(defaultValue || '')); 
+    setInputValue(applyFormat(defaultValue || '')); 
   }, [defaultValue]);
 
   useEffect(() => {
-    const normalizedOpts = options.map(o => uppercase ? o.toUpperCase() : o);
+    const normalizedOpts = options.map(o => applyFormat(o));
     const lower = inputValue.toLowerCase().trim();
     if (lower) {
       const filtered = normalizedOpts.filter(opt => opt && opt.toLowerCase().includes(lower));
@@ -109,7 +114,7 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
   }, [wrapperRef]);
 
   const handleSelectOption = (opt: string) => {
-    setInputValue(normalize(opt));
+    setInputValue(applyFormat(opt));
     setShowSuggestions(false);
   };
 
@@ -119,7 +124,7 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
       setLoadingOptions(true);
       try {
         const loadedOptions = await onLoadOptions();
-        const normalized = uppercase ? loadedOptions.map(o => o.toUpperCase()) : loadedOptions;
+        const normalized = loadedOptions.map(o => applyFormat(o));
         setFilteredOptions(normalized.slice(0, 20));
       } catch (err) {
         console.error('Error loading options:', err);
@@ -137,7 +142,8 @@ const Combobox = ({ label, name, options, defaultValue = '', required = false, p
           type="text" 
           name={name} 
           value={inputValue}
-          onChange={(e) => { setInputValue(normalize(e.target.value)); setShowSuggestions(true); }}
+          onChange={(e) => { setInputValue(normalizeTyping(e.target.value)); setShowSuggestions(true); }}
+          onBlur={() => setInputValue(applyFormat(inputValue))}
           onFocus={handleFocus}
           className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all"
           placeholder={placeholder} required={required} autoComplete="off"
@@ -1506,6 +1512,11 @@ export const ProcessManager = () => {
                     required 
                     placeholder="Selecione ou digite o setor"
                     uppercase
+                    formatValue={(v) => {
+                      let s = v.replace(/\//g, '-').trim().replace(/^-+|-+$/g, '');
+                      if (s && !s.startsWith('SES-')) s = 'SES-' + s;
+                      return s;
+                    }}
                     onLoadOptions={() => DbService.getUniqueValues('sector')}
                    />
                 </div>
