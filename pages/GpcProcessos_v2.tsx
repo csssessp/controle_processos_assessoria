@@ -1403,6 +1403,8 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
     tecnico: currentUserName ?? undefined,
 
+    data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+
   });
 
   const [saving, setSaving] = useState(false);
@@ -1451,10 +1453,10 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           obs: PARC_FLUXO_STEPS.find(s => s.tipo === stepTipo)?.label ?? stepTipo,
           data_evento: now_iso,
         });
-        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
+        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();
       } else {
-        const dataEvento = form.data_evento ?? new Date().toISOString();
+        const dataEvento = form.data_evento ?? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: dataEvento });
 
         // Determine produtividade event type based on movimento/acao
@@ -1478,7 +1480,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           data_evento: dataEvento,
         });
 
-        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
+        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();
       }
     } catch (ex: any) { setErr(ex.message); }
@@ -1537,7 +1539,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
             type="datetime-local"
             className={INPUT}
             value={form.data_evento ? form.data_evento.slice(0, 16) : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-            onChange={e => set('data_evento', e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString())}
+            onChange={e => set('data_evento', e.target.value || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16))}
           />
 
         </div>
