@@ -1454,7 +1454,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
         onSaved();
       } else {
-        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: new Date().toISOString() });
+        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: form.data_evento ?? new Date().toISOString() });
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
         onSaved();
       }
@@ -1506,19 +1506,16 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
           <label className={LABEL + ' flex items-center gap-1'}>
 
-            <Lock size={10} className="text-slate-400" />Data/Hora do Evento
+            <Clock size={10} className="text-slate-400" />Data/Hora do Evento
 
           </label>
 
-          <div className={INPUT + ' bg-slate-100 text-slate-500 flex items-center gap-2 cursor-not-allowed select-none'}>
-
-            <Clock size={13} className="text-slate-400 flex-shrink-0" />
-
-            <span className="text-sm font-medium">{now()}</span>
-
-            <span className="ml-auto text-xs text-slate-400">Automático</span>
-
-          </div>
+          <input
+            type="datetime-local"
+            className={INPUT}
+            value={form.data_evento ? form.data_evento.slice(0, 16) : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+            onChange={e => set('data_evento', e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString())}
+          />
 
         </div>
 
@@ -5771,9 +5768,9 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider">Total</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">Páginas</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Total de páginas analisadas pelo técnico no período">Páginas Analisadas</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo Médio</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Tempo médio em dias entre os eventos registrados pelo técnico">Tempo Médio</th>
 
                 <th className="px-5 py-2.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider min-w-[140px]">Composição</th>
 
@@ -5897,7 +5894,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                       {t.paginas > 0 ? t.paginas.toLocaleString('pt-BR') : <span className="text-slate-300">—</span>}
 
-                      {efic > 0 && <div className="text-[10px] text-slate-400">{efic} pág/ação</div>}
+                      {efic > 0 && <div className="text-[10px] text-slate-400" title="Média de páginas analisadas por ação registrada">{efic} pág. por ação</div>}
 
                     </td>
 
@@ -5969,7 +5966,9 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold">{totals.total}</span></td>
 
-                <td colSpan={3} className="px-4 py-2.5" />
+                <td className="px-4 py-2.5 text-center text-xs font-bold text-slate-500">{(() => { const tp = technicians.reduce((s, t) => s + (t.paginas ?? 0), 0); return tp > 0 ? tp.toLocaleString('pt-BR') : '—'; })()}</td>
+
+                <td colSpan={2} className="px-4 py-2.5" />
 
               </tr>
 
