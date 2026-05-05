@@ -1454,7 +1454,30 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
         onSaved();
       } else {
-        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: form.data_evento ?? new Date().toISOString() });
+        const dataEvento = form.data_evento ?? new Date().toISOString();
+        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: dataEvento });
+
+        // Determine produtividade event type based on movimento/acao
+        const mov = form.movimento ?? '';
+        let eventoTipo: string;
+        if (mov === 'EM ANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || (form.acao ?? '').includes('ANÁLISE')) {
+          eventoTipo = 'INICIO_ANALISE';
+        } else if (form.posicao_id) {
+          eventoTipo = 'POSICAO';
+        } else {
+          eventoTipo = 'MOVIMENTO';
+        }
+
+        // Save to produtividade using the retroactive date so it appears in the correct period
+        await GpcService.saveProdutividade({
+          registro_id: registroId,
+          responsavel: form.tecnico ?? currentUserName ?? null,
+          posicao_id: form.posicao_id ?? null,
+          evento: eventoTipo,
+          obs: mov || (form.acao ?? null),
+          data_evento: dataEvento,
+        });
+
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined });
         onSaved();
       }
