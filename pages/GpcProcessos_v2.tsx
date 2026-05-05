@@ -5958,16 +5958,25 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <td className="px-5 py-2.5 text-xs font-bold text-slate-500">Total geral</td>
 
+                {/* Cadastros */}
+                <td className="px-4 py-2.5 text-center text-xs font-bold text-slate-500">{(() => { const tc = technicians.reduce((s, t) => s + (t.cadastros ?? 0), 0); return tc > 0 ? tc : '—'; })()}</td>
+
+                {/* Analisados */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded-lg text-xs font-bold">{totals.analises}</span></td>
 
+                {/* Posições */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold">{totals.posicoes}</span></td>
 
+                {/* Movimentos */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold">{totals.movimentos}</span></td>
 
+                {/* Total */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold">{totals.total}</span></td>
 
+                {/* Páginas Analisadas */}
                 <td className="px-4 py-2.5 text-center text-xs font-bold text-slate-500">{(() => { const tp = technicians.reduce((s, t) => s + (t.paginas ?? 0), 0); return tp > 0 ? tp.toLocaleString('pt-BR') : '—'; })()}</td>
 
+                {/* Tempo Médio + Composição */}
                 <td colSpan={2} className="px-4 py-2.5" />
 
               </tr>
