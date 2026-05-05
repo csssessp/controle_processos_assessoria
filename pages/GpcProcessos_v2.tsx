@@ -1470,14 +1470,19 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           eventoTipo = 'MOVIMENTO';
         }
 
-        // Save to produtividade using the retroactive date so it appears in the correct period
+        // Use noon UTC on the chosen local date so periodoKey (slice 0-7) always
+        // returns the correct month regardless of server/session timezone.
+        // e.g. user picks "2026-04-30" → stored as "2026-04-30T12:00:00.000Z" → slice = "2026-04"
+        const datePart = dataEvento.slice(0, 10);
+        const dataEventoProd = datePart + 'T12:00:00.000Z';
+
         await GpcService.saveProdutividade({
           registro_id: registroId,
           responsavel: form.tecnico ?? currentUserName ?? null,
           posicao_id: form.posicao_id ?? null,
           evento: eventoTipo,
           obs: mov || (form.acao ?? null),
-          data_evento: dataEvento,
+          data_evento: dataEventoProd,
         });
 
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
@@ -5219,13 +5224,18 @@ interface TechStats {
 
 function periodoKey(date: string, gran: Granularity): string {
 
-  const d = date.slice(0, 10);
+  // Convert to local date so UTC timestamps that cross midnight don't land in the wrong month
+  const dt = new Date(date);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d2 = String(dt.getDate()).padStart(2, '0');
+  const local = `${y}-${m}-${d2}`;
 
-  if (gran === 'dia')   return d;
+  if (gran === 'dia')   return local;
 
-  if (gran === 'mes')   return d.slice(0, 7);
+  if (gran === 'mes')   return local.slice(0, 7);
 
-  if (gran === 'ano')   return d.slice(0, 4);
+  if (gran === 'ano')   return String(y);
 
   return 'geral';
 
