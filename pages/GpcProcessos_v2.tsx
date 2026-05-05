@@ -753,9 +753,11 @@ const PARC_STEP_COLOR: Record<string, string> = {
   AUTORIZO_GOVERNADOR: 'bg-red-500',
 };
 
-const ProcessTimeline = ({ row, posicoes, parcelamentos }: {
+const ProcessTimeline = ({ row, posicoes, parcelamentos, isAdmin, onReload }: {
   row: GpcRecebido; posicoes: GpcPosicao[];
   parcelamentos?: GpcParcelamento[] | null;
+  isAdmin?: boolean;
+  onReload?: () => void;
 }) => {
 
   type TLEvent = {
@@ -770,18 +772,16 @@ const ProcessTimeline = ({ row, posicoes, parcelamentos }: {
 
   const [loading, setLoading] = useState(true);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingVal, setEditingVal] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
 
-
-  useEffect(() => {
-
+  const load = () => {
+    setLoading(true);
     Promise.all([
-
       GpcService.getProdutividade(row.codigo),
-
       GpcService.getFluxoTecnico(row.codigo),
-
     ]).then(([prod, fluxo]) => {
-
       const ev: TLEvent[] = [];
 
 
@@ -905,8 +905,27 @@ const ProcessTimeline = ({ row, posicoes, parcelamentos }: {
       setLoading(false);
 
     });
+  };
 
-  }, [row.codigo, parcelamentos]);
+  useEffect(() => { load(); }, [row.codigo, parcelamentos]);
+
+  const handleSaveDate = async (ev: TLEvent) => {
+    if (!editingVal) { setEditingId(null); return; }
+    setSavingId(ev.id);
+    try {
+      if (ev.id.startsWith('ft-')) {
+        const ftId = Number(ev.id.slice(3));
+        await GpcService.saveFluxoTecnico({ id: ftId, data_evento: editingVal });
+      } else if (ev.id.startsWith('prod-')) {
+        const prodId = Number(ev.id.slice(5));
+        await GpcService.updateProdutividadeData(prodId, editingVal);
+      }
+      setEditingId(null);
+      load();
+      onReload?.();
+    } catch (e: any) { alert('Erro ao salvar data: ' + e.message); }
+    finally { setSavingId(null); }
+  };
 
 
 
@@ -970,7 +989,41 @@ const ProcessTimeline = ({ row, posicoes, parcelamentos }: {
 
                 <div className="font-semibold text-sm text-slate-800 leading-snug">{ev.title}</div>
 
-                <div className="text-[11px] text-slate-400 whitespace-nowrap font-medium tabular-nums">{fmtTs(ev.date)}</div>
+                {isAdmin && editingId === ev.id ? (
+                  <span className="flex items-center gap-1">
+                    <input
+                      type="datetime-local"
+                      className="border border-blue-300 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/30 bg-white"
+                      value={editingVal}
+                      onChange={e => setEditingVal(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50"
+                      onClick={() => handleSaveDate(ev)}
+                      disabled={savingId === ev.id}
+                    >{savingId === ev.id ? '...' : 'OK'}</button>
+                    <button
+                      className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs hover:bg-slate-50"
+                      onClick={() => setEditingId(null)}
+                    >✕</button>
+                  </span>
+                ) : (
+                  <div
+                    className={`text-[11px] text-slate-400 whitespace-nowrap font-medium tabular-nums flex items-center gap-1 group/date ${isAdmin && (ev.id.startsWith('ft-') || ev.id.startsWith('prod-')) ? 'cursor-pointer' : ''}`}
+                    onClick={() => {
+                      if (!isAdmin || (!ev.id.startsWith('ft-') && !ev.id.startsWith('prod-'))) return;
+                      const local = new Date(new Date(ev.date).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                      setEditingVal(local);
+                      setEditingId(ev.id);
+                    }}
+                  >
+                    {fmtTs(ev.date)}
+                    {isAdmin && (ev.id.startsWith('ft-') || ev.id.startsWith('prod-')) && (
+                      <Pencil size={9} className="opacity-0 group-hover/date:opacity-100 text-blue-400 transition-all" />
+                    )}
+                  </div>
+                )}
 
               </div>
 
@@ -2311,6 +2364,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 }) => {
 
   const { currentUser } = useApp();
+  const isAdminView = currentUser?.role === UserRole.ADMIN;
 
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
 
@@ -2542,7 +2596,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
           <Sec icon={<TrendingUp size={13} />} title="Linha do Tempo do Processo" />
 
-          <ProcessTimeline row={row} posicoes={posicoes} parcelamentos={full?.parcelamentos} />
+          <ProcessTimeline row={row} posicoes={posicoes} parcelamentos={full?.parcelamentos} isAdmin={isAdminView} onReload={onRecordUpdated} />
 
         </section>
 
