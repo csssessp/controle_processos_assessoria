@@ -14,7 +14,7 @@ import {
 
   User, Search, AlertTriangle, Clock, DollarSign, Info,
 
-  BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine,
+  BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
   ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star,
 
@@ -1608,7 +1608,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
 
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange, parcelamentos, onSaveParc }: {
+const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange, parcelamentos, onSaveParc, isAdmin }: {
 
   registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
 
@@ -1634,11 +1634,29 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
   onSaveParc?: (updated: GpcParcelamento) => Promise<void>;
 
+  isAdmin?: boolean;
+
 }) => {
 
   const [items, setItems] = useState<GpcFluxoTecnico[]>([]);
 
   const [loading, setLoading] = useState(true);
+
+  // Admin: track which fluxo event is having its date edited
+  const [editingDateId, setEditingDateId] = useState<number | null>(null);
+  const [editingDateVal, setEditingDateVal] = useState<string>('');
+  const [savingDateId, setSavingDateId] = useState<number | null>(null);
+
+  const handleSaveDate = async (it: GpcFluxoTecnico) => {
+    if (!editingDateVal) { setEditingDateId(null); return; }
+    setSavingDateId(it.id);
+    try {
+      await GpcService.saveFluxoTecnico({ id: it.id, data_evento: editingDateVal });
+      setEditingDateId(null);
+      await load();
+    } catch (e: any) { alert('Erro ao salvar data: ' + e.message); }
+    finally { setSavingDateId(null); }
+  };
 
   // Multi-person assinatura list (replaces assinatura1/assinatura2)
   const [assinaturasLocal, setAssinaturasLocal] = useState<string[]>(() => {
@@ -2110,13 +2128,42 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
                         <div className="flex items-center gap-3 mt-2 text-xs text-slate-600">
 
-                          <span className="flex items-center gap-1 font-medium">
-
-                            <Calendar size={10} className="text-slate-400" />
-
-                            {fmtTs(it.data_evento)}
-
-                          </span>
+                          {isAdmin && editingDateId === it.id ? (
+                            <span className="flex items-center gap-1">
+                              <input
+                                type="datetime-local"
+                                className="border border-blue-300 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/30 bg-white"
+                                value={editingDateVal}
+                                onChange={e => setEditingDateVal(e.target.value)}
+                                autoFocus
+                              />
+                              <button
+                                className="px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50"
+                                onClick={() => handleSaveDate(it)}
+                                disabled={savingDateId === it.id}
+                              >{savingDateId === it.id ? '...' : 'OK'}</button>
+                              <button
+                                className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs hover:bg-slate-50"
+                                onClick={() => setEditingDateId(null)}
+                              >✕</button>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 font-medium group/date">
+                              <Calendar size={10} className="text-slate-400" />
+                              {fmtTs(it.data_evento)}
+                              {isAdmin && (
+                                <button
+                                  className="ml-0.5 opacity-0 group-hover/date:opacity-100 text-blue-400 hover:text-blue-600 transition-all"
+                                  title="Editar data (admin)"
+                                  onClick={() => {
+                                    const local = new Date(new Date(it.data_evento).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                    setEditingDateVal(local);
+                                    setEditingDateId(it.id);
+                                  }}
+                                ><Pencil size={10} /></button>
+                              )}
+                            </span>
+                          )}
 
                           {it.tecnico && (
 
@@ -4196,6 +4243,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 currentUserName={currentUser?.name ?? undefined}
 
                 parcelamentos={full?.parcelamentos}
+
+                isAdmin={isAdmin}
 
                 onSaveParc={async (updated) => {
                   await GpcService.saveParcelamento(updated);

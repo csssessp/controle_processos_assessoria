@@ -489,6 +489,14 @@ export const GpcService = {
     if (error) throw new Error(error.message);
   },
 
+  updateProdutividadeData: async (id: number, data_evento: string): Promise<void> => {
+    const { error } = await supabase
+      .from('cgof_gpc_produtividade')
+      .update({ data_evento })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   getProdutividadeResumo: async (): Promise<{ responsavel: string; mes: string; count: number }[]> => {
     const { data, error } = await supabase
       .from('cgof_gpc_produtividade')
