@@ -2364,7 +2364,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 }) => {
 
   const { currentUser } = useApp();
-  const isAdminView = currentUser?.role === UserRole.ADMIN;
+  const isAdminView = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
 
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
 
@@ -6556,7 +6556,7 @@ export const GpcProcessos = () => {
 
   const { currentUser } = useApp();
 
-  const isAdmin = currentUser?.role === UserRole.ADMIN;
+  const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
 
   const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade'>('registros');
 
