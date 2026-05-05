@@ -1458,32 +1458,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
       } else {
         const dataEvento = form.data_evento ?? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: dataEvento });
-
-        // Determine produtividade event type based on movimento/acao
-        const mov = form.movimento ?? '';
-        let eventoTipo: string;
-        if (mov === 'EM ANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || (form.acao ?? '').includes('ANÁLISE')) {
-          eventoTipo = 'INICIO_ANALISE';
-        } else if (form.posicao_id) {
-          eventoTipo = 'POSICAO';
-        } else {
-          eventoTipo = 'MOVIMENTO';
-        }
-
-        // Use noon UTC on the chosen local date so periodoKey (slice 0-7) always
-        // returns the correct month regardless of server/session timezone.
-        // e.g. user picks "2026-04-30" → stored as "2026-04-30T12:00:00.000Z" → slice = "2026-04"
-        const datePart = dataEvento.slice(0, 10);
-        const dataEventoProd = datePart + 'T12:00:00.000Z';
-
-        await GpcService.saveProdutividade({
-          registro_id: registroId,
-          responsavel: form.tecnico ?? currentUserName ?? null,
-          posicao_id: form.posicao_id ?? null,
-          evento: eventoTipo,
-          obs: mov || (form.acao ?? null),
-          data_evento: dataEventoProd,
-        });
+        // Produtividade is now computed directly from cgof_gpc_fluxo_tecnico — no need to write to prod table here.
 
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();

@@ -508,14 +508,57 @@ export const GpcService = {
   },
 
   getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null }[]> => {
-    const { data, error } = await supabase
+    // Source 1: cgof_gpc_produtividade — only CADASTRO + INICIO_ANALISE (fired by DB triggers, dates are always correct)
+    const { data: prodData, error: prodError } = await supabase
       .from('cgof_gpc_produtividade')
       .select('registro_id, responsavel, evento, data_evento, obs')
       .not('responsavel', 'is', null)
-      .in('evento', ['INICIO_ANALISE', 'POSICAO', 'MOVIMENTO', 'CADASTRO'])
+      .in('evento', ['INICIO_ANALISE', 'CADASTRO'])
       .order('data_evento', { ascending: true });
-    if (error) { console.error(error); return []; }
-    return (data ?? []) as { registro_id: number; responsavel: string; evento: string; data_evento: string }[];
+    if (prodError) console.error(prodError);
+
+    // Source 2: cgof_gpc_fluxo_tecnico — POSICAO + MOVIMENTO events (real retroactive dates from user input)
+    const { data: fluxoData, error: fluxoError } = await supabase
+      .from('cgof_gpc_fluxo_tecnico')
+      .select('registro_id, tecnico, data_evento, posicao_id, movimento, acao')
+      .not('tecnico', 'is', null)
+      .order('data_evento', { ascending: true });
+    if (fluxoError) console.error(fluxoError);
+
+    const fluxoEvents = (fluxoData ?? []).map((f: any) => {
+      const mov = (f.movimento ?? '') as string;
+      const acao = (f.acao ?? '') as string;
+      // Events with movement text → MOVIMENTO; pure position change (no movement text) → POSICAO
+      // Analysis events from fluxo → INICIO_ANALISE (trigger may also log it, Set deduplicates count)
+      let evento: string;
+      if (mov === 'EM ANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || acao.toUpperCase().includes('ANÁLISE')) {
+        evento = 'INICIO_ANALISE';
+      } else if (mov.trim()) {
+        evento = 'MOVIMENTO';
+      } else if (f.posicao_id) {
+        evento = 'POSICAO';
+      } else {
+        evento = 'MOVIMENTO';
+      }
+      return {
+        registro_id: f.registro_id as number,
+        responsavel: f.tecnico as string,
+        evento,
+        data_evento: f.data_evento as string,
+        obs: mov || acao || null,
+      };
+    });
+
+    const prodEvents = (prodData ?? []).map((p: any) => ({
+      registro_id: p.registro_id as number,
+      responsavel: p.responsavel as string,
+      evento: p.evento as string,
+      data_evento: p.data_evento as string,
+      obs: p.obs as string | null,
+    }));
+
+    return [...prodEvents, ...fluxoEvents]
+      .sort((a, b) => a.data_evento.localeCompare(b.data_evento));
   },
 
   // ── FLUXO TÉCNICO ───────────────────────────────────────────────────────
