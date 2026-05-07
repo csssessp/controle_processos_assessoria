@@ -1512,6 +1512,14 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
         const dataEvento = form.data_evento ?? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: dataEvento });
         // Produtividade is now computed directly from cgof_gpc_fluxo_tecnico — no need to write to prod table here.
+        // Log de auditoria
+        if (currentUserName) {
+          const mov = form.movimento ? ` — ${form.movimento}` : '';
+          await GpcService.saveGpcLog(
+            `Fluxo técnico registrado (reg. #${registroId})${mov}`,
+            currentUserName, ''
+          );
+        }
 
         setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();
@@ -2963,7 +2971,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
                   {full.exercicios!.map(ex => (
 
-                    <div key={ex.codigo} className="grid grid-cols-4 gap-3 px-5 py-3 text-xs hover:bg-slate-50/50 transition-colors">
+                    <div key={ex.codigo} className="grid grid-cols-5 gap-3 px-5 py-3 text-xs hover:bg-slate-50/50 transition-colors">
 
                       <span className="font-bold text-slate-700">{ex.exercicio}</span>
 
@@ -2972,6 +2980,8 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                       <span className="text-slate-500">Apl: <span className="font-medium">{fmt(ex.aplicacao)}</span></span>
 
                       <span className="text-slate-500">Dev: <span className="font-medium">{fmt(ex.devolvido)}</span></span>
+
+                      {ex.qtd_paginas != null && <span className="text-slate-400"><span className="font-medium text-slate-600">{ex.qtd_paginas}</span> pág.</span>}
 
                     </div>
 
@@ -3281,6 +3291,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const [savedOk, setSavedOk] = useState(false);
 
+  const [dupWarning, setDupWarning] = useState<{ count: number } | null>(null);
+
   const [activeTab, setActiveTab] = useState<'analise' | 'ident' | 'fluxo' | 'financeiro' | 'parcelamento'>('ident');
 
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
@@ -3440,11 +3452,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const doSave = async () => {
 
-    e.preventDefault();
-
-    setSaving(true); setErr(''); setSavedOk(false);
+    setSaving(true); setErr(''); setSavedOk(false); setDupWarning(null);
 
     try {
 
@@ -3495,6 +3505,29 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
     catch (ex: any) { setErr(ex.message ?? 'Erro ao salvar'); }
 
     finally { setSaving(false); }
+
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+
+    e.preventDefault();
+
+    // Duplicate check only for new records
+    if (!liveRecord?.codigo && form.processo?.trim()) {
+
+      const count = await GpcService.checkDuplicateProcesso(form.processo.trim());
+
+      if (count > 0) {
+
+        setDupWarning({ count });
+
+        return;
+
+      }
+
+    }
+
+    await doSave();
 
   };
 
@@ -4230,6 +4263,27 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
           </>)}
 
+          {/* -- Duplicate warning banner -- */}
+          {dupWarning && (
+            <div className="mx-1 mb-2 bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-800">
+                  Processo já cadastrado ({dupWarning.count}x)
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  O processo <span className="font-bold">"{form.processo}"</span> já possui {dupWarning.count} registro(s) no sistema. Deseja cadastrar mesmo assim?
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button type="button" onClick={() => setDupWarning(null)} className={BTN_SEC + ' text-xs px-3 py-1.5'}>Cancelar</button>
+                <button type="button" onClick={doSave} className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-xl hover:bg-amber-600 active:scale-95 transition-all">
+                  <Check size={13} /> Confirmar mesmo assim
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* -- Save bar -- */}
 
           {(activeTab === 'analise' || activeTab === 'ident' || activeTab === 'fluxo') && (
@@ -4672,7 +4726,25 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                   lastSaldo={lastSaldo}
 
-                  onSave={async e => { await GpcService.saveExercicio(e); await refreshFull(); setSubModal(null); }}
+                  onSave={async e => {
+                    const saved = await GpcService.saveExercicio(e);
+                    const isNew = !subModal.data?.codigo;
+                    if (isNew && currentUser) {
+                      const pags = e.qtd_paginas ? ` — ${e.qtd_paginas} pág.` : '';
+                      const desc = `Exercício ${e.exercicio ?? ''}${pags} cadastrado no processo ${liveRecord?.processo ?? liveRecord?.codigo ?? ''}`;
+                      // Log na produtividade
+                      await GpcService.saveProdutividade({
+                        registro_id: liveRecord!.codigo,
+                        responsavel: currentUser.name,
+                        evento: 'CADASTRO_EXERCICIO',
+                        data_evento: new Date().toISOString(),
+                        obs: desc,
+                      });
+                      // Log de auditoria
+                      await GpcService.saveGpcLog(desc, currentUser.name, currentUser.id);
+                    }
+                    await refreshFull(); setSubModal(null);
+                  }}
 
                   onClose={() => setSubModal(null)}
 
@@ -4803,6 +4875,8 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
       <div className="grid grid-cols-2 gap-3">
 
         <div><label className={LABEL}>Exercício *</label><input className={INPUT} value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
+
+        <div><label className={LABEL}>Qtd. Páginas a Analisar</label><input type="number" min="0" className={INPUT} value={f.qtd_paginas ?? ''} onChange={e => set('qtd_paginas', e.target.value === '' ? null : Number(e.target.value))} placeholder="0" /></div>
 
         <div><label className={LABEL}>Exerc. Anterior (R$)</label><CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} /></div>
 
@@ -6729,6 +6803,12 @@ export const GpcProcessos = () => {
     if (!prev?.codigo) {
 
       // New record
+      if (currentUser) {
+        await GpcService.saveGpcLog(
+          `Processo cadastrado: ${saved.processo ?? '—'} (${saved.entidade ?? '—'}) por ${currentUser.name}`,
+          currentUser.name, currentUser.id
+        );
+      }
 
       if (form.responsavel) {
 

@@ -65,7 +65,7 @@ export interface Process {
 
 export interface Log {
   id: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'USER_MGMT';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'USER_MGMT' | 'GPC';
   description: string;
   userId: string;
   userName: string;
@@ -193,6 +193,7 @@ export interface GpcExercicio {
   aplicacao: number | null;
   gastos: number | null;
   devolvido: number | null;
+  qtd_paginas?: number | null;
 }
 
 export interface GpcHistorico {

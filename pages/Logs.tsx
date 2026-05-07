@@ -34,6 +34,7 @@ export const Logs = () => {
       case 'DELETE': return 'text-red-600 bg-red-50';
       case 'LOGIN': return 'text-purple-600 bg-purple-50';
       case 'USER_MGMT': return 'text-amber-600 bg-amber-50';
+      case 'GPC': return 'text-teal-600 bg-teal-50';
       default: return 'text-slate-600 bg-slate-50';
     }
   };

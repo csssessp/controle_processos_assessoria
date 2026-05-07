@@ -121,6 +121,26 @@ export const GpcService = {
     };
   },
 
+  checkDuplicateProcesso: async (processo: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from('cgof_gpc_recebidos')
+      .select('*', { count: 'exact', head: true })
+      .ilike('processo', processo.trim());
+    if (error) { console.error(error); return 0; }
+    return count ?? 0;
+  },
+
+  saveGpcLog: async (description: string, userName: string, userId: string): Promise<void> => {
+    await supabase.from('logs').insert({
+      id: crypto.randomUUID(),
+      action: 'GPC',
+      description,
+      userId,
+      userName,
+      timestamp: new Date().toISOString(),
+    });
+  },
+
   saveProcesso: async (p: Partial<GpcProcesso>): Promise<GpcProcesso> => {
     const payload = {
       processo: p.processo ?? null,
@@ -171,6 +191,7 @@ export const GpcService = {
       aplicacao: e.aplicacao ?? null,
       gastos: e.gastos ?? null,
       devolvido: e.devolvido ?? null,
+      qtd_paginas: e.qtd_paginas ?? null,
     };
     if (e.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_exercicio').update(payload).eq('codigo', e.codigo).select().single();
