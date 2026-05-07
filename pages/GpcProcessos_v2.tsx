@@ -3630,6 +3630,26 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
           )}
 
+          {dupWarning && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-800">
+                  Processo já cadastrado ({dupWarning.count}x)
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  O processo <span className="font-bold">"{form.processo}"</span> já possui {dupWarning.count} registro(s) no sistema. Deseja cadastrar mesmo assim?
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button type="button" onClick={() => setDupWarning(null)} className={BTN_SEC + ' text-xs px-3 py-1.5'}>Cancelar</button>
+                <button type="button" onClick={doSave} className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-xl hover:bg-amber-600 active:scale-95 transition-all">
+                  <Check size={13} /> Confirmar mesmo assim
+                </button>
+              </div>
+            </div>
+          )}
+
           {savedOk && (
 
             <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
@@ -4265,27 +4285,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
           </>)}
-
-          {/* -- Duplicate warning banner -- */}
-          {dupWarning && (
-            <div className="mx-1 mb-2 bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
-              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-amber-800">
-                  Processo já cadastrado ({dupWarning.count}x)
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  O processo <span className="font-bold">"{form.processo}"</span> já possui {dupWarning.count} registro(s) no sistema. Deseja cadastrar mesmo assim?
-                </p>
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <button type="button" onClick={() => setDupWarning(null)} className={BTN_SEC + ' text-xs px-3 py-1.5'}>Cancelar</button>
-                <button type="button" onClick={doSave} className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-xl hover:bg-amber-600 active:scale-95 transition-all">
-                  <Check size={13} /> Confirmar mesmo assim
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* -- Save bar -- */}
 
