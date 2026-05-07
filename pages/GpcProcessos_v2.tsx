@@ -80,6 +80,9 @@ const fmtTs = (d: string | null | undefined) => {
 
 const sv = (v: unknown) => (v == null ? '' : String(v)).toLowerCase().trim();
 
+// Normaliza número de processo: remove pontos, barras, traços, espaços — para comparação tolerante
+const snorm = (v: string) => v.replace(/[.\-/\s]/g, '').toLowerCase();
+
 
 
 interface SortState { col: string; dir: 'asc' | 'desc'; }
@@ -6708,7 +6711,7 @@ export const GpcProcessos = () => {
 
     return sortRows(base.filter(r =>
 
-      (!f.processo    || sv(r.processo).includes(sv(f.processo))) &&
+      (!f.processo    || snorm(sv(r.processo)).includes(snorm(sv(f.processo)))) &&
 
       (!f.convenio    || sv(r.convenio).includes(sv(f.convenio))) &&
 

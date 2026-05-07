@@ -122,12 +122,17 @@ export const GpcService = {
   },
 
   checkDuplicateProcesso: async (processo: string): Promise<number> => {
-    const { count, error } = await supabase
+    // Normalize: strip dots, slashes, dashes, spaces — for punctuation-tolerant comparison
+    const norm = (s: string) => s.replace(/[.\-/\s]/g, '').toLowerCase();
+    const needle = norm(processo.trim());
+    if (!needle) return 0;
+    // Fetch all process numbers (only the column we need, no limit)
+    const { data, error } = await supabase
       .from('cgof_gpc_recebidos')
-      .select('*', { count: 'exact', head: true })
-      .ilike('processo', processo.trim());
+      .select('processo')
+      .not('processo', 'is', null);
     if (error) { console.error(error); return 0; }
-    return count ?? 0;
+    return (data ?? []).filter((r: any) => norm(r.processo ?? '') === needle).length;
   },
 
   saveGpcLog: async (description: string, userName: string, userId: string): Promise<void> => {
