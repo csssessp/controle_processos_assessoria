@@ -296,6 +296,9 @@ export interface GpcRecebido {
   valor_a_devolver?: number | null;
   valor_devolvido?: number | null;
   situacao_obs?: string | null;
+  // Correção documental — processo devolvido para correção
+  correcao_paginas?: number | null;   // páginas analisadas na correção
+  correcao_obs?: string | null;       // descrição do que foi corrigido
   created_at?: string;
 }
 

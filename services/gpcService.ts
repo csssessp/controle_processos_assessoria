@@ -463,6 +463,8 @@ export const GpcService = {
       valor_devolvido: r.valor_devolvido ?? null,
       situacao_obs: r.situacao_obs ?? null,
       valor_convenio: r.valor_convenio ?? null,
+      correcao_paginas: r.correcao_paginas ?? null,
+      correcao_obs: r.correcao_obs ?? null,
     };
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();
@@ -734,15 +736,24 @@ export const GpcService = {
   }[]> => {
     const { data, error } = await supabase
       .from('cgof_gpc_fluxo_tecnico')
-      .select('tecnico, data_evento, tempo_dias, num_paginas_analise')
-      .not('tecnico', 'is', null);
+      .select('tecnico, registro_id, data_evento, tempo_dias, num_paginas_analise')
+      .not('tecnico', 'is', null)
+      .order('data_evento', { ascending: true }); // ascending so first event comes first
     if (error) { console.error(error); return []; }
+
+    // To avoid page duplication: track which (tecnico, registro_id) pairs we already counted pages for
+    const paginasContadas = new Set<string>();
     const map: Record<string, { count: number; paginas: number; tempos: number[]; ultimo: string }> = {};
     for (const r of data ?? []) {
       const t = r.tecnico as string;
       if (!map[t]) map[t] = { count: 0, paginas: 0, tempos: [], ultimo: '' };
       map[t].count++;
-      if (r.num_paginas_analise) map[t].paginas += r.num_paginas_analise;
+      // Count pages only once per (tecnico, registro_id) — use the first event's value
+      const paginasKey = `${t}||${r.registro_id}`;
+      if (r.num_paginas_analise && !paginasContadas.has(paginasKey)) {
+        map[t].paginas += r.num_paginas_analise;
+        paginasContadas.add(paginasKey);
+      }
       if (r.tempo_dias != null) map[t].tempos.push(r.tempo_dias);
       if (r.data_evento > map[t].ultimo) map[t].ultimo = r.data_evento;
     }

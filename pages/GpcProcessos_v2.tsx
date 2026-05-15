@@ -729,17 +729,21 @@ const InfoCard = ({ label, value, icon }: { label: string; value: string | null 
 
 const EVENTO_CFG: Record<string, { color: string; label: string }> = {
 
-  CRIACAO:        { color: 'bg-blue-500',    label: 'Atribuição inicial' },
+  CRIACAO:            { color: 'bg-blue-500',    label: 'Atribuição inicial' },
 
-  CADASTRO:       { color: 'bg-slate-500',   label: 'Responsável pelo cadastro' },
+  CADASTRO:           { color: 'bg-slate-500',   label: 'Responsável pelo cadastro' },
 
-  RESPONSAVEL:    { color: 'bg-emerald-500', label: 'Mudança de responsável' },
+  RESPONSAVEL:        { color: 'bg-emerald-500', label: 'Mudança de responsável' },
 
-  POSICAO:        { color: 'bg-amber-500',   label: 'Mudança de posição' },
+  POSICAO:            { color: 'bg-amber-500',   label: 'Mudança de posição' },
 
-  MOVIMENTO:      { color: 'bg-purple-500',  label: 'Alteração de movimento' },
+  MOVIMENTO:          { color: 'bg-purple-500',  label: 'Alteração de movimento' },
 
-  INICIO_ANALISE: { color: 'bg-sky-500',     label: 'Início de análise' },
+  INICIO_ANALISE:     { color: 'bg-sky-500',     label: 'Início de análise' },
+
+  CORRECAO:           { color: 'bg-rose-500',    label: 'Correção documental' },
+
+  CADASTRO_EXERCICIO: { color: 'bg-teal-500',    label: 'Exercício cadastrado' },
 
 };
 
@@ -1455,7 +1459,8 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
     registro_id: registroId,
 
-    num_paginas_analise: numPaginas ?? undefined,
+    // num_paginas_analise left blank intentionally — technician fills it only for events that involve page analysis
+    // Pre-filling with numPaginas would cause duplication in the productivity totals on every save
 
     tecnico: currentUserName ?? undefined,
 
@@ -1509,7 +1514,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           obs: PARC_FLUXO_STEPS.find(s => s.tipo === stepTipo)?.label ?? stepTipo,
           data_evento: now_iso,
         });
-        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
+        setForm({ registro_id: registroId, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();
       } else {
         const dataEvento = form.data_evento ?? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -1524,7 +1529,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           );
         }
 
-        setForm({ registro_id: registroId, num_paginas_analise: numPaginas ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
+        setForm({ registro_id: registroId, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();
       }
     } catch (ex: any) { setErr(ex.message); }
@@ -4282,6 +4287,41 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
           </section>
 
+          {/* -- Correção Documental -- */}
+          <section className="bg-white border border-rose-100 rounded-2xl p-5 shadow-sm">
+            <Sec icon={<PenLine size={13} />} title="Correção Documental" />
+            <p className="text-xs text-slate-400 mb-3 -mt-2">
+              Preencha quando o processo foi devolvido para correção documental. O registro contará na produtividade do técnico.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL}>
+                  <span className="flex items-center gap-1"><BookOpen size={11} />Páginas Analisadas na Correção</span>
+                </label>
+                <input
+                  className={INPUT}
+                  type="number"
+                  min={0}
+                  placeholder="ex: 40"
+                  value={form.correcao_paginas ?? ''}
+                  onChange={e => set('correcao_paginas', e.target.value ? Number(e.target.value) : null)}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL}>
+                  <span className="flex items-center gap-1"><PenLine size={11} />Descrição da Correção</span>
+                </label>
+                <textarea
+                  className={INPUT}
+                  rows={3}
+                  value={form.correcao_obs ?? ''}
+                  onChange={e => set('correcao_obs', e.target.value || null)}
+                  placeholder="Descreva o que foi corrigido, o motivo da devolução, documentos revisados..."
+                />
+              </div>
+            </div>
+          </section>
+
 
 
           </>)}
@@ -6964,6 +7004,45 @@ export const GpcProcessos = () => {
 
         });
 
+      }
+
+      // 5. Correção documental — registra evento quando há obs de correção preenchida pela primeira vez ou alterada
+      const correcaoAlterada =
+        (form.correcao_obs ?? '') !== (prev.correcao_obs ?? '') ||
+        (form.correcao_paginas ?? 0) !== (prev.correcao_paginas ?? 0);
+      if (correcaoAlterada && form.correcao_obs) {
+        const corrDesc = form.correcao_paginas
+          ? `Correção documental — ${form.correcao_paginas} pág. — ${form.correcao_obs}`
+          : `Correção documental — ${form.correcao_obs}`;
+        await GpcService.saveProdutividade({
+          registro_id: saved.codigo,
+          responsavel: form.responsavel ?? null,
+          posicao_id: form.posicao_id ?? null,
+          posicao: posLabel,
+          evento: 'CORRECAO',
+          data_evento: now,
+          obs: corrDesc,
+        });
+        // Também registra no fluxo técnico para aparecer na linha do tempo
+        const analistas = form.responsaveis_analise?.length
+          ? form.responsaveis_analise
+          : form.responsavel ? [form.responsavel] : [currentUser?.name ?? 'GPC'];
+        for (const analista of analistas) {
+          await GpcService.saveFluxoTecnico({
+            registro_id: saved.codigo,
+            tecnico: analista,
+            movimento: 'CORREÇÃO DOCUMENTAL',
+            acao: form.correcao_obs,
+            num_paginas_analise: form.correcao_paginas ?? null,
+            data_evento: now,
+          });
+        }
+        if (currentUser) {
+          await GpcService.saveGpcLog(
+            `Correção documental registrada no processo #${saved.codigo}`,
+            currentUser.name, currentUser.id
+          );
+        }
       }
 
     }
