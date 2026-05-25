@@ -201,7 +201,7 @@ export const GpcRelatorios = () => {
                     'Proc.Parcela': p.proc_parcela,
                     'Tipo': p.tipo,
                     'Exercício': p.exercicio,
-                    'Valor Parcelado': p.valor_parcelado,
+                    'Valor que Gerou o Parcelamento': p.valor_parcelado,
                     'Valor Corrigido': p.valor_corrigido,
                     'Parcelas': p.parcelas,
                     'Em Dia': p.em_dia ? 'Sim' : 'Não',
@@ -218,7 +218,7 @@ export const GpcRelatorios = () => {
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
-                    {['Processo','Convênio','Entidade','Proc.Parcela','Tipo','Exercício','Val.Parcelado','Val.Corrigido','Parcelas','Em Dia','Concluído'].map(h => (
+                    {['Processo','Convênio','Entidade','Proc.Parcela','Tipo','Exercício','Vl.Gerador','Val.Corrigido','Parcelas','Em Dia','Concluído'].map(h => (
                       <th key={h} className="px-2 py-2 text-left font-semibold whitespace-nowrap">{h}</th>
                     ))}
                   </tr>

@@ -388,7 +388,7 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
         <div><label className={LABEL}>Tipo</label><input className={INPUT} value={form.tipo ?? ''} onChange={e => set('tipo', e.target.value)} /></div>
         <div><label className={LABEL}>Exercício</label><input className={INPUT} type="number" value={form.exercicio ?? ''} onChange={e => set('exercicio', num(e.target.value))} /></div>
         <div><label className={LABEL}>Nº Parcelas</label><input className={INPUT} type="number" value={form.parcelas ?? ''} onChange={e => set('parcelas', num(e.target.value))} /></div>
-        <div><label className={LABEL}>Valor Parcelado (R$)</label><CurrencyInput value={form.valor_parcelado} onChange={v => set('valor_parcelado', v)} /></div>
+        <div><label className={LABEL}>Valor que Gerou o Parcelamento (R$)</label><CurrencyInput value={form.valor_parcelado} onChange={v => set('valor_parcelado', v)} /></div>
         <div><label className={LABEL}>Valor Corrigido (R$)</label><CurrencyInput value={form.valor_corrigido} onChange={v => set('valor_corrigido', v)} /></div>
         <div className="flex items-center gap-4 col-span-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={form.em_dia ?? false} onChange={e => set('em_dia', e.target.checked)} className="w-4 h-4 accent-blue-600" />Em Dia</label>
@@ -584,7 +584,7 @@ const DetailPanel = ({ processo, posicoes, onRefresh }: {
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-slate-600">
-                <tr>{['Proc.Parcela', 'Tipo', 'Exercício', 'Val.Parcelado', 'Val.Corrigido', 'Parcelas', 'Em Dia', 'Concluído', ''].map(h => <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>)}</tr>
+                <tr>{['Proc.Parcela', 'Tipo', 'Exercício', 'Vl.Gerador', 'Val.Corrigido', 'Parcelas', 'Em Dia', 'Concluído', ''].map(h => <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {(processo.parcelamentos ?? []).map(p => (

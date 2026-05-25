@@ -3750,7 +3750,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
                 </div>
 
                 <div>
-                  <label className={LABEL}>{tipoParc === 'REPARCELAMENTO' ? 'Valor Original do Parcelamento (R$)' : 'Valor Parcelado (R$)'}</label>
+                  <label className={LABEL}>{tipoParc === 'REPARCELAMENTO' ? 'Valor Original do Parcelamento (R$)' : 'Valor que Gerou o Parcelamento (R$)'}</label>
                   <CurrencyInput value={parcForm.valor_parcelado} onChange={v => setParc('valor_parcelado', v)} />
                 </div>
                 <div>
@@ -5234,7 +5234,7 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
         </div>
 
         <div>
-          <label className={LABEL}>Valor {isRepacelamento ? 'Original do Parcelamento' : 'Parcelado'} (R$)</label>
+          <label className={LABEL}>Valor {isRepacelamento ? 'Original do Parcelamento' : 'que Gerou o Parcelamento'} (R$)</label>
           <CurrencyInput value={f.valor_parcelado} onChange={v => set('valor_parcelado', v)} />
         </div>
         <div>
