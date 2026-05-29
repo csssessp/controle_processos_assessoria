@@ -235,6 +235,11 @@ export const ProcessManager = () => {
   const [isPrestacaoContaChecked, setIsPrestacaoContaChecked] = useState(false);
   const [prestacaoFormState, setPrestacaoFormState] = useState({ month: '', status: 'REGULAR', motivo: '' });
 
+  // Encaminhamento automático para Assessoria
+  const [encaminharAssessoria, setEncaminharAssessoria] = useState(false);
+  const [sectorAssessoria, setSectorAssessoria] = useState('');
+  const [cgofSelecionado, setCgofSelecionado] = useState('');
+
   useEffect(() => {
     setIsPrestacaoContaChecked(!!editingProcess?.is_prestacao_conta);
   }, [editingProcess]);
@@ -571,6 +576,9 @@ export const ProcessManager = () => {
     setPendingProcessToSave(null);
     setIsPrestacaoContaChecked(false);
     setPrestacaoFormState({ month: '', status: 'PENDENTE', motivo: '' });
+    setEncaminharAssessoria(false);
+    setSectorAssessoria('');
+    setCgofSelecionado('');
     setIsExitDateConfirmModalOpen(false);
     setPendingProcessForExitConfirm(null);
     setPendingExitConfirmIsEditing(false);
@@ -583,8 +591,35 @@ export const ProcessManager = () => {
     const now = new Date().toISOString();
     try {
       await saveProcess(process);
-      if (isPrestacaoContaChecked && currentUser) {
-        if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
+
+      // Encaminhamento automático para Assessoria (apenas em novo registro de Recebimento)
+      if (!isEditing && encaminharAssessoria && process.CGOF === 'Recebimento') {
+        const assessoriaEntryDate = process.processDate || toServerTimestampNoonLocal(getTodayLocalISO()) || now;
+        let formattedSector = sectorAssessoria.trim().toUpperCase();
+        if (formattedSector && !formattedSector.startsWith('SES-')) formattedSector = 'SES-' + formattedSector;
+        const assessoriaProcess: Process = {
+          id: generateUUID(),
+          category: 'Assessoria',
+          CGOF: 'Assessoria',
+          entryDate: assessoriaEntryDate,
+          number: process.number,
+          interested: process.interested,
+          subject: process.subject,
+          sector: formattedSector,
+          processDate: null,
+          urgent: process.urgent,
+          deadline: process.deadline,
+          observations: process.observations,
+          processLink: process.processLink,
+          is_prestacao_conta: false,
+          createdBy: currentUser?.id || 'system',
+          updatedBy: currentUser?.id || 'system',
+          createdAt: now,
+          updatedAt: now,
+        };
+        await saveProcess(assessoriaProcess);
+      }
+      if (isPrestacaoContaChecked && currentUser) {        if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
         const pcData: PrestacaoConta = {
           id: generateUUID(),
           process_id: process.id,
@@ -608,7 +643,10 @@ export const ProcessManager = () => {
         handleCloseModal();
         navigate('/prestacao-contas');
       } else {
-        alert(isEditing ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
+        const msg = !isEditing && encaminharAssessoria && process.CGOF === 'Recebimento'
+          ? 'Cadastrado com sucesso! Fluxo criado automaticamente na caixa Assessoria.'
+          : (isEditing ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
+        alert(msg);
         handleCloseModal();
         refreshCurrentList();
         if (isHistoryModalOpen) {
@@ -728,6 +766,11 @@ export const ProcessManager = () => {
     const deadline = toServerTimestampNoonLocal(formData.get('deadline') as string);
     if (!entryDate) { alert("Data de entrada é obrigatória"); setSaving(false); return; }
     if (!cgof || cgof.trim() === '') { alert("Origem (CGOF) é obrigatória"); setSaving(false); return; }
+    if (cgof === 'Recebimento' && encaminharAssessoria && !sectorAssessoria.trim()) {
+      alert('Informe a Localização na Assessoria para criar o fluxo automático.');
+      setSaving(false);
+      return;
+    }
 
     const now = new Date().toISOString();
     const newProcess: Process = {
@@ -1498,7 +1541,8 @@ export const ProcessManager = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Origem (CGOF) <span className="text-red-600">*</span></label>
-                  <select name="cgof" defaultValue={editingProcess?.CGOF || ''} required className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100">
+                  <select name="cgof" defaultValue={editingProcess?.CGOF || ''} required className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100"
+                    onChange={e => { setCgofSelecionado(e.target.value); setEncaminharAssessoria(false); setSectorAssessoria(''); }}>
                     <option value="">-- Selecione a Origem --</option>
                     {CGOF_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
@@ -1521,6 +1565,38 @@ export const ProcessManager = () => {
                    />
                 </div>
               </div>
+              {/* Encaminhamento automático para Assessoria — só em novo registro de Recebimento */}
+              {!editingProcess && cgofSelecionado === 'Recebimento' && (
+                <div className={`rounded-lg border p-3 space-y-3 transition-colors ${encaminharAssessoria ? 'bg-blue-50 border-blue-300' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="encaminhar-assessoria"
+                      checked={encaminharAssessoria}
+                      onChange={e => { setEncaminharAssessoria(e.target.checked); if (!e.target.checked) setSectorAssessoria(''); }}
+                      className="w-4 h-4 text-blue-600 focus:ring-blue-200 cursor-pointer"
+                    />
+                    <label htmlFor="encaminhar-assessoria" className="text-sm font-bold text-blue-700 cursor-pointer select-none">
+                      Encaminhar automaticamente para a caixa Assessoria
+                    </label>
+                  </div>
+                  {encaminharAssessoria && (
+                    <div>
+                      <label className="block text-sm font-bold mb-1 text-slate-700">
+                        Localização na Assessoria <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={sectorAssessoria}
+                        onChange={e => setSectorAssessoria(e.target.value.toUpperCase())}
+                        placeholder="Ex: GS-ATG8 (SES- será adicionado automaticamente)"
+                        className="w-full p-2 border border-blue-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100 font-mono"
+                      />
+                      <p className="mt-1 text-[11px] text-blue-600">O processo será criado na caixa Assessoria com a data de saída do Recebimento como data de entrada.</p>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Data de Entrada <span className="text-red-600">*</span></label>
