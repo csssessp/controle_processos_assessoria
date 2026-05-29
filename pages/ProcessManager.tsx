@@ -595,8 +595,7 @@ export const ProcessManager = () => {
       // Encaminhamento automático para Assessoria (apenas em novo registro de Recebimento)
       if (!isEditing && encaminharAssessoria && process.CGOF === 'Recebimento') {
         const assessoriaEntryDate = process.processDate || toServerTimestampNoonLocal(getTodayLocalISO()) || now;
-        let formattedSector = sectorAssessoria.trim().toUpperCase();
-        if (formattedSector && !formattedSector.startsWith('SES-')) formattedSector = 'SES-' + formattedSector;
+        const formattedSector = 'SES-CGOF-ASSISTTEC';
         const assessoriaProcess: Process = {
           id: generateUUID(),
           category: 'Assessoria',
@@ -766,11 +765,7 @@ export const ProcessManager = () => {
     const deadline = toServerTimestampNoonLocal(formData.get('deadline') as string);
     if (!entryDate) { alert("Data de entrada é obrigatória"); setSaving(false); return; }
     if (!cgof || cgof.trim() === '') { alert("Origem (CGOF) é obrigatória"); setSaving(false); return; }
-    if (cgof === 'Recebimento' && encaminharAssessoria && !sectorAssessoria.trim()) {
-      alert('Informe a Localização na Assessoria para criar o fluxo automático.');
-      setSaving(false);
-      return;
-    }
+
 
     const now = new Date().toISOString();
     const newProcess: Process = {
@@ -1581,19 +1576,7 @@ export const ProcessManager = () => {
                     </label>
                   </div>
                   {encaminharAssessoria && (
-                    <div>
-                      <label className="block text-sm font-bold mb-1 text-slate-700">
-                        Localização na Assessoria <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={sectorAssessoria}
-                        onChange={e => setSectorAssessoria(e.target.value.toUpperCase())}
-                        placeholder="Ex: GS-ATG8 (SES- será adicionado automaticamente)"
-                        className="w-full p-2 border border-blue-300 rounded-lg outline-none text-sm focus:ring-2 focus:ring-blue-100 font-mono"
-                      />
-                      <p className="mt-1 text-[11px] text-blue-600">O processo será criado na caixa Assessoria com a data de saída do Recebimento como data de entrada.</p>
-                    </div>
+                    <p className="text-[11px] text-blue-600">O processo será criado na caixa Assessoria (localização: <strong>SES-CGOF-ASSISTTEC</strong>) com a data de saída do Recebimento como data de entrada.</p>
                   )}
                 </div>
               )}
