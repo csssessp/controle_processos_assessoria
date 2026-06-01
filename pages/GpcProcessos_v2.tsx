@@ -2380,7 +2380,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 }) => {
 
   const { currentUser } = useApp();
-  const isAdminView = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
+  const isAdminView = !currentUser?.view_only && (currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC);
 
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
 
@@ -6693,6 +6693,7 @@ export const GpcProcessos = () => {
   const { currentUser } = useApp();
 
   const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
+  const isViewOnly = currentUser?.view_only === true;
 
   const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade'>('registros');
 
@@ -7259,11 +7260,13 @@ export const GpcProcessos = () => {
 
             </button>
 
+            {!isViewOnly && (
             <button className={BTN_PRI} onClick={() => setModal({})}>
 
               <Plus size={16} />Novo Registro
 
             </button>
+            )}
 
           </div>
 
@@ -7953,6 +7956,8 @@ export const GpcProcessos = () => {
 
                               </button>
 
+                              {!isViewOnly && (<>
+
                               <button
 
                                 className="p-2 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors shadow-sm"
@@ -7980,6 +7985,8 @@ export const GpcProcessos = () => {
                                 <Trash2 size={13} />
 
                               </button>
+
+                              </>)}
 
                             </div>
 

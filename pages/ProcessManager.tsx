@@ -962,6 +962,7 @@ export const ProcessManager = () => {
   };
 
   const isAdmin = currentUser?.role === UserRole.ADMIN;
+  const isViewOnly = currentUser?.view_only === true;
 
   const changeFontSize = (delta: number) => {
       setTableFontSize(prev => Math.min(Math.max(prev + delta, 9), 16));
@@ -995,9 +996,11 @@ export const ProcessManager = () => {
                </button>
              </>
            )}
-           <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded hover:bg-blue-600 transition ml-auto sm:ml-0 shadow-sm font-medium">
-             <Plus size={18} /> Novo Registro
-           </button>
+           {!isViewOnly && (
+             <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded hover:bg-blue-600 transition ml-auto sm:ml-0 shadow-sm font-medium">
+               <Plus size={18} /> Novo Registro
+             </button>
+           )}
         </div>
       </div>
 
@@ -1384,6 +1387,7 @@ export const ProcessManager = () => {
                 <p className="text-xs font-mono text-slate-600 mt-1">Número: {selectedProcessNumber}</p>
               </div>
               <div className="flex items-center gap-2">
+                {!isViewOnly && (
                 <button 
                   onClick={() => {
                     const processToEdit = selectedProcessHistory.length > 0 ? selectedProcessHistory[0] : null;
@@ -1407,6 +1411,8 @@ export const ProcessManager = () => {
                   <Plus size={18} />
                   <span>Novo Fluxo</span>
                 </button>
+                )}
+                {!isViewOnly && (
                 <button 
                   onClick={() => {
                     if (confirm('Tem certeza que deseja excluir este fluxo completamente? Esta ação não pode ser desfeita.')) {
@@ -1420,6 +1426,7 @@ export const ProcessManager = () => {
                 >
                   <Trash2 size={20} />
                 </button>
+                )}
                 <button onClick={() => setIsHistoryModalOpen(false)} className="p-1 hover:bg-slate-200 rounded transition-colors"><X size={24} /></button>
               </div>
             </div>
@@ -1453,6 +1460,7 @@ export const ProcessManager = () => {
                                                 <div className={`text-xs font-bold ${isCurrentLocation ? 'text-green-700' : 'text-blue-600'}`}>{toDisplayDate(item.entryDate)}</div>
                                             </div>
                                             <div className="flex flex-col gap-1">
+                                                {!isViewOnly && (
                                                 <button 
                                                     onClick={() => handleOpenModal(item)} 
                                                     className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -1460,6 +1468,8 @@ export const ProcessManager = () => {
                                                 >
                                                     <Edit size={16} />
                                                 </button>
+                                                )}
+                                                {!isViewOnly && (
                                                 <button 
                                                     onClick={() => {
                                                       if (confirm('Tem certeza que deseja excluir esta movimentação?')) {
@@ -1474,6 +1484,7 @@ export const ProcessManager = () => {
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

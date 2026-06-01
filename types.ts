@@ -30,6 +30,7 @@ export interface User {
   active: boolean;
   areas?: UserArea[]; // Áreas que o usuário pode acessar
   can_sign?: boolean; // Pode ser responsável pela assinatura de processos
+  view_only?: boolean; // Usuário somente leitura — não pode alterar dados
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
 }

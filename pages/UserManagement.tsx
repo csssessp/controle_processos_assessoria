@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import { generateUUID } from '../utils';
 import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
-import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin } from 'lucide-react';
+import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin, Eye } from 'lucide-react';
 
 export const UserManagement = () => {
   const { saveUser, deleteUser, currentUser } = useApp();
@@ -80,6 +80,7 @@ export const UserManagement = () => {
       active: formData.get('active') === 'on',
       areas: role === UserRole.ADMIN ? ['assessoria', 'gpc'] : selectedAreas,
       can_sign: formData.get('can_sign') === 'on',
+      view_only: formData.get('view_only') === 'on',
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
     };
@@ -136,6 +137,7 @@ export const UserManagement = () => {
                 <th className="px-6 py-3">Nível</th>
                 <th className="px-6 py-3">Áreas</th>
                 <th className="px-6 py-3">Assinatura</th>
+                <th className="px-6 py-3">Visualização</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3 text-right">Ações</th>
               </tr>
@@ -167,6 +169,13 @@ export const UserManagement = () => {
                   <td className="px-6 py-3">
                     {u.can_sign ? (
                       <span className="text-indigo-600 flex items-center gap-1 text-xs bg-indigo-50 px-2 py-0.5 rounded-full w-fit"><Check size={12}/> Sim</span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-3">
+                    {u.view_only ? (
+                      <span className="text-amber-600 flex items-center gap-1 text-xs bg-amber-50 px-2 py-0.5 rounded-full w-fit"><Eye size={12}/> Somente leitura</span>
                     ) : (
                       <span className="text-slate-400 text-xs">—</span>
                     )}
@@ -266,6 +275,15 @@ export const UserManagement = () => {
                   <span className="flex items-center gap-1 text-indigo-700 font-medium">Pode assinar processos</span>
                 </label>
                 <p className="text-[10px] text-slate-400">Usuários com esta permissão poderão ser indicados como responsáveis pela assinatura de processos no fluxo técnico.</p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1"><Eye size={12}/> Acesso Somente Leitura</p>
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                  <input type="checkbox" name="view_only" defaultChecked={editingUser?.view_only ?? false} className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-400"/>
+                  <span className="flex items-center gap-1 text-amber-700 font-medium">Somente visualização (não pode alterar dados)</span>
+                </label>
+                <p className="text-[10px] text-slate-400">O usuário poderá visualizar todos os processos das áreas permitidas, mas não poderá criar, editar ou excluir registros.</p>
               </div>
 
               <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">

@@ -105,7 +105,8 @@ export const DbService = {
       role: user.role,
       active: user.active,
       areas: user.areas || [],
-      can_sign: user.can_sign ?? false
+      can_sign: user.can_sign ?? false,
+      view_only: user.view_only ?? false
     };
 
     if (user.password && user.password.trim().length > 0) {
