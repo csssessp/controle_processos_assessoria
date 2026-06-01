@@ -5392,7 +5392,7 @@ const TaForm = ({ processoId, initial, onSave, onClose }: {
 
 
 
-type ProdEvento = { registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null };
+type ProdEvento = { registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null };
 
 type Granularity = 'dia' | 'mes' | 'ano' | 'geral';
 
@@ -5619,17 +5619,47 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
 
 
+  // Events filtered to current period (for detail view)
+
+  const inPeriodEvents = useMemo(() =>
+
+    gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period),
+
+    [events, gran, period]);
+
+
+
   // Merge stats + fluxoResumo into unified technician objects
 
   const technicians = useMemo(() => stats.map(s => {
 
     const fluxo = fluxoResumo.find(f => f.tecnico === s.responsavel);
 
+    // Compute pages from period-filtered events with deduplication per processo
+
+    const techInPeriod = inPeriodEvents.filter(e => e.responsavel === s.responsavel);
+
+    const seenProcessos = new Set<number>();
+
+    let paginas = 0;
+
+    for (const e of techInPeriod) {
+
+      if (e.num_paginas_analise && !seenProcessos.has(e.registro_id)) {
+
+        paginas += e.num_paginas_analise;
+
+        seenProcessos.add(e.registro_id);
+
+      }
+
+    }
+
     return {
 
       ...s,
 
-      paginas: fluxo?.total_paginas ?? 0,
+      paginas,
 
       tempMedio: fluxo?.tempo_medio_dias ?? 0,
 
@@ -5639,17 +5669,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     };
 
-  }), [stats, fluxoResumo]);
-
-
-
-  // Events filtered to current period (for detail view)
-
-  const inPeriodEvents = useMemo(() =>
-
-    gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period),
-
-    [events, gran, period]);
+  }), [stats, fluxoResumo, inPeriodEvents]);
 
 
 

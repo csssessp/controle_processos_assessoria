@@ -543,7 +543,7 @@ export const GpcService = {
     }).sort((a, b) => b.mes.localeCompare(a.mes) || b.count - a.count);
   },
 
-  getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null }[]> => {
+  getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[]> => {
     // Source 1: cgof_gpc_produtividade — only CADASTRO + INICIO_ANALISE (fired by DB triggers, dates are always correct)
     const { data: prodData, error: prodError } = await supabase
       .from('cgof_gpc_produtividade')
@@ -556,7 +556,7 @@ export const GpcService = {
     // Source 2: cgof_gpc_fluxo_tecnico — POSICAO + MOVIMENTO events (real retroactive dates from user input)
     const { data: fluxoData, error: fluxoError } = await supabase
       .from('cgof_gpc_fluxo_tecnico')
-      .select('registro_id, tecnico, data_evento, posicao_id, movimento, acao')
+      .select('registro_id, tecnico, data_evento, posicao_id, movimento, acao, num_paginas_analise')
       .not('tecnico', 'is', null)
       .order('data_evento', { ascending: true });
     if (fluxoError) console.error(fluxoError);
@@ -582,6 +582,7 @@ export const GpcService = {
         evento,
         data_evento: f.data_evento as string,
         obs: mov || acao || null,
+        num_paginas_analise: (f.num_paginas_analise as number | null) ?? null,
       };
     });
 
