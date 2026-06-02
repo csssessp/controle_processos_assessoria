@@ -5631,36 +5631,50 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
   // Merge stats + fluxoResumo into unified technician objects
 
+  // Build a lookup map from registro_id → num_paginas (the official page count of each process)
+  const pagesByProcesso = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const r of allRows) {
+      if (r.codigo != null && r.num_paginas) map.set(r.codigo, r.num_paginas);
+    }
+    return map;
+  }, [allRows]);
+
   const technicians = useMemo(() => stats.map(s => {
 
     const fluxo = fluxoResumo.find(f => f.tecnico === s.responsavel);
 
     const techInPeriod = inPeriodEvents.filter(e => e.responsavel === s.responsavel);
 
-    // Count pages per processo (deduplicated). Events are sorted ASC so we take the first
-    // occurrence that has num_paginas_analise for each registro_id.
+    // Pages are sourced from allRows[registro_id].num_paginas (official page count).
+    // This ensures consistent values regardless of whether num_paginas_analise was
+    // populated in the fluxo_tecnico event (many old records have it null).
     //
-    // For period views (mes/dia/ano): accept any event type — page data may only exist on
-    // MOVIMENTO events for older records, and the period boundary already caps the count.
-    //
-    // For geral view (all time): restrict to INICIO_ANALISE and CORRECAO events only, because
-    // old data had num_paginas_analise (total processo pages) pre-filled on every event type,
-    // which causes massive inflation when all historical records are aggregated.
-    const seenProcessos = new Set<number>();
+    // INICIO_ANALISE: count the process pages once per registro_id (dedup).
+    //   If multiple technicians analyzed the same process, each gets full credit.
+    // CORRECAO: add correction pages additively (each correction is separate work).
+    //   Prefer e.num_paginas_analise (correction-specific), fallback to processo pages.
+    const seenAnalise = new Set<number>();
 
     let paginas = 0;
 
     for (const e of techInPeriod) {
 
-      if (!e.num_paginas_analise) continue;
+      if (e.evento === 'INICIO_ANALISE') {
 
-      if (gran === 'geral' && e.evento !== 'INICIO_ANALISE' && e.evento !== 'CORRECAO') continue;
+        if (!seenAnalise.has(e.registro_id)) {
 
-      if (!seenProcessos.has(e.registro_id)) {
+          const p = pagesByProcesso.get(e.registro_id) ?? e.num_paginas_analise ?? 0;
 
-        paginas += e.num_paginas_analise;
+          paginas += p;
 
-        seenProcessos.add(e.registro_id);
+          seenAnalise.add(e.registro_id);
+
+        }
+
+      } else if (e.evento === 'CORRECAO') {
+
+        paginas += e.num_paginas_analise ?? pagesByProcesso.get(e.registro_id) ?? 0;
 
       }
 
@@ -5680,7 +5694,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     };
 
-  }), [stats, fluxoResumo, inPeriodEvents, gran]);
+  }), [stats, fluxoResumo, inPeriodEvents, pagesByProcesso]);
 
 
 
