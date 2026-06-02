@@ -1167,7 +1167,7 @@ export const ProcessManager = () => {
                         {process.subject}
                     </td>
                     <td style={dynamicRowStyle} className="px-2 py-2 text-slate-500 align-top">
-                        <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shadow-sm block w-fit max-w-[120px] truncate" title={process.sector}>{process.sector || <span className="text-slate-300 italic">Vazio</span>}</span>
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shadow-sm block w-fit whitespace-normal break-words" title={process.sector}>{process.sector || <span className="text-slate-300 italic">Vazio</span>}</span>
                     </td>
                     <td style={dynamicRowStyle} className="px-2 py-2 text-slate-600 align-top font-medium italic whitespace-nowrap">
                         {process.processDate ? toDisplayDate(process.processDate) : <span className="text-slate-300">Em curso</span>}
@@ -1192,7 +1192,6 @@ export const ProcessManager = () => {
                     </td>
                     <td className="px-4 py-2 text-right whitespace-nowrap align-top">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => handleOpenHistory(process)} className="p-1 text-slate-600 hover:text-blue-600 rounded" title="Ver Histórico"><Activity size={16} /></button>
                         <button onClick={() => handleOpenModal(process)} className="p-1 text-slate-600 hover:text-blue-600 rounded" title="Editar"><Edit size={16} /></button>
                       </div>
                     </td>
