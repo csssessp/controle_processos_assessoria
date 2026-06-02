@@ -5635,36 +5635,39 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     const fluxo = fluxoResumo.find(f => f.tecnico === s.responsavel);
 
-    // Pages: only INICIO_ANALISE (deduplicated per processo) + CORRECAO (additive).
-    // POSICAO/MOVIMENTO events are excluded — old data had num_paginas_analise pre-filled
-    // from the processo total pages on every event type, causing massive inflation.
-
     const techInPeriod = inPeriodEvents.filter(e => e.responsavel === s.responsavel);
 
-    const seenAnalise = new Set<number>();
+    // Step 1: identify which processos this tech ACTUALLY ANALYZED in the period
+    // (only INICIO_ANALISE events determine analysis; MOVIMENTO/POSICAO are workflow steps)
+    const analyzedInPeriod = new Set<number>(
+      techInPeriod.filter(e => e.evento === 'INICIO_ANALISE').map(e => e.registro_id)
+    );
 
-    let paginas = 0;
-
-    for (const e of techInPeriod) {
-
+    // Step 2: build a page-count lookup from ALL this tech's events (not just period-filtered).
+    // Old data had num_paginas_analise pre-filled on EVERY event type (MOVIMENTO/POSICAO too),
+    // so the page value for a processo may only exist on those events, not on INICIO_ANALISE.
+    // We prefer INICIO_ANALISE pages when available, but fall back to any event for that processo.
+    const allTechEvents = events.filter(e => e.responsavel === s.responsavel);
+    const pagesByRegistro = new Map<number, number>();
+    for (const e of allTechEvents) {
       if (!e.num_paginas_analise) continue;
-
-      if (e.evento === 'INICIO_ANALISE') {
-
-        if (!seenAnalise.has(e.registro_id)) {
-
-          paginas += e.num_paginas_analise;
-
-          seenAnalise.add(e.registro_id);
-
-        }
-
-      } else if (e.evento === 'CORRECAO') {
-
-        paginas += e.num_paginas_analise;
-
+      const existing = pagesByRegistro.get(e.registro_id);
+      if (!existing || e.evento === 'INICIO_ANALISE') {
+        pagesByRegistro.set(e.registro_id, e.num_paginas_analise);
       }
+    }
 
+    // Step 3: sum pages for processos analyzed in period
+    let paginas = 0;
+    for (const rid of analyzedInPeriod) {
+      paginas += pagesByRegistro.get(rid) ?? 0;
+    }
+
+    // Step 4: add CORRECAO pages (each correction is additive, not deduped)
+    for (const e of techInPeriod) {
+      if (e.evento === 'CORRECAO' && e.num_paginas_analise) {
+        paginas += e.num_paginas_analise;
+      }
     }
 
     return {
@@ -5681,7 +5684,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     };
 
-  }), [stats, fluxoResumo, inPeriodEvents]);
+  }), [stats, fluxoResumo, inPeriodEvents, events]);
 
 
 
