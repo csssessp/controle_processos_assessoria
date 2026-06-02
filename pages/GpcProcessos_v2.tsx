@@ -5469,6 +5469,8 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
 
     if (e.evento === 'MOVIMENTO')      map[e.responsavel].movimentos++;
 
+    if (e.evento === 'CORRECAO')       map[e.responsavel].movimentos++; // Correção documental é um tipo de movimentação
+
   }
 
   return Object.entries(map).map(([responsavel, s]) => ({
@@ -5627,7 +5629,16 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     [events, gran, period]);
 
-
+  // Most recent event date per technician from ALL sources (produtividade + fluxo_tecnico)
+  // This is more accurate than fluxo_tecnico alone for the "Ativo há X dias" badge.
+  const ultimoEventoByTech = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of events) {
+      const cur = map.get(e.responsavel);
+      if (!cur || e.data_evento > cur) map.set(e.responsavel, e.data_evento);
+    }
+    return map;
+  }, [events]);
 
   // Merge stats + fluxoResumo into unified technician objects
 
@@ -5688,13 +5699,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
       tempMedio: fluxo?.tempo_medio_dias ?? 0,
 
-      ultimoEvento: fluxo?.ultimo_evento ?? null,
+      ultimoEvento: ultimoEventoByTech.get(s.responsavel) ?? fluxo?.ultimo_evento ?? null,
 
       fluxoRegistros: fluxo?.total_registros ?? 0,
 
     };
 
-  }), [stats, fluxoResumo, inPeriodEvents, pagesByProcesso]);
+  }), [stats, fluxoResumo, inPeriodEvents, pagesByProcesso, ultimoEventoByTech]);
 
 
 
@@ -6485,6 +6496,15 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                             </span>
 
+                            {(() => {
+                              const pg = pagesByProcesso.get(p.registro_id);
+                              return pg ? (
+                                <span className="text-xs text-indigo-700 flex-shrink-0 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 font-bold" title="Nº de páginas do processo">
+                                  {pg.toLocaleString('pt-BR')} pág.
+                                </span>
+                              ) : null;
+                            })()}
+
                           </div>
 
                         </div>
@@ -6510,6 +6530,15 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                                     <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md border ${cls}`}>{label}</span>
 
                                     <span className="text-xs text-slate-400">{fmtTs(e.data_evento)}</span>
+
+                                    {e.evento === 'INICIO_ANALISE' && (() => {
+                                      const pg = pagesByProcesso.get(e.registro_id);
+                                      return pg ? <span className="text-[10px] text-indigo-500 font-semibold">{pg.toLocaleString('pt-BR')} pág.</span> : null;
+                                    })()}
+
+                                    {e.evento === 'CORRECAO' && e.num_paginas_analise ? (
+                                      <span className="text-[10px] text-rose-500 font-semibold">{e.num_paginas_analise.toLocaleString('pt-BR')} pág. corrigidas</span>
+                                    ) : null}
 
                                   </div>
 
