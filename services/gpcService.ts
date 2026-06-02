@@ -567,7 +567,9 @@ export const GpcService = {
       // Events with movement text → MOVIMENTO; pure position change (no movement text) → POSICAO
       // Analysis events from fluxo → INICIO_ANALISE (trigger may also log it, Set deduplicates count)
       let evento: string;
-      if (mov === 'EM ANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || acao.toUpperCase().includes('ANÁLISE')) {
+      if (mov === 'CORREÇÃO DOCUMENTAL') {
+        evento = 'CORRECAO';
+      } else if (mov === 'EM ANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || acao.toUpperCase().includes('ANÁLISE')) {
         evento = 'INICIO_ANALISE';
       } else if (mov.trim()) {
         evento = 'MOVIMENTO';

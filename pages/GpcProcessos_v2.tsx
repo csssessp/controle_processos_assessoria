@@ -5635,21 +5635,33 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     const fluxo = fluxoResumo.find(f => f.tecnico === s.responsavel);
 
-    // Compute pages from period-filtered events with deduplication per processo
+    // Pages: only INICIO_ANALISE (deduplicated per processo) + CORRECAO (additive).
+    // POSICAO/MOVIMENTO events are excluded — old data had num_paginas_analise pre-filled
+    // from the processo total pages on every event type, causing massive inflation.
 
     const techInPeriod = inPeriodEvents.filter(e => e.responsavel === s.responsavel);
 
-    const seenProcessos = new Set<number>();
+    const seenAnalise = new Set<number>();
 
     let paginas = 0;
 
     for (const e of techInPeriod) {
 
-      if (e.num_paginas_analise && !seenProcessos.has(e.registro_id)) {
+      if (!e.num_paginas_analise) continue;
+
+      if (e.evento === 'INICIO_ANALISE') {
+
+        if (!seenAnalise.has(e.registro_id)) {
+
+          paginas += e.num_paginas_analise;
+
+          seenAnalise.add(e.registro_id);
+
+        }
+
+      } else if (e.evento === 'CORRECAO') {
 
         paginas += e.num_paginas_analise;
-
-        seenProcessos.add(e.registro_id);
 
       }
 
