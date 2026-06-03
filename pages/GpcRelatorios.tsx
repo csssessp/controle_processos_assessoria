@@ -376,9 +376,8 @@ export const GpcRelatorios = () => {
             'Cadastros': t.cadastros,
             'Processos Analisados': t.analises,
             'Avanços de Posição': t.posicoes,
-            'Atualizações de Movimento': t.movimentos,
-            'Correções Documentais': t.correcoes,
-            'Total de Ações': t.total,
+            'Atualizações de Movimento': t.movimentos, // inclui Correções Documentais (igual à tela)
+            'Total de Ações': t.total,                 // = Analisados + Posições + Movimentos (sem Cadastros)
             'Páginas Analisadas': t.paginas,
           })),
         },

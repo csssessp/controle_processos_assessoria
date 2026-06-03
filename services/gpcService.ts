@@ -864,9 +864,8 @@ export const GpcService = {
       cadastros: number;
       analises: number;
       posicoes: number;
-      movimentos: number;
-      correcoes: number;
-      total: number;
+      movimentos: number; // includes CORRECAO (same as screen)
+      total: number;       // = analises + posicoes + movimentos (Cadastros excluded, same as screen)
       paginas: number;
     }[];
     eventos: {
@@ -883,31 +882,55 @@ export const GpcService = {
     const all: { registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[] =
       await GpcServiceSelf.getProdutividadeDetalhado();
 
+    // Build pagesByProcesso from cgof_gpc_processos.num_paginas — same source used by the screen.
+    // INICIO_ANALISE events store num_paginas_analise only sporadically; the official
+    // page count lives on the processo record and must be the primary source.
+    const { data: processosData } = await supabase
+      .from('cgof_gpc_processos')
+      .select('codigo, num_paginas')
+      .not('num_paginas', 'is', null);
+    const pagesByProcesso = new Map<number, number>();
+    for (const p of (processosData ?? [])) {
+      if (p.codigo != null && p.num_paginas) pagesByProcesso.set(p.codigo as number, p.num_paginas as number);
+    }
+
     // Filter by period
     const prefix = mes ? `${ano}-${mes}` : ano;
     const filtered = all.filter(e => e.data_evento.startsWith(prefix));
 
-    // Aggregate per technician
+    // Aggregate per technician — mirrors computeStats() in GpcProcessos_v2.tsx exactly:
+    //   - CORRECAO counted inside movimentos (not separately)
+    //   - Total = analises + posicoes + movimentos (Cadastros NOT counted)
+    //   - Pages: official num_paginas for INICIO_ANALISE (deduped); num_paginas_analise for CORRECAO
     type Stats = {
       cadastros: number;
       analises: Set<number>;
       posicoes: number;
       movimentos: number;
-      correcoes: number;
       seenAnalise: Set<number>;
       paginas: number;
     };
     const map: Record<string, Stats> = {};
     for (const e of filtered) {
       if (!map[e.responsavel]) {
-        map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, seenAnalise: new Set(), paginas: 0 };
+        map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, seenAnalise: new Set(), paginas: 0 };
       }
       const s = map[e.responsavel];
-      if (e.evento === 'CADASTRO')        s.cadastros++;
-      if (e.evento === 'INICIO_ANALISE')  { s.analises.add(e.registro_id); if (!s.seenAnalise.has(e.registro_id)) { s.paginas += (e.num_paginas_analise ?? 0); s.seenAnalise.add(e.registro_id); } }
-      if (e.evento === 'POSICAO')         s.posicoes++;
-      if (e.evento === 'MOVIMENTO')       s.movimentos++;
-      if (e.evento === 'CORRECAO')        { s.correcoes++; s.paginas += (e.num_paginas_analise ?? 0); }
+      if (e.evento === 'CADASTRO')       s.cadastros++;
+      if (e.evento === 'INICIO_ANALISE') {
+        s.analises.add(e.registro_id);
+        if (!s.seenAnalise.has(e.registro_id)) {
+          // Primary: official process page count; fallback: event field
+          s.paginas += pagesByProcesso.get(e.registro_id) ?? e.num_paginas_analise ?? 0;
+          s.seenAnalise.add(e.registro_id);
+        }
+      }
+      if (e.evento === 'POSICAO')        s.posicoes++;
+      if (e.evento === 'MOVIMENTO')      s.movimentos++;
+      if (e.evento === 'CORRECAO') {
+        s.movimentos++; // counted as movement on screen
+        s.paginas += e.num_paginas_analise ?? pagesByProcesso.get(e.registro_id) ?? 0;
+      }
     }
 
     const resumo = Object.entries(map).map(([responsavel, s]) => ({
@@ -916,8 +939,7 @@ export const GpcService = {
       analises: s.analises.size,
       posicoes: s.posicoes,
       movimentos: s.movimentos,
-      correcoes: s.correcoes,
-      total: s.cadastros + s.analises.size + s.posicoes + s.movimentos + s.correcoes,
+      total: s.analises.size + s.posicoes + s.movimentos, // mirrors screen (no cadastros)
       paginas: s.paginas,
     })).sort((a, b) => b.total - a.total);
 
