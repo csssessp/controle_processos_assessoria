@@ -4882,6 +4882,11 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
 }) => {
 
+  // isNew = criando novo exercicio (nao editando um existente)
+  const isNew = !initial?.codigo;
+  // exAntLocked = calculado automaticamente do saldo do ano anterior, nao deve ser editavel
+  const exAntLocked = isNew && lastSaldo != null;
+
   const [f, setF] = useState<Partial<GpcExercicio>>(initial ?? {
 
     processo_id: processoId,
@@ -4920,7 +4925,24 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
         <div><label className={LABEL}>Qtd. Páginas a Analisar</label><input type="number" min="0" className={INPUT} value={f.qtd_paginas ?? ''} onChange={e => set('qtd_paginas', e.target.value === '' ? null : Number(e.target.value))} placeholder="0" /></div>
 
-        <div><label className={LABEL}>Exerc. Anterior (R$)</label><CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} /></div>
+        <div className="col-span-2">
+          <label className={LABEL}>Exerc. Anterior (R$) — saldo transportado do exercício anterior</label>
+          {exAntLocked ? (
+            <div className="flex items-center gap-2">
+              <div className={`${INPUT} bg-slate-50 text-slate-500 cursor-not-allowed select-none flex items-center`}>
+                {(f.exercicio_anterior ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </div>
+              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 font-semibold whitespace-nowrap">Calculado automaticamente — não é dinheiro novo</span>
+            </div>
+          ) : (
+            <>
+              <CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} />
+              {(f.exercicio_anterior ?? 0) > 0 && (
+                <p className="text-[11px] text-amber-600 mt-1">⚠ Saldo transportado do exercício anterior — <strong>não é somado ao Total do Convênio</strong> (evita dupla contagem).</p>
+              )}
+            </>
+          )}
+        </div>
 
         <div><label className={LABEL}>Repasse (R$)</label><CurrencyInput value={f.repasse} onChange={v => set('repasse', v)} /></div>
 
@@ -4928,37 +4950,61 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
         {(() => {
 
-          const _total = (f.exercicio_anterior ?? 0) + (f.repasse ?? 0) + (f.aplicacao ?? 0);
+          const exAnt   = f.exercicio_anterior ?? 0;
 
-          if (_total === 0) return null;
+          const repasse = f.repasse ?? 0;
 
-          const parts = [];
+          const aplic   = f.aplicacao ?? 0;
 
-          if ((f.exercicio_anterior ?? 0) > 0) parts.push('Ex. Ant. + ');
+          const totalDisp = exAnt + repasse + aplic;   // total disponivel NESTE exercicio
 
-          parts.push('Repasse + Aplicação');
+          const totalConv = repasse + aplic;            // contribuicao ao Total do Convenio (sem ex. anterior)
+
+          if (totalDisp === 0) return null;
 
           return (
 
-            <div className="col-span-2">
+            <div className="col-span-2 space-y-2">
 
               <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
 
                 <div>
 
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Disponível no Exercício</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Disponível neste Exercício</div>
 
-                  <div className="text-[10px] text-blue-400 mt-0.5">{parts.join('')}</div>
+                  <div className="text-[10px] text-blue-400 mt-0.5">{exAnt > 0 ? 'Ex. Ant. + ' : ''}Repasse + Aplicação</div>
 
                 </div>
 
                 <div className="text-lg font-bold text-blue-700">
 
-                  {_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {totalDisp.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
 
                 </div>
 
               </div>
+
+              {exAnt > 0 && (
+
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+
+                  <div>
+
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-green-600">Contribuição ao Total do Convênio</div>
+
+                    <div className="text-[10px] text-green-400 mt-0.5">Apenas Repasse + Aplicação (ex. anterior é saldo transportado, não conta como novo recurso)</div>
+
+                  </div>
+
+                  <div className="text-base font-bold text-green-700">
+
+                    {totalConv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+
+                  </div>
+
+                </div>
+
+              )}
 
             </div>
 
