@@ -3001,7 +3001,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   const exs = full.exercicios!;
                   const tRep = exs.reduce((s, e) => s + (e.repasse ?? 0), 0);
                   const tApl = exs.reduce((s, e) => s + (e.aplicacao ?? 0), 0);
-                  const tConv = exs.reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0);
+                  const tConv = tRep + tApl; // ex. anterior é saldo transportado, não dinheiro novo
                   return (
                     <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs">
                       <div>
@@ -4487,7 +4487,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     const totalAplicacao = (full.exercicios ?? []).reduce((s, e) => s + (e.aplicacao ?? 0), 0);
 
-                    const totalConvenio = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0) + (e.repasse ?? 0) + (e.aplicacao ?? 0), 0);
+                    const totalConvenio = totalRepasse + totalAplicacao; // ex. anterior é saldo transportado, não dinheiro novo
 
                     return (
 
