@@ -16,6 +16,22 @@ export interface GpcReportData {
   parcelamentosDetalhes: (GpcParcelamento & { processo: string | null; convenio: string | null; entidade: string | null })[];
 }
 
+export interface ExercicioRelatorio {
+  processo_id: number;
+  processo: string | null;
+  convenio: string | null;
+  entidade: string | null;
+  exercicio: string | null;
+  exercicio_anterior: number | null;
+  repasse: number | null;
+  aplicacao: number | null;
+  gastos: number | null;
+  devolvido: number | null;
+  // computed
+  total_convenio: number; // repasse + aplicacao
+  saldo: number;          // ex_ant + repasse + aplicacao - gastos - devolvido
+}
+
 export const GpcService = {
 
   // ── LOOKUPS ──────────────────────────────────────────────────────────────
@@ -767,6 +783,40 @@ export const GpcService = {
       tempo_medio_dias: s.tempos.length > 0 ? Math.round(s.tempos.reduce((a, b) => a + b, 0) / s.tempos.length) : 0,
       ultimo_evento: s.ultimo,
     })).sort((a, b) => b.total_registros - a.total_registros);
+  },
+
+  getExerciciosRelatorio: async (): Promise<ExercicioRelatorio[]> => {
+    // Fetch all exercises joined with their process data in one query
+    const { data, error } = await supabase
+      .from('cgof_gpc_exercicio')
+      .select('*, cgof_gpc_processos(processo, convenio, entidade)')
+      .order('processo_id', { ascending: true })
+      .order('exercicio', { ascending: true });
+    if (error) { console.error(error); return []; }
+
+    return (data ?? []).map((e: any) => {
+      const repasse   = e.repasse   ?? 0;
+      const aplicacao = e.aplicacao ?? 0;
+      const exAnt     = e.exercicio_anterior ?? 0;
+      const gastos    = e.gastos    ?? 0;
+      const devolvido = e.devolvido ?? 0;
+      const total_convenio = repasse + aplicacao;
+      const saldo = Math.round((exAnt + repasse + aplicacao - gastos - devolvido) * 100) / 100;
+      return {
+        processo_id: e.processo_id,
+        processo:    e.cgof_gpc_processos?.processo ?? null,
+        convenio:    e.cgof_gpc_processos?.convenio ?? null,
+        entidade:    e.cgof_gpc_processos?.entidade ?? null,
+        exercicio:   e.exercicio ?? null,
+        exercicio_anterior: e.exercicio_anterior ?? null,
+        repasse:     e.repasse ?? null,
+        aplicacao:   e.aplicacao ?? null,
+        gastos:      e.gastos ?? null,
+        devolvido:   e.devolvido ?? null,
+        total_convenio,
+        saldo,
+      } as ExercicioRelatorio;
+    });
   },
 };
 

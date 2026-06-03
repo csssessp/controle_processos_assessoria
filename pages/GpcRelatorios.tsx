@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Download, FileText, Loader2, DollarSign, FolderOpen, ClipboardList, GitBranch, RefreshCw } from 'lucide-react';
-import { GpcService, GpcReportData } from '../services/gpcService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Download, FileText, Loader2, DollarSign, FolderOpen, ClipboardList, GitBranch, RefreshCw, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { GpcService, GpcReportData, ExercicioRelatorio } from '../services/gpcService';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,16 +48,53 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
 
 export const GpcRelatorios = () => {
   const [data, setData] = useState<GpcReportData | null>(null);
+  const [exercicios, setExercicios] = useState<ExercicioRelatorio[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exSearch, setExSearch] = useState('');
+  const [exSort, setExSort] = useState<{ col: keyof ExercicioRelatorio; dir: 'asc' | 'desc' }>({ col: 'processo_id', dir: 'asc' });
 
   const load = async () => {
     setLoading(true);
-    const r = await GpcService.getReportData();
+    const [r, ex] = await Promise.all([GpcService.getReportData(), GpcService.getExerciciosRelatorio()]);
     setData(r);
+    setExercicios(ex);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  const filteredEx = useMemo(() => {
+    const q = exSearch.trim().toLowerCase();
+    const rows = q ? exercicios.filter(e =>
+      (e.processo ?? '').toLowerCase().includes(q) ||
+      (e.convenio ?? '').toLowerCase().includes(q) ||
+      (e.entidade ?? '').toLowerCase().includes(q) ||
+      (e.exercicio ?? '').toLowerCase().includes(q)
+    ) : exercicios;
+    return [...rows].sort((a, b) => {
+      const va = a[exSort.col] ?? '';
+      const vb = b[exSort.col] ?? '';
+      const cmp = typeof va === 'number' && typeof vb === 'number'
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'pt-BR');
+      return exSort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [exercicios, exSearch, exSort]);
+
+  const exTotals = useMemo(() => ({
+    repasse:       filteredEx.reduce((s, e) => s + (e.repasse ?? 0), 0),
+    aplicacao:     filteredEx.reduce((s, e) => s + (e.aplicacao ?? 0), 0),
+    total_convenio: filteredEx.reduce((s, e) => s + e.total_convenio, 0),
+    gastos:        filteredEx.reduce((s, e) => s + (e.gastos ?? 0), 0),
+    devolvido:     filteredEx.reduce((s, e) => s + (e.devolvido ?? 0), 0),
+    saldo:         filteredEx.reduce((s, e) => s + e.saldo, 0),
+  }), [filteredEx]);
+
+  const sortIcon = (col: keyof ExercicioRelatorio) => exSort.col === col
+    ? (exSort.dir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)
+    : null;
+  const toggleSort = (col: keyof ExercicioRelatorio) =>
+    setExSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
 
   const maxDrs = data ? Math.max(...data.byDrs.map(d => d.count), 1) : 1;
   const maxTipo = data ? Math.max(...data.byTipo.map(t => t.count), 1) : 1;
@@ -247,6 +284,117 @@ export const GpcRelatorios = () => {
               {(data.parcelamentosDetalhes ?? []).length > 100 && (
                 <p className="text-xs text-slate-400 px-3 py-2">Exibindo 100 de {data.parcelamentosDetalhes!.length} registros. Use o CSV para exportar todos.</p>
               )}
+            </div>
+          </div>
+
+          {/* ── RELATÓRIO PROCESSOS × EXERCÍCIOS ── */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <SectionTitle>Processos × Exercícios — relatório financeiro</SectionTitle>
+                <p className="text-xs text-slate-400 -mt-2">Todos os processos com todos os exercícios cadastrados no Financeiro</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 w-56"
+                    placeholder="Filtrar por processo, convênio, entidade..."
+                    value={exSearch}
+                    onChange={e => setExSearch(e.target.value)}
+                  />
+                </div>
+                <button
+                  className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-green-700 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                  onClick={() => exportCSV(
+                    filteredEx.map(e => ({
+                      'Cód.': e.processo_id,
+                      'Processo': e.processo ?? '',
+                      'Convênio': e.convenio ?? '',
+                      'Entidade': e.entidade ?? '',
+                      'Exercício': e.exercicio ?? '',
+                      'Ex. Anterior (R$)': e.exercicio_anterior ?? 0,
+                      'Repasse (R$)': e.repasse ?? 0,
+                      'Aplicação (R$)': e.aplicacao ?? 0,
+                      'Total Convênio (R$)': e.total_convenio,
+                      'Gastos (R$)': e.gastos ?? 0,
+                      'Devolvido (R$)': e.devolvido ?? 0,
+                      'Saldo (R$)': e.saldo,
+                    })),
+                    'gpc_processos_exercicios.csv'
+                  )}
+                >
+                  <Download size={12} /> Exportar CSV ({filteredEx.length})
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                  <tr>
+                    {([
+                      { col: 'processo_id' as const, label: 'Cód.' },
+                      { col: 'processo'    as const, label: 'Processo' },
+                      { col: 'convenio'   as const, label: 'Convênio' },
+                      { col: 'entidade'   as const, label: 'Entidade' },
+                      { col: 'exercicio'  as const, label: 'Exercício' },
+                      { col: 'exercicio_anterior' as const, label: 'Ex. Ant.' },
+                      { col: 'repasse'    as const, label: 'Repasse' },
+                      { col: 'aplicacao'  as const, label: 'Aplicação' },
+                      { col: 'total_convenio' as const, label: 'Total Conv.' },
+                      { col: 'gastos'     as const, label: 'Gastos' },
+                      { col: 'devolvido'  as const, label: 'Devolvido' },
+                      { col: 'saldo'      as const, label: 'Saldo' },
+                    ] as { col: keyof ExercicioRelatorio; label: string }[]).map(({ col, label }) => (
+                      <th
+                        key={col}
+                        onClick={() => toggleSort(col)}
+                        className="px-3 py-2.5 text-left font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                      >
+                        <span className="inline-flex items-center gap-1">{label}{sortIcon(col)}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredEx.map((e, i) => (
+                    <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="px-3 py-2 text-slate-400">{e.processo_id}</td>
+                      <td className="px-3 py-2 font-mono font-medium text-blue-700 whitespace-nowrap">{e.processo ?? '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.convenio ?? '—'}</td>
+                      <td className="px-3 py-2 max-w-[200px] truncate" title={e.entidade ?? ''}>{e.entidade ?? '—'}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-700 text-center">{e.exercicio ?? '—'}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">{e.exercicio_anterior ? fmt(e.exercicio_anterior) : '—'}</td>
+                      <td className="px-3 py-2 text-right text-green-700 font-medium">{e.repasse ? fmt(e.repasse) : '—'}</td>
+                      <td className="px-3 py-2 text-right">{e.aplicacao ? fmt(e.aplicacao) : '—'}</td>
+                      <td className="px-3 py-2 text-right font-bold text-blue-700">{fmt(e.total_convenio)}</td>
+                      <td className="px-3 py-2 text-right text-orange-600">{e.gastos ? fmt(e.gastos) : '—'}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">{e.devolvido ? fmt(e.devolvido) : '—'}</td>
+                      <td className={`px-3 py-2 text-right font-semibold ${e.saldo > 0 ? 'text-emerald-600' : e.saldo < 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                        {fmt(e.saldo)}
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredEx.length === 0 && (
+                    <tr><td colSpan={12} className="py-8 text-center text-slate-400">Nenhum exercício encontrado</td></tr>
+                  )}
+                </tbody>
+                {filteredEx.length > 0 && (
+                  <tfoot className="bg-slate-100 font-bold text-xs border-t-2 border-slate-300">
+                    <tr>
+                      <td colSpan={5} className="px-3 py-2.5 text-slate-600">TOTAL ({filteredEx.length} exercícios)</td>
+                      <td className="px-3 py-2.5 text-right text-slate-500">{fmt(exercicios.reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0) !== exTotals.repasse ? undefined as any : undefined)}</td>
+                      <td className="px-3 py-2.5 text-right text-green-700">{fmt(exTotals.repasse)}</td>
+                      <td className="px-3 py-2.5 text-right">{fmt(exTotals.aplicacao)}</td>
+                      <td className="px-3 py-2.5 text-right text-blue-700">{fmt(exTotals.total_convenio)}</td>
+                      <td className="px-3 py-2.5 text-right text-orange-600">{fmt(exTotals.gastos)}</td>
+                      <td className="px-3 py-2.5 text-right text-slate-500">{fmt(exTotals.devolvido)}</td>
+                      <td className={`px-3 py-2.5 text-right ${exTotals.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(exTotals.saldo)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
         </>
