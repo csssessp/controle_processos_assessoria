@@ -1,404 +1,456 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Download, FileText, Loader2, DollarSign, FolderOpen, ClipboardList, GitBranch, RefreshCw, Search, ChevronUp, ChevronDown } from 'lucide-react';
-import { GpcService, GpcReportData, ExercicioRelatorio } from '../services/gpcService';
+import React, { useState, useCallback, useEffect } from 'react';
+import * as XLSX from 'xlsx';
+import {
+  FileSpreadsheet, Loader2, DollarSign, FolderOpen,
+  ClipboardList, GitBranch, BarChart3, Layers, Info,
+  RefreshCw, CheckCircle2,
+} from 'lucide-react';
+import { GpcService } from '../services/gpcService';
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── XLSX utility ────────────────────────────────────────────────────────────
 
-const fmt = (v: number | null | undefined) =>
-  v == null ? 'R$ 0,00' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function exportXLSX(
+  sheets: { name: string; rows: Record<string, unknown>[] }[],
+  filename: string,
+) {
+  const wb = XLSX.utils.book_new();
+  for (const { name, rows } of sheets) {
+    if (!rows.length) continue;
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const cols = Object.keys(rows[0]);
+    ws['!cols'] = cols.map(col => ({
+      wch: Math.min(
+        60,
+        Math.max(col.length + 2, ...rows.slice(0, 300).map(r => String(r[col] ?? '').length + 1)),
+      ),
+    }));
+    XLSX.utils.book_append_sheet(wb, ws, name.substring(0, 31));
+  }
+  if (!wb.SheetNames.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sem dados']]), 'Sem dados');
+  }
+  XLSX.writeFile(wb, filename);
+}
 
-const exportCSV = (rows: Record<string, any>[], filename: string) => {
-  if (!rows.length) return;
-  const cols = Object.keys(rows[0]);
-  const header = cols.join(';');
-  const body = rows.map(r => cols.map(c => {
-    const val = r[c];
-    if (val == null) return '';
-    const str = String(val);
-    return str.includes(';') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
-  }).join(';'));
-  const csv = '\uFEFF' + [header, ...body].join('\n'); // BOM for Excel pt-BR
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+const todayStr = () => new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── KPI Card ────────────────────────────────────────────────────────────────
 
-const StatCard = ({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: any; color: string }) => (
-  <div className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4`}>
-    <div className={`p-3 rounded-full ${color}`}>
-      <Icon size={22} className="text-white" />
+const KpiCard = ({
+  label, value, icon: Icon, color,
+}: { label: string; value: string | number; icon: React.ElementType; color: string }) => (
+  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
+    <div className={`p-3 rounded-xl ${color} shrink-0`}>
+      <Icon size={20} className="text-white" />
     </div>
     <div>
-      <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-bold text-slate-800 mt-0.5">{typeof value === 'number' ? value.toLocaleString('pt-BR') : value}</p>
+      <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">{label}</p>
+      <p className="text-2xl font-bold text-slate-800 mt-0.5">
+        {typeof value === 'number' ? value.toLocaleString('pt-BR') : value}
+      </p>
     </div>
   </div>
 );
 
-const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-  <h3 className="text-base font-semibold text-slate-700 mb-3">{children}</h3>
-);
+// ─── Report Card ─────────────────────────────────────────────────────────────
+
+const ReportCard = ({
+  icon: Icon, color, title, description, badge, onGenerate,
+}: {
+  icon: React.ElementType;
+  color: string;
+  title: string;
+  description: string;
+  badge?: string;
+  onGenerate: () => Promise<void>;
+}) => {
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handle = async () => {
+    setLoading(true);
+    setDone(false);
+    try {
+      await onGenerate();
+      setDone(true);
+      setTimeout(() => setDone(false), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start gap-3">
+        <div className={`p-2.5 rounded-xl ${color} shrink-0`}>
+          <Icon size={20} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
+            {badge && (
+              <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{description}</p>
+        </div>
+      </div>
+      <button
+        onClick={handle}
+        disabled={loading}
+        className={`mt-auto flex items-center justify-center gap-2 w-full py-2.5 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-60
+          ${done ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-green-700 hover:bg-green-800'}`}
+      >
+        {loading ? (
+          <><Loader2 size={15} className="animate-spin" /> Gerando…</>
+        ) : done ? (
+          <><CheckCircle2 size={15} /> Baixado!</>
+        ) : (
+          <><FileSpreadsheet size={15} /> Gerar XLSX</>
+        )}
+      </button>
+    </div>
+  );
+};
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export const GpcRelatorios = () => {
-  const [data, setData] = useState<GpcReportData | null>(null);
-  const [exercicios, setExercicios] = useState<ExercicioRelatorio[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [exSearch, setExSearch] = useState('');
-  const [exSort, setExSort] = useState<{ col: keyof ExercicioRelatorio; dir: 'asc' | 'desc' }>({ col: 'processo_id', dir: 'asc' });
+  // ── KPI state ─────────────────────────────────────────────────────────────
+  const [kpis, setKpis] = useState<{
+    totalProcessos: number;
+    totalExercicios: number;
+    totalParcelamentos: number;
+    totalTas: number;
+    parcelamentosAtivos: number;
+    valorTotalRepasse: number;
+  } | null>(null);
+  const [loadingKpis, setLoadingKpis] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    const [r, ex] = await Promise.all([GpcService.getReportData(), GpcService.getExerciciosRelatorio()]);
-    setData(r);
-    setExercicios(ex);
-    setLoading(false);
+  const loadKpis = async () => {
+    setLoadingKpis(true);
+    const d = await GpcService.getReportData();
+    setKpis({
+      totalProcessos: d.totalProcessos,
+      totalExercicios: d.totalExercicios,
+      totalParcelamentos: d.totalParcelamentos,
+      totalTas: d.totalTas,
+      parcelamentosAtivos: d.parcelamentosAtivos,
+      valorTotalRepasse: d.valorTotalRepasse,
+    });
+    setLoadingKpis(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { loadKpis(); }, []);
 
-  const filteredEx = useMemo(() => {
-    const q = exSearch.trim().toLowerCase();
-    const rows = q ? exercicios.filter(e =>
-      (e.processo ?? '').toLowerCase().includes(q) ||
-      (e.convenio ?? '').toLowerCase().includes(q) ||
-      (e.entidade ?? '').toLowerCase().includes(q) ||
-      (e.exercicio ?? '').toLowerCase().includes(q)
-    ) : exercicios;
-    return [...rows].sort((a, b) => {
-      const va = a[exSort.col] ?? '';
-      const vb = b[exSort.col] ?? '';
-      const cmp = typeof va === 'number' && typeof vb === 'number'
-        ? va - vb
-        : String(va).localeCompare(String(vb), 'pt-BR');
-      return exSort.dir === 'asc' ? cmp : -cmp;
-    });
-  }, [exercicios, exSearch, exSort]);
+  // ── Report generators ─────────────────────────────────────────────────────
 
-  const exTotals = useMemo(() => ({
-    repasse:       filteredEx.reduce((s, e) => s + (e.repasse ?? 0), 0),
-    aplicacao:     filteredEx.reduce((s, e) => s + (e.aplicacao ?? 0), 0),
-    total_convenio: filteredEx.reduce((s, e) => s + e.total_convenio, 0),
-    gastos:        filteredEx.reduce((s, e) => s + (e.gastos ?? 0), 0),
-    devolvido:     filteredEx.reduce((s, e) => s + (e.devolvido ?? 0), 0),
-    saldo:         filteredEx.reduce((s, e) => s + e.saldo, 0),
-  }), [filteredEx]);
+  const relProcessos = useCallback(async () => {
+    const rows = await GpcService.getAllProcessosExport();
+    exportXLSX([{
+      name: 'Processos',
+      rows: rows.map(p => ({
+        'Código': p.codigo,
+        'Processo': p.processo ?? '',
+        'Convênio': p.convenio ?? '',
+        'Tipo': p.tipo ?? '',
+        'Ano Cadastro': p.ano_cadastro ?? '',
+        'Entidade': p.entidade ?? '',
+        'DRS': p.drs ?? '',
+        'Vistoriado': p.vistoriado ? 'Sim' : 'Não',
+        'Parcelamento': p.parcelamento ? 'Sim' : 'Não',
+        'Acima/Abaixo': p.acima_abaixo ?? '',
+      })),
+    }], `gpc_processos_${todayStr()}.xlsx`);
+  }, []);
 
-  const sortIcon = (col: keyof ExercicioRelatorio) => exSort.col === col
-    ? (exSort.dir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)
-    : null;
-  const toggleSort = (col: keyof ExercicioRelatorio) =>
-    setExSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
+  const relExercicios = useCallback(async () => {
+    const rows = await GpcService.getExerciciosRelatorio();
+    exportXLSX([{
+      name: 'Processos x Exercícios',
+      rows: rows.map(e => ({
+        'Código': e.processo_id,
+        'Processo': e.processo ?? '',
+        'Convênio': e.convenio ?? '',
+        'Entidade': e.entidade ?? '',
+        'Exercício': e.exercicio ?? '',
+        'Ex. Anterior (R$)': e.exercicio_anterior ?? 0,
+        'Repasse (R$)': e.repasse ?? 0,
+        'Aplicação (R$)': e.aplicacao ?? 0,
+        'Total Convênio (R$)': e.total_convenio,
+        'Gastos (R$)': e.gastos ?? 0,
+        'Devolvido (R$)': e.devolvido ?? 0,
+        'Saldo (R$)': e.saldo,
+      })),
+    }], `gpc_exercicios_${todayStr()}.xlsx`);
+  }, []);
 
-  const maxDrs = data ? Math.max(...data.byDrs.map(d => d.count), 1) : 1;
-  const maxTipo = data ? Math.max(...data.byTipo.map(t => t.count), 1) : 1;
+  const relParcelamentos = useCallback(async () => {
+    const d = await GpcService.getReportData();
+    exportXLSX([{
+      name: 'Parcelamentos',
+      rows: (d.parcelamentosDetalhes ?? []).map(p => ({
+        'Cód. Processo': p.processo_id,
+        'Processo': p.processo ?? '',
+        'Convênio': p.convenio ?? '',
+        'Entidade': p.entidade ?? '',
+        'Proc. Parcela': p.proc_parcela ?? '',
+        'Tipo': p.tipo ?? '',
+        'Exercício': p.exercicio ?? '',
+        'Valor Gerador (R$)': p.valor_parcelado ?? 0,
+        'Valor Corrigido (R$)': p.valor_corrigido ?? 0,
+        'Nº Parcelas': p.parcelas ?? '',
+        'Em Dia': p.em_dia ? 'Sim' : 'Não',
+        'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
+        'Providências': p.providencias ?? '',
+      })),
+    }], `gpc_parcelamentos_${todayStr()}.xlsx`);
+  }, []);
+
+  const relTas = useCallback(async () => {
+    const rows = await GpcService.getAllTasExport();
+    exportXLSX([{
+      name: 'Termos Aditivos',
+      rows: rows.map(t => ({
+        'Código TA': t.codigo,
+        'Processo': t.processo ?? '',
+        'Convênio': t.convenio ?? '',
+        'Entidade': t.entidade ?? '',
+        'Número TA': t.numero ?? '',
+        'Data': t.data ?? '',
+        'Custo (R$)': t.custo ?? 0,
+      })),
+    }], `gpc_termos_aditivos_${todayStr()}.xlsx`);
+  }, []);
+
+  const relDistribuicao = useCallback(async () => {
+    const d = await GpcService.getReportData();
+    exportXLSX([
+      {
+        name: 'Por DRS',
+        rows: d.byDrs.map(x => ({ 'DRS': x.drs ?? 'Não informado', 'Quantidade': x.count })),
+      },
+      {
+        name: 'Por Tipo',
+        rows: d.byTipo.map(x => ({ 'Tipo': x.tipo ?? 'Não informado', 'Quantidade': x.count })),
+      },
+    ], `gpc_distribuicao_${todayStr()}.xlsx`);
+  }, []);
+
+  const relCompleto = useCallback(async () => {
+    const [exercicios, reportData, processos, tas] = await Promise.all([
+      GpcService.getExerciciosRelatorio(),
+      GpcService.getReportData(),
+      GpcService.getAllProcessosExport(),
+      GpcService.getAllTasExport(),
+    ]);
+
+    const fmtBRL = (v: number | null | undefined) =>
+      v == null ? 0 : v;
+
+    exportXLSX([
+      {
+        name: 'Resumo',
+        rows: [{
+          'Data de Geração': new Date().toLocaleString('pt-BR'),
+          'Total de Processos': reportData.totalProcessos,
+          'Total de Exercícios': reportData.totalExercicios,
+          'Total de Parcelamentos': reportData.totalParcelamentos,
+          'Parcelamentos Ativos': reportData.parcelamentosAtivos,
+          'Termos Aditivos': reportData.totalTas,
+          'Valor Total Repasse (R$)': fmtBRL(reportData.valorTotalRepasse),
+        }],
+      },
+      {
+        name: 'Processos',
+        rows: processos.map(p => ({
+          'Código': p.codigo,
+          'Processo': p.processo ?? '',
+          'Convênio': p.convenio ?? '',
+          'Tipo': p.tipo ?? '',
+          'Ano Cadastro': p.ano_cadastro ?? '',
+          'Entidade': p.entidade ?? '',
+          'DRS': p.drs ?? '',
+          'Vistoriado': p.vistoriado ? 'Sim' : 'Não',
+          'Parcelamento': p.parcelamento ? 'Sim' : 'Não',
+          'Acima/Abaixo': p.acima_abaixo ?? '',
+        })),
+      },
+      {
+        name: 'Processos x Exercícios',
+        rows: exercicios.map(e => ({
+          'Código': e.processo_id,
+          'Processo': e.processo ?? '',
+          'Convênio': e.convenio ?? '',
+          'Entidade': e.entidade ?? '',
+          'Exercício': e.exercicio ?? '',
+          'Ex. Anterior (R$)': fmtBRL(e.exercicio_anterior),
+          'Repasse (R$)': fmtBRL(e.repasse),
+          'Aplicação (R$)': fmtBRL(e.aplicacao),
+          'Total Convênio (R$)': e.total_convenio,
+          'Gastos (R$)': fmtBRL(e.gastos),
+          'Devolvido (R$)': fmtBRL(e.devolvido),
+          'Saldo (R$)': e.saldo,
+        })),
+      },
+      {
+        name: 'Parcelamentos',
+        rows: (reportData.parcelamentosDetalhes ?? []).map(p => ({
+          'Cód. Processo': p.processo_id,
+          'Processo': p.processo ?? '',
+          'Convênio': p.convenio ?? '',
+          'Entidade': p.entidade ?? '',
+          'Proc. Parcela': p.proc_parcela ?? '',
+          'Tipo': p.tipo ?? '',
+          'Exercício': p.exercicio ?? '',
+          'Valor Gerador (R$)': fmtBRL(p.valor_parcelado),
+          'Valor Corrigido (R$)': fmtBRL(p.valor_corrigido),
+          'Nº Parcelas': p.parcelas ?? '',
+          'Em Dia': p.em_dia ? 'Sim' : 'Não',
+          'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
+          'Providências': p.providencias ?? '',
+        })),
+      },
+      {
+        name: 'Termos Aditivos',
+        rows: tas.map(t => ({
+          'Código TA': t.codigo,
+          'Processo': t.processo ?? '',
+          'Convênio': t.convenio ?? '',
+          'Entidade': t.entidade ?? '',
+          'Número TA': t.numero ?? '',
+          'Data': t.data ?? '',
+          'Custo (R$)': fmtBRL(t.custo),
+        })),
+      },
+      {
+        name: 'Por DRS',
+        rows: reportData.byDrs.map(x => ({ 'DRS': x.drs ?? 'Não informado', 'Quantidade': x.count })),
+      },
+      {
+        name: 'Por Tipo',
+        rows: reportData.byTipo.map(x => ({ 'Tipo': x.tipo ?? 'Não informado', 'Quantidade': x.count })),
+      },
+    ], `gpc_relatorio_completo_${todayStr()}.xlsx`);
+  }, []);
+
+  // ── Report catalog ────────────────────────────────────────────────────────
+
+  const reports = [
+    {
+      icon: FolderOpen,
+      color: 'bg-blue-500',
+      title: 'Todos os Processos',
+      description:
+        'Lista completa de todos os convênios cadastrados com informações de DRS, tipo, entidade, vistoria e parcelamento.',
+      onGenerate: relProcessos,
+    },
+    {
+      icon: DollarSign,
+      color: 'bg-emerald-600',
+      title: 'Processos × Exercícios',
+      description:
+        'Dados financeiros por exercício: ex. anterior, repasse, aplicação, gastos, devolvido e saldo calculado.',
+      onGenerate: relExercicios,
+    },
+    {
+      icon: ClipboardList,
+      color: 'bg-amber-500',
+      title: 'Parcelamentos',
+      description:
+        'Situação de todos os parcelamentos com valores, número de parcelas, status de adimplência e providências.',
+      onGenerate: relParcelamentos,
+    },
+    {
+      icon: GitBranch,
+      color: 'bg-indigo-500',
+      title: 'Termos Aditivos',
+      description:
+        'Todos os termos aditivos registrados com número, data e custo associado ao processo/convênio.',
+      onGenerate: relTas,
+    },
+    {
+      icon: BarChart3,
+      color: 'bg-slate-600',
+      title: 'Distribuição por DRS e Tipo',
+      description:
+        'Contagem de processos agrupada por DRS e por tipo de convênio. Gera arquivo com duas abas.',
+      badge: '2 abas',
+      onGenerate: relDistribuicao,
+    },
+    {
+      icon: Layers,
+      color: 'bg-rose-600',
+      title: 'Relatório Completo',
+      description:
+        'Arquivo único com todas as abas: Resumo, Processos, Exercícios, Parcelamentos, TAs, DRS e Tipo.',
+      badge: '7 abas',
+      onGenerate: relCompleto,
+    },
+  ];
+
+  const fmtBRL = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Relatórios GPC</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Visão consolidada dos convênios e processos</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Selecione o relatório desejado e clique em <strong>Gerar XLSX</strong> para baixar
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors"
-            onClick={load}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-          {data && (
-            <button
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              onClick={() => exportCSV([
-                { 'Processos': data.totalProcessos, 'Exercícios': data.totalExercicios, 'Parcelamentos': data.totalParcelamentos, 'Termos Aditivos': data.totalTas, 'Parcelamentos Ativos': data.parcelamentosAtivos, 'Valor Total Repasse': data.valorTotalRepasse }
-              ], 'gpc_resumo.csv')}
-            >
-              <Download size={14} />
-              Exportar CSV
-            </button>
-          )}
+        <button
+          onClick={loadKpis}
+          disabled={loadingKpis}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50 shrink-0"
+        >
+          <RefreshCw size={14} className={loadingKpis ? 'animate-spin' : ''} />
+          Atualizar
+        </button>
+      </div>
+
+      {/* ── KPIs ───────────────────────────────────────────────────────────── */}
+      {loadingKpis && !kpis ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={28} className="animate-spin text-blue-500" />
+        </div>
+      ) : kpis ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <KpiCard label="Processos" value={kpis.totalProcessos} icon={FolderOpen} color="bg-blue-500" />
+          <KpiCard label="Exercícios" value={kpis.totalExercicios} icon={DollarSign} color="bg-emerald-600" />
+          <KpiCard label="Parcelamentos" value={kpis.totalParcelamentos} icon={ClipboardList} color="bg-amber-500" />
+          <KpiCard label="Parc. Ativos" value={kpis.parcelamentosAtivos} icon={CheckCircle2} color="bg-orange-500" />
+          <KpiCard label="Termos Adit." value={kpis.totalTas} icon={GitBranch} color="bg-indigo-500" />
+          <KpiCard label="Total Repasse" value={fmtBRL(kpis.valorTotalRepasse)} icon={DollarSign} color="bg-green-700" />
+        </div>
+      ) : null}
+
+      {/* ── Report catalog ─────────────────────────────────────────────────── */}
+      <div>
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">
+          Relatórios disponíveis
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {reports.map(r => (
+            <ReportCard key={r.title} {...r} />
+          ))}
         </div>
       </div>
 
-      {loading && !data ? (
-        <div className="flex items-center justify-center py-24"><Loader2 size={32} className="animate-spin text-blue-500" /></div>
-      ) : data ? (
-        <>
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Total de Processos" value={data.totalProcessos} icon={FolderOpen} color="bg-blue-500" />
-            <StatCard label="Total de Exercícios" value={data.totalExercicios} icon={FileText} color="bg-indigo-500" />
-            <StatCard label="Parcelamentos" value={data.totalParcelamentos} icon={ClipboardList} color="bg-amber-500" />
-            <StatCard label="Termos Aditivos" value={data.totalTas} icon={GitBranch} color="bg-emerald-500" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
-              <div className="p-3 rounded-full bg-orange-500">
-                <ClipboardList size={22} className="text-white" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Parcelamentos Ativos (em dia)</p>
-                <p className="text-2xl font-bold text-slate-800 mt-0.5">{data.parcelamentosAtivos.toLocaleString('pt-BR')}</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
-              <div className="p-3 rounded-full bg-green-600">
-                <DollarSign size={22} className="text-white" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Valor Total Repasse (exercícios)</p>
-                <p className="text-2xl font-bold text-slate-800 mt-0.5">{fmt(data.valorTotalRepasse)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Charts section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Por DRS */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <SectionTitle>Processos por DRS</SectionTitle>
-                <button
-                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-green-700 border border-slate-200 px-2 py-1 rounded"
-                  onClick={() => exportCSV(data.byDrs.map(d => ({ DRS: d.drs ?? 'Não informado', Quantidade: d.count })), 'gpc_por_drs.csv')}
-                >
-                  <Download size={11} /> CSV
-                </button>
-              </div>
-              <div className="space-y-2">
-                {data.byDrs.map(d => (
-                  <div key={d.drs ?? 'n'} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-500 w-20 text-right shrink-0">DRS {d.drs ?? '—'}</span>
-                    <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full flex items-center justify-end pr-2 transition-all"
-                        style={{ width: `${(d.count / maxDrs) * 100}%`, minWidth: '32px' }}
-                      >
-                        <span className="text-[10px] text-white font-semibold">{d.count}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {!data.byDrs.length && <p className="text-sm text-slate-400 text-center py-4">Sem dados</p>}
-              </div>
-            </div>
-
-            {/* Por Tipo */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <SectionTitle>Processos por Tipo</SectionTitle>
-                <button
-                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-green-700 border border-slate-200 px-2 py-1 rounded"
-                  onClick={() => exportCSV(data.byTipo.map(t => ({ Tipo: t.tipo ?? 'Não informado', Quantidade: t.count })), 'gpc_por_tipo.csv')}
-                >
-                  <Download size={11} /> CSV
-                </button>
-              </div>
-              <div className="space-y-2">
-                {data.byTipo.map(t => (
-                  <div key={t.tipo ?? 'n'} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-500 w-24 text-right shrink-0 truncate">{t.tipo ?? '—'}</span>
-                    <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500 rounded-full flex items-center justify-end pr-2 transition-all"
-                        style={{ width: `${(t.count / maxTipo) * 100}%`, minWidth: '32px' }}
-                      >
-                        <span className="text-[10px] text-white font-semibold">{t.count}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {!data.byTipo.length && <p className="text-sm text-slate-400 text-center py-4">Sem dados</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Parcelamentos em aberto */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <SectionTitle>Parcelamentos — situação por processo</SectionTitle>
-              <button
-                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-green-700 border border-slate-200 px-2 py-1 rounded"
-                onClick={() => exportCSV(
-                  (data.parcelamentosDetalhes ?? []).map(p => ({
-                    'Cód.Processo': p.processo_id,
-                    'Processo': p.processo,
-                    'Convênio': p.convenio,
-                    'Entidade': p.entidade,
-                    'Proc.Parcela': p.proc_parcela,
-                    'Tipo': p.tipo,
-                    'Exercício': p.exercicio,
-                    'Valor que Gerou o Parcelamento': p.valor_parcelado,
-                    'Valor Corrigido': p.valor_corrigido,
-                    'Parcelas': p.parcelas,
-                    'Em Dia': p.em_dia ? 'Sim' : 'Não',
-                    'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
-                    'Providências': p.providencias,
-                  })),
-                  'gpc_parcelamentos.csv'
-                )}
-              >
-                <Download size={11} /> Exportar CSV
-              </button>
-            </div>
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    {['Processo','Convênio','Entidade','Proc.Parcela','Tipo','Exercício','Vl.Gerador','Val.Corrigido','Parcelas','Em Dia','Concluído'].map(h => (
-                      <th key={h} className="px-2 py-2 text-left font-semibold whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.parcelamentosDetalhes ?? []).slice(0, 100).map((p, i) => (
-                    <tr key={i} className="border-t hover:bg-slate-50">
-                      <td className="px-2 py-1.5 font-medium max-w-[120px] truncate">{p.processo ?? '-'}</td>
-                      <td className="px-2 py-1.5">{p.convenio ?? '-'}</td>
-                      <td className="px-2 py-1.5 max-w-[160px] truncate" title={p.entidade}>{p.entidade ?? '-'}</td>
-                      <td className="px-2 py-1.5 max-w-[120px] truncate">{p.proc_parcela ?? '-'}</td>
-                      <td className="px-2 py-1.5">{p.tipo ?? '-'}</td>
-                      <td className="px-2 py-1.5">{p.exercicio ?? '-'}</td>
-                      <td className="px-2 py-1.5">{fmt(p.valor_parcelado)}</td>
-                      <td className="px-2 py-1.5">{fmt(p.valor_corrigido)}</td>
-                      <td className="px-2 py-1.5 text-center">{p.parcelas ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-center">{p.em_dia ? '✅' : '❌'}</td>
-                      <td className="px-2 py-1.5 text-center">{p.parcelas_concluidas ? '✅' : '❌'}</td>
-                    </tr>
-                  ))}
-                  {!(data.parcelamentosDetalhes ?? []).length && (
-                    <tr><td colSpan={11} className="py-6 text-center text-slate-400">Nenhum parcelamento encontrado</td></tr>
-                  )}
-                </tbody>
-              </table>
-              {(data.parcelamentosDetalhes ?? []).length > 100 && (
-                <p className="text-xs text-slate-400 px-3 py-2">Exibindo 100 de {data.parcelamentosDetalhes!.length} registros. Use o CSV para exportar todos.</p>
-              )}
-            </div>
-          </div>
-
-          {/* ── RELATÓRIO PROCESSOS × EXERCÍCIOS ── */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div>
-                <SectionTitle>Processos × Exercícios — relatório financeiro</SectionTitle>
-                <p className="text-xs text-slate-400 -mt-2">Todos os processos com todos os exercícios cadastrados no Financeiro</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 w-56"
-                    placeholder="Filtrar por processo, convênio, entidade..."
-                    value={exSearch}
-                    onChange={e => setExSearch(e.target.value)}
-                  />
-                </div>
-                <button
-                  className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-green-700 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-colors"
-                  onClick={() => exportCSV(
-                    filteredEx.map(e => ({
-                      'Cód.': e.processo_id,
-                      'Processo': e.processo ?? '',
-                      'Convênio': e.convenio ?? '',
-                      'Entidade': e.entidade ?? '',
-                      'Exercício': e.exercicio ?? '',
-                      'Ex. Anterior (R$)': e.exercicio_anterior ?? 0,
-                      'Repasse (R$)': e.repasse ?? 0,
-                      'Aplicação (R$)': e.aplicacao ?? 0,
-                      'Total Convênio (R$)': e.total_convenio,
-                      'Gastos (R$)': e.gastos ?? 0,
-                      'Devolvido (R$)': e.devolvido ?? 0,
-                      'Saldo (R$)': e.saldo,
-                    })),
-                    'gpc_processos_exercicios.csv'
-                  )}
-                >
-                  <Download size={12} /> Exportar CSV ({filteredEx.length})
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-500 sticky top-0">
-                  <tr>
-                    {([
-                      { col: 'processo_id' as const, label: 'Cód.' },
-                      { col: 'processo'    as const, label: 'Processo' },
-                      { col: 'convenio'   as const, label: 'Convênio' },
-                      { col: 'entidade'   as const, label: 'Entidade' },
-                      { col: 'exercicio'  as const, label: 'Exercício' },
-                      { col: 'exercicio_anterior' as const, label: 'Ex. Ant.' },
-                      { col: 'repasse'    as const, label: 'Repasse' },
-                      { col: 'aplicacao'  as const, label: 'Aplicação' },
-                      { col: 'total_convenio' as const, label: 'Total Conv.' },
-                      { col: 'gastos'     as const, label: 'Gastos' },
-                      { col: 'devolvido'  as const, label: 'Devolvido' },
-                      { col: 'saldo'      as const, label: 'Saldo' },
-                    ] as { col: keyof ExercicioRelatorio; label: string }[]).map(({ col, label }) => (
-                      <th
-                        key={col}
-                        onClick={() => toggleSort(col)}
-                        className="px-3 py-2.5 text-left font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors"
-                      >
-                        <span className="inline-flex items-center gap-1">{label}{sortIcon(col)}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredEx.map((e, i) => (
-                    <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-3 py-2 text-slate-400">{e.processo_id}</td>
-                      <td className="px-3 py-2 font-mono font-medium text-blue-700 whitespace-nowrap">{e.processo ?? '—'}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{e.convenio ?? '—'}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate" title={e.entidade ?? ''}>{e.entidade ?? '—'}</td>
-                      <td className="px-3 py-2 font-semibold text-slate-700 text-center">{e.exercicio ?? '—'}</td>
-                      <td className="px-3 py-2 text-right text-slate-500">{e.exercicio_anterior ? fmt(e.exercicio_anterior) : '—'}</td>
-                      <td className="px-3 py-2 text-right text-green-700 font-medium">{e.repasse ? fmt(e.repasse) : '—'}</td>
-                      <td className="px-3 py-2 text-right">{e.aplicacao ? fmt(e.aplicacao) : '—'}</td>
-                      <td className="px-3 py-2 text-right font-bold text-blue-700">{fmt(e.total_convenio)}</td>
-                      <td className="px-3 py-2 text-right text-orange-600">{e.gastos ? fmt(e.gastos) : '—'}</td>
-                      <td className="px-3 py-2 text-right text-slate-500">{e.devolvido ? fmt(e.devolvido) : '—'}</td>
-                      <td className={`px-3 py-2 text-right font-semibold ${e.saldo > 0 ? 'text-emerald-600' : e.saldo < 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                        {fmt(e.saldo)}
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredEx.length === 0 && (
-                    <tr><td colSpan={12} className="py-8 text-center text-slate-400">Nenhum exercício encontrado</td></tr>
-                  )}
-                </tbody>
-                {filteredEx.length > 0 && (
-                  <tfoot className="bg-slate-100 font-bold text-xs border-t-2 border-slate-300">
-                    <tr>
-                      <td colSpan={5} className="px-3 py-2.5 text-slate-600">TOTAL ({filteredEx.length} exercícios)</td>
-                      <td className="px-3 py-2.5 text-right text-slate-500">{fmt(exercicios.reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0) !== exTotals.repasse ? undefined as any : undefined)}</td>
-                      <td className="px-3 py-2.5 text-right text-green-700">{fmt(exTotals.repasse)}</td>
-                      <td className="px-3 py-2.5 text-right">{fmt(exTotals.aplicacao)}</td>
-                      <td className="px-3 py-2.5 text-right text-blue-700">{fmt(exTotals.total_convenio)}</td>
-                      <td className="px-3 py-2.5 text-right text-orange-600">{fmt(exTotals.gastos)}</td>
-                      <td className="px-3 py-2.5 text-right text-slate-500">{fmt(exTotals.devolvido)}</td>
-                      <td className={`px-3 py-2.5 text-right ${exTotals.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(exTotals.saldo)}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </div>
-        </>
-      ) : null}
+      {/* ── Info notice ────────────────────────────────────────────────────── */}
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-700">
+        <Info size={15} className="shrink-0 mt-0.5" />
+        <span>
+          Todos os relatórios são gerados em formato <strong>XLSX (Excel)</strong>. Os valores financeiros são
+          exportados como números para permitir cálculos e formatação personalizada dentro do Excel.
+          O arquivo é nomeado automaticamente com a data de hoje.
+        </span>
+      </div>
     </div>
   );
 };

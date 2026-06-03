@@ -818,5 +818,31 @@ export const GpcService = {
       } as ExercicioRelatorio;
     });
   },
+
+  // ── EXPORTAÇÃO COMPLETA ──────────────────────────────────────────────────
+
+  getAllProcessosExport: async (): Promise<GpcProcesso[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_processos')
+      .select('*')
+      .order('codigo', { ascending: true });
+    if (error) { console.error(error); return []; }
+    return (data ?? []) as GpcProcesso[];
+  },
+
+  getAllTasExport: async (): Promise<(GpcTa & { processo: string | null; convenio: string | null; entidade: string | null })[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_ta')
+      .select('*, cgof_gpc_processos(processo, convenio, entidade)')
+      .order('processo_id', { ascending: true })
+      .order('data', { ascending: true });
+    if (error) { console.error(error); return []; }
+    return (data ?? []).map((t: any) => ({
+      ...t,
+      processo: t.cgof_gpc_processos?.processo ?? null,
+      convenio: t.cgof_gpc_processos?.convenio ?? null,
+      entidade: t.cgof_gpc_processos?.entidade ?? null,
+    }));
+  },
 };
 
