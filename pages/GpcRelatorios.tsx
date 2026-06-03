@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import {
   FileSpreadsheet, Loader2, DollarSign, FolderOpen,
   ClipboardList, GitBranch, BarChart3, Layers, Info,
-  RefreshCw, CheckCircle2,
+  RefreshCw, CheckCircle2, Users2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
 
@@ -336,6 +336,72 @@ export const GpcRelatorios = () => {
     ], `gpc_relatorio_completo_${todayStr()}.xlsx`);
   }, []);
 
+  // ── Produtividade state ──────────────────────────────────────────────────
+  const curYear = new Date().getFullYear().toString();
+  const [prodAno, setProdAno] = useState(curYear);
+  const [prodMes, setProdMes] = useState(''); // '' = ano inteiro
+  const [prodExpanded, setProdExpanded] = useState(false);
+  const [prodLoading, setProdLoading] = useState(false);
+  const [prodDone, setProdDone] = useState(false);
+
+  const MESES = [
+    { v: '01', l: 'Janeiro' }, { v: '02', l: 'Fevereiro' }, { v: '03', l: 'Março' },
+    { v: '04', l: 'Abril' },   { v: '05', l: 'Maio' },      { v: '06', l: 'Junho' },
+    { v: '07', l: 'Julho' },   { v: '08', l: 'Agosto' },    { v: '09', l: 'Setembro' },
+    { v: '10', l: 'Outubro' }, { v: '11', l: 'Novembro' },  { v: '12', l: 'Dezembro' },
+  ];
+
+  const gerarProdutividade = useCallback(async () => {
+    setProdLoading(true);
+    setProdDone(false);
+    try {
+      const { resumo, eventos } = await GpcService.getProdutividadeParaRelatorio(prodAno, prodMes || undefined);
+      const periodoLabel = prodMes
+        ? `${MESES.find(m => m.v === prodMes)?.l ?? prodMes}/${prodAno}`
+        : `Ano ${prodAno}`;
+
+      const evtLbl = (e: string) =>
+        e === 'INICIO_ANALISE' ? 'Início de Análise'
+        : e === 'POSICAO'     ? 'Avanço de Posição'
+        : e === 'MOVIMENTO'   ? 'Atualização de Movimento'
+        : e === 'CORRECAO'    ? 'Correção Documental'
+        : e === 'CADASTRO'    ? 'Cadastro'
+        : e;
+
+      exportXLSX([
+        {
+          name: 'Resumo por Técnico',
+          rows: resumo.map(t => ({
+            'Técnico': t.responsavel,
+            'Cadastros': t.cadastros,
+            'Processos Analisados': t.analises,
+            'Avanços de Posição': t.posicoes,
+            'Atualizações de Movimento': t.movimentos,
+            'Correções Documentais': t.correcoes,
+            'Total de Ações': t.total,
+            'Páginas Analisadas': t.paginas,
+          })),
+        },
+        {
+          name: 'Detalhamento de Eventos',
+          rows: eventos.map(e => ({
+            'Técnico': e.responsavel,
+            'Data/Hora': e.data_evento.slice(0, 16).replace('T', ' '),
+            'Evento': evtLbl(e.evento),
+            'Descrição': e.obs ?? '',
+            'Processo (ID)': e.registro_id,
+            'Páginas': e.num_paginas_analise ?? '',
+          })),
+        },
+      ], `produtividade_gpc_${periodoLabel.replace('/', '-')}_${todayStr()}.xlsx`);
+
+      setProdDone(true);
+      setTimeout(() => setProdDone(false), 3000);
+    } finally {
+      setProdLoading(false);
+    }
+  }, [prodAno, prodMes]);
+
   // ── Report catalog ────────────────────────────────────────────────────────
 
   const reports = [
@@ -440,6 +506,86 @@ export const GpcRelatorios = () => {
             <ReportCard key={r.title} {...r} />
           ))}
         </div>
+      </div>
+
+      {/* ── Produtividade — relatório com filtro de período ────────────────── */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Header row — always visible */}
+        <button
+          className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left"
+          onClick={() => setProdExpanded(v => !v)}
+        >
+          <div className="p-2.5 rounded-xl bg-violet-600 shrink-0">
+            <Users2 size={20} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-slate-800 text-sm">Produtividade por Período</h3>
+              <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full uppercase tracking-wide">2 abas</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Resumo por técnico + detalhamento de eventos filtrando por ano e mês
+            </p>
+          </div>
+          {prodExpanded ? <ChevronUp size={16} className="text-slate-400 shrink-0" /> : <ChevronDown size={16} className="text-slate-400 shrink-0" />}
+        </button>
+
+        {/* Expanded filters */}
+        {prodExpanded && (
+          <div className="border-t border-slate-100 px-5 py-4 space-y-4">
+            <div className="flex flex-wrap gap-3 items-end">
+              {/* Ano */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ano</label>
+                <select
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400"
+                  value={prodAno}
+                  onChange={e => setProdAno(e.target.value)}
+                >
+                  {Array.from({ length: 6 }, (_, i) => (new Date().getFullYear() - i).toString()).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mês */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Mês (opcional)</label>
+                <select
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400"
+                  value={prodMes}
+                  onChange={e => setProdMes(e.target.value)}
+                >
+                  <option value="">Ano inteiro</option>
+                  {MESES.map(m => (
+                    <option key={m.v} value={m.v}>{m.l}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Generate button */}
+              <button
+                onClick={gerarProdutividade}
+                disabled={prodLoading}
+                className={`flex items-center gap-2 px-5 py-2 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-60
+                  ${prodDone ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-violet-600 hover:bg-violet-700'}`}
+              >
+                {prodLoading ? (
+                  <><Loader2 size={15} className="animate-spin" /> Gerando…</>
+                ) : prodDone ? (
+                  <><CheckCircle2 size={15} /> Baixado!</>
+                ) : (
+                  <><FileSpreadsheet size={15} /> Gerar XLSX</>
+                )}
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Selecione <strong>Ano inteiro</strong> para consolidar todos os meses do ano, ou escolha um mês específico.
+              O XLSX terá duas abas: <em>Resumo por Técnico</em> e <em>Detalhamento de Eventos</em>.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── Info notice ────────────────────────────────────────────────────── */}

@@ -5955,20 +5955,6 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
         </span>
 
-        <button
-
-          onClick={exportXLSX}
-
-          disabled={!technicians.length}
-
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm transition-colors disabled:opacity-50"
-
-        >
-
-          <Download size={14} />Exportar XLSX
-
-        </button>
-
       </div>
 
 
@@ -7347,18 +7333,6 @@ export const GpcProcessos = () => {
         {mainTab === 'registros' && (
 
           <div className="flex items-center gap-2.5">
-
-            <button
-
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-white text-emerald-700 rounded-xl border border-emerald-200 hover:bg-emerald-50 shadow-sm transition-all active:scale-95"
-
-              onClick={exportXLSX}
-
-            >
-
-              <Download size={15} />Exportar XLSX
-
-            </button>
 
             {!isViewOnly && (
             <button className={BTN_PRI} onClick={() => setModal({})}>

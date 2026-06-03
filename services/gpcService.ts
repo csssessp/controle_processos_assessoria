@@ -786,15 +786,25 @@ export const GpcService = {
   },
 
   getExerciciosRelatorio: async (): Promise<ExercicioRelatorio[]> => {
-    // Fetch all exercises joined with their process data in one query
-    const { data, error } = await supabase
-      .from('cgof_gpc_exercicio')
-      .select('*, cgof_gpc_processos(processo, convenio, entidade)')
-      .order('processo_id', { ascending: true })
-      .order('exercicio', { ascending: true });
-    if (error) { console.error(error); return []; }
+    // Paginate to bypass PostgREST default 1000-row limit on hosted Supabase.
+    // Includes rows with NULL financial data (exercises registered but not yet filled).
+    const PAGE = 1000;
+    let all: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('cgof_gpc_exercicio')
+        .select('*, cgof_gpc_processos(processo, convenio, entidade)')
+        .order('processo_id', { ascending: true })
+        .order('exercicio', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) { console.error(error); break; }
+      all = [...all, ...(data ?? [])];
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
 
-    return (data ?? []).map((e: any) => {
+    return all.map((e: any) => {
       const repasse   = e.repasse   ?? 0;
       const aplicacao = e.aplicacao ?? 0;
       const exAnt     = e.exercicio_anterior ?? 0;
@@ -843,6 +853,75 @@ export const GpcService = {
       convenio: t.cgof_gpc_processos?.convenio ?? null,
       entidade: t.cgof_gpc_processos?.entidade ?? null,
     }));
+  },
+
+  getProdutividadeParaRelatorio: async (
+    ano: string,
+    mes?: string,
+  ): Promise<{
+    resumo: {
+      responsavel: string;
+      cadastros: number;
+      analises: number;
+      posicoes: number;
+      movimentos: number;
+      correcoes: number;
+      total: number;
+      paginas: number;
+    }[];
+    eventos: {
+      registro_id: number;
+      responsavel: string;
+      evento: string;
+      data_evento: string;
+      obs?: string | null;
+      num_paginas_analise?: number | null;
+    }[];
+  }> => {
+    // Reuse existing aggregated source (both prod table + fluxo_tecnico)
+    const GpcServiceSelf = (GpcService as any);
+    const all: { registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[] =
+      await GpcServiceSelf.getProdutividadeDetalhado();
+
+    // Filter by period
+    const prefix = mes ? `${ano}-${mes}` : ano;
+    const filtered = all.filter(e => e.data_evento.startsWith(prefix));
+
+    // Aggregate per technician
+    type Stats = {
+      cadastros: number;
+      analises: Set<number>;
+      posicoes: number;
+      movimentos: number;
+      correcoes: number;
+      seenAnalise: Set<number>;
+      paginas: number;
+    };
+    const map: Record<string, Stats> = {};
+    for (const e of filtered) {
+      if (!map[e.responsavel]) {
+        map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, seenAnalise: new Set(), paginas: 0 };
+      }
+      const s = map[e.responsavel];
+      if (e.evento === 'CADASTRO')        s.cadastros++;
+      if (e.evento === 'INICIO_ANALISE')  { s.analises.add(e.registro_id); if (!s.seenAnalise.has(e.registro_id)) { s.paginas += (e.num_paginas_analise ?? 0); s.seenAnalise.add(e.registro_id); } }
+      if (e.evento === 'POSICAO')         s.posicoes++;
+      if (e.evento === 'MOVIMENTO')       s.movimentos++;
+      if (e.evento === 'CORRECAO')        { s.correcoes++; s.paginas += (e.num_paginas_analise ?? 0); }
+    }
+
+    const resumo = Object.entries(map).map(([responsavel, s]) => ({
+      responsavel,
+      cadastros: s.cadastros,
+      analises: s.analises.size,
+      posicoes: s.posicoes,
+      movimentos: s.movimentos,
+      correcoes: s.correcoes,
+      total: s.cadastros + s.analises.size + s.posicoes + s.movimentos + s.correcoes,
+      paginas: s.paginas,
+    })).sort((a, b) => b.total - a.total);
+
+    return { resumo, eventos: filtered };
   },
 };
 
