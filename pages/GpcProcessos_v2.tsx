@@ -3002,7 +3002,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   const tRep = exs.reduce((s, e) => s + (e.repasse ?? 0), 0);
                   const tApl = exs.reduce((s, e) => s + (e.aplicacao ?? 0), 0);
                   const tExAnt = exs.reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
-                  const tConv = tRep + tApl + tExAnt;
+                  const tConv = tRep; // CORRIGIDO: Total do Convênio = apenas REPASSE
                   return (
                     <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs">
                       <div>
@@ -4490,7 +4490,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     const totalExAnt = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
 
-                    const totalConvenio = totalRepasse + totalAplicacao + totalExAnt;
+                    const totalConvenio = totalRepasse; // CORRIGIDO: Total do Convênio = apenas REPASSE
 
                     return (
 
@@ -5011,7 +5011,7 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
         const devolvido = f.devolvido  ?? 0;
 
-        const total     = exAnt + repasse + aplicacao;
+        const total     = exAnt + repasse + aplicacao; // Total DISPONÍVEL (para cálculo do saldo)
 
         // Arredondar para 2 casas para evitar erro de ponto flutuante (ex: -2.84e-14)
         const saldo     = Math.round((total - gastos - devolvido) * 100) / 100;
