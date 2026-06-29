@@ -3005,7 +3005,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   const tRep = exs.reduce((s, e) => s + (e.repasse ?? 0), 0);
                   const tApl = exs.reduce((s, e) => s + (e.aplicacao ?? 0), 0);
                   const tExAnt = exs.reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
-                  const tConv = tRep; // CORRIGIDO: Total do Convênio = apenas REPASSE
+                  const tConv = tRep + tApl;
                   return (
                     <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs">
                       <div>
@@ -4502,7 +4502,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     const totalExAnt = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
 
-                    const totalConvenio = totalRepasse; // CORRIGIDO: Total do Convênio = apenas REPASSE
+                    const totalConvenio = totalRepasse + totalAplicacao;
 
                     return (
 
