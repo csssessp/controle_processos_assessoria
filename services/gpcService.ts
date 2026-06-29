@@ -28,7 +28,7 @@ export interface ExercicioRelatorio {
   gastos: number | null;
   devolvido: number | null;
   // computed
-  total_convenio: number; // repasse + aplicacao
+  total_convenio: number; // SOMA(EXERCICIOS.REPASSE) - apenas repasse
   saldo: number;          // ex_ant + repasse + aplicacao - gastos - devolvido
 }
 
@@ -810,7 +810,7 @@ export const GpcService = {
       const exAnt     = e.exercicio_anterior ?? 0;
       const gastos    = e.gastos    ?? 0;
       const devolvido = e.devolvido ?? 0;
-      const total_convenio = repasse + aplicacao;
+      const total_convenio = repasse; // CORRIGIDO: Total do Convênio = apenas REPASSE
       const saldo = Math.round((exAnt + repasse + aplicacao - gastos - devolvido) * 100) / 100;
       return {
         processo_id: e.processo_id,

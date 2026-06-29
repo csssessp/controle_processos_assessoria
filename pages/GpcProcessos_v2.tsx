@@ -3004,7 +3004,8 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                   const exs = full.exercicios!;
                   const tRep = exs.reduce((s, e) => s + (e.repasse ?? 0), 0);
                   const tApl = exs.reduce((s, e) => s + (e.aplicacao ?? 0), 0);
-                  const tConv = tRep + tApl; // ex. anterior é saldo transportado, não dinheiro novo
+                  const tExAnt = exs.reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
+                  const tConv = tRep; // CORRIGIDO: Total do Convênio = apenas REPASSE
                   return (
                     <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs">
                       <div>
@@ -4499,7 +4500,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                     const totalAplicacao = (full.exercicios ?? []).reduce((s, e) => s + (e.aplicacao ?? 0), 0);
 
-                    const totalConvenio = totalRepasse + totalAplicacao; // ex. anterior é saldo transportado, não dinheiro novo
+                    const totalExAnt = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
+
+                    const totalConvenio = totalRepasse; // CORRIGIDO: Total do Convênio = apenas REPASSE
 
                     return (
 
@@ -4944,14 +4947,12 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
               <div className={`${INPUT} bg-slate-50 text-slate-500 cursor-not-allowed select-none flex items-center`}>
                 {(f.exercicio_anterior ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </div>
-              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 font-semibold whitespace-nowrap">Calculado automaticamente — não é dinheiro novo</span>
+              <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1.5 font-semibold whitespace-nowrap">Calculado automaticamente do saldo do exercício anterior</span>
             </div>
           ) : (
             <>
               <CurrencyInput value={f.exercicio_anterior} onChange={v => set('exercicio_anterior', v)} />
-              {(f.exercicio_anterior ?? 0) > 0 && (
-                <p className="text-[11px] text-amber-600 mt-1">⚠ Saldo transportado do exercício anterior — <strong>não é somado ao Total do Convênio</strong> (evita dupla contagem).</p>
-              )}
+
             </>
           )}
         </div>
@@ -4968,9 +4969,7 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
           const aplic   = f.aplicacao ?? 0;
 
-          const totalDisp = exAnt + repasse + aplic;   // total disponivel NESTE exercicio
-
-          const totalConv = repasse + aplic;            // contribuicao ao Total do Convenio (sem ex. anterior)
+          const totalDisp = exAnt + repasse + aplic;   // total disponivel NESTE exercicio (= contribuicao ao Total do Convenio)
 
           if (totalDisp === 0) return null;
 
@@ -4996,27 +4995,7 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
               </div>
 
-              {exAnt > 0 && (
 
-                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-
-                  <div>
-
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-green-600">Contribuição ao Total do Convênio</div>
-
-                    <div className="text-[10px] text-green-400 mt-0.5">Apenas Repasse + Aplicação (ex. anterior é saldo transportado, não conta como novo recurso)</div>
-
-                  </div>
-
-                  <div className="text-base font-bold text-green-700">
-
-                    {totalConv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-
-                  </div>
-
-                </div>
-
-              )}
 
             </div>
 
@@ -5044,7 +5023,7 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
 
         const devolvido = f.devolvido  ?? 0;
 
-        const total     = exAnt + repasse + aplicacao;
+        const total     = exAnt + repasse + aplicacao; // Total DISPONÍVEL (para cálculo do saldo)
 
         // Arredondar para 2 casas para evitar erro de ponto flutuante (ex: -2.84e-14)
         const saldo     = Math.round((total - gastos - devolvido) * 100) / 100;
