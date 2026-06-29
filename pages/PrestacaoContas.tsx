@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import { generateUUID } from '../utils';
 import { PrestacaoConta, PrestacaoContaHistorico, PRESTACAO_STATUS_OPTIONS, UserRole } from '../types';
 import { toDisplayDate, toDisplayDateTime, toServerDateOnly, toServerTimestampNoonLocal } from './ProcessManager';
@@ -14,9 +15,10 @@ import {
 } from 'lucide-react';
 
 export const PrestacaoContas = () => {
-  const { 
+  const {
     currentUser, fetchPrestacaoContas, savePrestacaoConta, deletePrestacaoConta, fetchPrestacaoContaHistorico
   } = useApp();
+  const { toast } = useToast();
 
   const [prestacoes, setPrestacoes] = useState<PrestacaoConta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -233,11 +235,11 @@ export const PrestacaoContas = () => {
 
     try {
       await savePrestacaoConta(data);
-      alert(editingPrestacao ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
+      toast('success', editingPrestacao ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
       handleCloseModal();
       loadData();
     } catch (error: any) {
-      alert('Erro ao salvar: ' + (error?.message || 'Verifique os dados.'));
+      toast('error', 'Erro ao salvar: ' + (error?.message || 'Verifique os dados.'));
     } finally {
       setSaving(false);
     }
@@ -274,7 +276,7 @@ export const PrestacaoContas = () => {
       if (!isValid) { setPasswordError('Senha incorreta.'); setIsVerifying(false); return; }
       await deletePrestacaoConta(selectedDeleteId);
       setIsPasswordModalOpen(false);
-      alert('Prestação de contas excluída com sucesso!');
+      toast('success', 'Prestação de contas excluída com sucesso!');
       loadData();
     } catch (err: any) {
       setPasswordError('Erro: ' + (err?.message || 'Tente novamente.'));

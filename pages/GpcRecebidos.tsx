@@ -4,6 +4,7 @@ import {
   X, Check, Loader2, AlertCircle, Download
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
+import { useToast } from '../context/ToastContext';
 import { GpcRecebido, GpcPosicao } from '../types';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -154,6 +155,7 @@ const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export const GpcRecebidos = () => {
+  const { toast } = useToast();
   const [rows, setRows] = useState<GpcRecebido[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -177,7 +179,7 @@ export const GpcRecebidos = () => {
   const handleDelete = async (codigo: number) => {
     if (!confirm('Excluir este registro?')) return;
     try { await GpcService.deleteRecebido(codigo); await load(); }
-    catch (ex: any) { alert(ex.message); }
+    catch (ex: any) { toast('error', ex.message); }
   };
 
   const totalPages = Math.ceil(count / PAGE_SIZE);

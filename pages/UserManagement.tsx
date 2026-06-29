@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import { DbService } from '../services/dbService';
 import { generateUUID } from '../utils';
 import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
@@ -8,6 +9,7 @@ import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loade
 
 export const UserManagement = () => {
   const { saveUser, deleteUser, currentUser } = useApp();
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -87,7 +89,7 @@ export const UserManagement = () => {
 
     try {
         await saveUser(userData);
-        alert(`Usuário ${editingUser ? 'atualizado' : 'cadastrado'} com sucesso!`);
+        toast('success', `Usuário ${editingUser ? 'atualizado' : 'cadastrado'} com sucesso!`);
         setIsModalOpen(false);
         setEditingUser(null);
         await refreshUsers();
@@ -99,13 +101,13 @@ export const UserManagement = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (id === currentUser?.id) return alert("Você não pode excluir a si mesmo.");
+    if (id === currentUser?.id) { toast('warning', 'Você não pode excluir a si mesmo.'); return; }
     if (confirm("Tem certeza que deseja excluir este usuário?")) {
       try {
         await deleteUser(id);
         await refreshUsers();
       } catch (err: any) {
-          alert(err.message);
+        toast('error', err.message);
       }
     }
   };

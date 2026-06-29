@@ -6,6 +6,7 @@ import {
   Download, ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
+import { useToast } from '../context/ToastContext';
 import {
   GpcProcesso, GpcProcessoFull, GpcExercicio, GpcHistorico,
   GpcObjeto, GpcParcelamento, GpcTa, GpcPosicao, GpcRecebido
@@ -462,6 +463,7 @@ const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }
 const DetailPanel = ({ processo, posicoes, onRefresh }: {
   processo: GpcProcessoFull; posicoes: GpcPosicao[]; onRefresh: () => void;
 }) => {
+  const { toast } = useToast();
   const [tab, setTab] = useState<'exercicios' | 'historico' | 'objetos' | 'parcelamentos' | 'tas'>('exercicios');
   const [modal, setModal] = useState<null | { type: string; data?: any }>(null);
 
@@ -477,7 +479,7 @@ const DetailPanel = ({ processo, posicoes, onRefresh }: {
   const confirmDelete = async (action: () => Promise<void>) => {
     if (!confirm('Confirma a exclusão?')) return;
     try { await action(); onRefresh(); }
-    catch (ex: any) { alert(ex.message); }
+    catch (ex: any) { toast('error', ex.message); }
   };
 
   return (
@@ -681,6 +683,7 @@ const DetailPanel = ({ processo, posicoes, onRefresh }: {
 // ─── Main Unified Component ───────────────────────────────────────────────────
 
 export const GpcProcessos = () => {
+  const { toast } = useToast();
   const [tab, setTab] = useState<'processos' | 'recebidos'>('processos');
 
   // ── Shared ──────────────────────────────────────────────────────────────────
@@ -806,13 +809,13 @@ export const GpcProcessos = () => {
   const handleDeleteProc = async (codigo: number) => {
     if (!confirm('Excluir este processo e todos os dados relacionados?')) return;
     try { await GpcService.deleteProcesso(codigo); await loadProc(); }
-    catch (ex: any) { alert(ex.message); }
+    catch (ex: any) { toast('error', ex.message); }
   };
 
   const handleDeleteRec = async (codigo: number) => {
     if (!confirm('Excluir este registro?')) return;
     try { await GpcService.deleteRecebido(codigo); await loadRec(); }
-    catch (ex: any) { alert(ex.message); }
+    catch (ex: any) { toast('error', ex.message); }
   };
 
   const exportCSV = () => {

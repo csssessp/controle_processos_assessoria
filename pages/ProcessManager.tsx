@@ -3,6 +3,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { generateUUID } from '../utils';
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 import { Process, CGOF_OPTIONS, ProcessQueryParams, UserRole, PRESTACAO_STATUS_OPTIONS, PrestacaoConta } from '../types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -196,7 +197,8 @@ const getInitialState = <T,>(key: string, defaultValue: T): T => {
 
 export const ProcessManager = () => {
   const navigate = useNavigate();
-  const { 
+  const { toast } = useToast();
+  const {
     processes, totalProcessesCount, fetchProcesses, fetchProcessHistory, currentUser,
     saveProcess, deleteLastMovement, deleteProcess, loading, importProcesses, savePrestacaoConta
   } = useApp();
@@ -618,7 +620,7 @@ export const ProcessManager = () => {
         };
         await saveProcess(assessoriaProcess);
       }
-      if (isPrestacaoContaChecked && currentUser) {        if (!prestacaoFormState.month) { alert('Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
+      if (isPrestacaoContaChecked && currentUser) {        if (!prestacaoFormState.month) { toast('warning', 'Informe o Mês de Referência da Prestação de Contas.'); setSaving(false); return; }
         const pcData: PrestacaoConta = {
           id: generateUUID(),
           process_id: process.id,
@@ -638,14 +640,14 @@ export const ProcessManager = () => {
           version_number: 1
         };
         await savePrestacaoConta(pcData);
-        alert(isEditing ? 'Processo atualizado e Prestação de Contas criada com sucesso!' : 'Processo cadastrado e Prestação de Contas criada com sucesso!');
+        toast('success', isEditing ? 'Processo atualizado e Prestação de Contas criada com sucesso!' : 'Processo cadastrado e Prestação de Contas criada com sucesso!');
         handleCloseModal();
         navigate('/prestacao-contas');
       } else {
         const msg = !isEditing && encaminharAssessoria && process.CGOF === 'Recebimento'
           ? 'Cadastrado com sucesso! Fluxo criado automaticamente na caixa Assessoria.'
           : (isEditing ? 'Atualizado com sucesso!' : 'Cadastrado com sucesso!');
-        alert(msg);
+        toast('success', msg);
         handleCloseModal();
         refreshCurrentList();
         if (isHistoryModalOpen) {
@@ -654,7 +656,7 @@ export const ProcessManager = () => {
         }
       }
     } catch (error: any) {
-      alert('Erro ao salvar: ' + (error?.message || 'Verifique os dados.'));
+      toast('error', 'Erro ao salvar: ' + (error?.message || 'Verifique os dados.'));
     } finally {
       setSaving(false);
     }
@@ -763,8 +765,8 @@ export const ProcessManager = () => {
     const entryDate = toServerTimestampNoonLocal(formData.get('entryDate') as string);
     const processDate = toServerTimestampNoonLocal(formData.get('processDate') as string);
     const deadline = toServerTimestampNoonLocal(formData.get('deadline') as string);
-    if (!entryDate) { alert("Data de entrada é obrigatória"); setSaving(false); return; }
-    if (!cgof || cgof.trim() === '') { alert("Origem (CGOF) é obrigatória"); setSaving(false); return; }
+    if (!entryDate) { toast('warning', 'Data de entrada é obrigatória.'); setSaving(false); return; }
+    if (!cgof || cgof.trim() === '') { toast('warning', 'Origem (CGOF) é obrigatória.'); setSaving(false); return; }
 
 
     const now = new Date().toISOString();
@@ -820,8 +822,8 @@ export const ProcessManager = () => {
             const updatedHistory = await fetchProcessHistory(selectedProcessNumber);
             setSelectedProcessHistory(updatedHistory);
             
-            setIsPasswordModalOpen(false); 
-            alert('Movimentação excluída com sucesso!');
+            setIsPasswordModalOpen(false);
+            toast('success', 'Movimentação excluída com sucesso!');
             refreshCurrentList();
             if (updatedHistory.length === 0) setIsHistoryModalOpen(false);
             setSelectedMovementToDelete(null);
@@ -832,9 +834,9 @@ export const ProcessManager = () => {
           const processToDelete = processes.find(p => p.number === selectedProcessNumber);
           if (processToDelete) {
             await deleteProcess(processToDelete.id);
-            setIsPasswordModalOpen(false); 
+            setIsPasswordModalOpen(false);
             setIsHistoryModalOpen(false);
-            alert('Fluxo excluído com sucesso!');
+            toast('success', 'Fluxo excluído com sucesso!');
             refreshCurrentList();
           }
         }
@@ -908,13 +910,13 @@ export const ProcessManager = () => {
 
         if (processesToImport.length > 0) {
             await importProcesses(processesToImport);
-            alert(`${processesToImport.length} registros importados com sucesso!`);
+            toast('success', `${processesToImport.length} registros importados com sucesso!`);
             setIsImportModalOpen(false);
             refreshCurrentList();
         }
       } catch (err: any) {
         console.error(err);
-        alert("Erro na importação: " + (err?.message || "Verifique o formato do arquivo."));
+        toast('error', 'Erro na importação: ' + (err?.message || 'Verifique o formato do arquivo.'));
       } finally {
         setImporting(false);
       }

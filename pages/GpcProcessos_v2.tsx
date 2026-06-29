@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 import { useApp } from '../context/AppContext';
+import { useToast } from '../context/ToastContext';
 
 import { UserRole } from '../types';
 
@@ -779,6 +780,7 @@ const ProcessTimeline = ({ row, posicoes, parcelamentos, isAdmin, onReload }: {
 
   const [loading, setLoading] = useState(true);
 
+  const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingVal, setEditingVal] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -930,7 +932,7 @@ const ProcessTimeline = ({ row, posicoes, parcelamentos, isAdmin, onReload }: {
       setEditingId(null);
       load();
       onReload?.();
-    } catch (e: any) { alert('Erro ao salvar data: ' + e.message); }
+    } catch (e: any) { toast('error', 'Erro ao salvar data: ' + e.message); }
     finally { setSavingId(null); }
   };
 
@@ -1712,6 +1714,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
   const [loading, setLoading] = useState(true);
 
   // Admin: track which fluxo event is having its date edited
+  const { toast } = useToast();
   const [editingDateId, setEditingDateId] = useState<number | null>(null);
   const [editingDateVal, setEditingDateVal] = useState<string>('');
   const [savingDateId, setSavingDateId] = useState<number | null>(null);
@@ -1723,7 +1726,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
       await GpcService.saveFluxoTecnico({ id: it.id, data_evento: editingDateVal });
       setEditingDateId(null);
       await load();
-    } catch (e: any) { alert('Erro ao salvar data: ' + e.message); }
+    } catch (e: any) { toast('error', 'Erro ao salvar data: ' + e.message); }
     finally { setSavingDateId(null); }
   };
 
@@ -3288,10 +3291,11 @@ interface RegistroModalProps {
 const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin, onRecordUpdated, onBackToView }) => {
 
   const { currentUser } = useApp();
+  const { toast } = useToast();
 
   const [liveRecord, setLiveRecord] = useState<GpcRecebido | undefined>(initial);
 
-  const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? { responsavel_cadastro: currentUser?.name ?? null });
+  const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? { responsavel_cadastro: currentUser?.name ?? null, posicao_id: 5, movimento: 'RECEBIDO' });
 
   const [saving, setSaving] = useState(false);
 
@@ -3547,7 +3551,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
     try { await action(); await refreshFull(); }
 
-    catch (ex: any) { alert(ex.message); }
+    catch (ex: any) { toast('error', ex.message); }
 
   };
 
@@ -3951,13 +3955,17 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                 <label className={LABEL}>Posição Atual</label>
 
-                <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+                <select className={INPUT + (!isEditing ? ' bg-slate-50 opacity-75 cursor-not-allowed' : '')} disabled={!isEditing} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
 
                   <option value="">— selecione —</option>
 
                   {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
 
                 </select>
+
+                {!isEditing && (
+                  <p className="mt-1 text-xs text-slate-400">Definido automaticamente no cadastro</p>
+                )}
 
                 {isEditing && initial?.posicao && form.posicao_id !== initial?.posicao_id && (
 
@@ -3975,13 +3983,17 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
                 <label className={LABEL}>Movimento</label>
 
-                <select className={INPUT} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
+                <select className={INPUT + (!isEditing ? ' bg-slate-50 opacity-75 cursor-not-allowed' : '')} disabled={!isEditing} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
 
                   <option value="">— selecione —</option>
 
                   {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
 
                 </select>
+
+                {!isEditing && (
+                  <p className="mt-1 text-xs text-slate-400">Definido automaticamente no cadastro</p>
+                )}
 
               </div>
 
@@ -8118,19 +8130,38 @@ export const GpcProcessos = () => {
 
               </span>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
 
-                <button className={BTN_SEC} disabled={page === 1} onClick={() => setPage(p => p - 1)}>
+                <button className={BTN_SEC} disabled={page === 1} onClick={() => setPage(p => p - 1)} aria-label="Página anterior">
 
                   <ChevronLeft size={16} />Anterior
 
                 </button>
 
-                <button className={BTN_SEC} disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>
+                <button className={BTN_SEC} disabled={page === totalPages} onClick={() => setPage(p => p + 1)} aria-label="Próxima página">
 
                   Próxima<ChevronRight size={16} />
 
                 </button>
+
+                <div className="flex items-center gap-1.5 ml-1">
+                  <span className="text-xs text-slate-400">Ir para</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    aria-label="Ir para a página"
+                    className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 shadow-sm"
+                    placeholder="Pág."
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const v = Number((e.target as HTMLInputElement).value);
+                        if (v >= 1 && v <= totalPages) setPage(v);
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }}
+                  />
+                </div>
 
               </div>
 
