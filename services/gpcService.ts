@@ -163,6 +163,71 @@ export const GpcService = {
     return (data ?? []).filter((r: any) => norm(r.processo ?? '') === needle).length;
   },
 
+  // Cadastros existentes que batem com o número do processo digitado, agrupados por
+  // processo_codigo — usado para oferecer "Vincular a este processo" em vez de criar
+  // um processo-mestre duplicado quando o mesmo processo retorna em outro exercício.
+  findProcessoDuplicates: async (processo: string): Promise<{
+    processo_codigo: number | null;
+    processo: string;
+    convenio: string | null;
+    entidade: string | null;
+    rounds: { codigo: number; exercicio: string | null; posicao: string | null; data: string | null }[];
+  }[]> => {
+    const norm = (s: string) => s.replace(/[.\-/\s]/g, '').toLowerCase();
+    const needle = norm(processo.trim());
+    if (!needle) return [];
+    const { data, error } = await supabase
+      .from('cgof_gpc_recebidos')
+      .select('codigo, processo_codigo, processo, convenio, entidade, exercicio, data, cgof_gpc_posicao(posicao)')
+      .not('processo', 'is', null);
+    if (error) { console.error(error); return []; }
+
+    const matches = (data ?? []).filter((r: any) => norm(r.processo ?? '') === needle);
+    const groups = new Map<string, {
+      processo_codigo: number | null;
+      processo: string;
+      convenio: string | null;
+      entidade: string | null;
+      rounds: { codigo: number; exercicio: string | null; posicao: string | null; data: string | null }[];
+    }>();
+    for (const r of matches as any[]) {
+      // Linhas sem processo_codigo (cadastros antigos não vinculados) viram grupos
+      // individuais — não há mestre para linkar.
+      const key = r.processo_codigo != null ? `p${r.processo_codigo}` : `r${r.codigo}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          processo_codigo: r.processo_codigo ?? null,
+          processo: r.processo,
+          convenio: r.convenio ?? null,
+          entidade: r.entidade ?? null,
+          rounds: [],
+        });
+      }
+      groups.get(key)!.rounds.push({
+        codigo: r.codigo,
+        exercicio: r.exercicio ?? null,
+        posicao: r.cgof_gpc_posicao?.posicao ?? null,
+        data: r.data ?? null,
+      });
+    }
+    return Array.from(groups.values());
+  },
+
+  // Todos os ciclos/registros já cadastrados para o mesmo processo-mestre — usado no
+  // painel "Outros Ciclos deste Processo".
+  getRecebidosByProcesso: async (processoCodigo: number): Promise<GpcRecebido[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_recebidos')
+      .select('*, cgof_gpc_posicao(posicao)')
+      .eq('processo_codigo', processoCodigo)
+      .order('data', { ascending: false });
+    if (error) { console.error(error); return []; }
+    return (data ?? []).map((r: any) => ({
+      ...r,
+      posicao: r.cgof_gpc_posicao?.posicao ?? null,
+    })) as GpcRecebido[];
+  },
+
   saveGpcLog: async (description: string, userName: string, userId: string): Promise<void> => {
     await supabase.from('logs').insert({
       id: crypto.randomUUID(),

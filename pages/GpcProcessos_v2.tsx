@@ -132,6 +132,8 @@ const INPUT = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm b
 
 const LABEL = 'block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5';
 
+const LABEL_SM = 'block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1';
+
 const BTN_PRI = 'inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
 
 const BTN_SEC = 'inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-600 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all shadow-sm';
@@ -332,7 +334,7 @@ const MovimentoBadge = ({ movimento }: { movimento: string | null | undefined })
 
   return (
 
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border whitespace-nowrap ${c.bg} ${c.text} ${c.border}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border break-words ${c.bg} ${c.text} ${c.border}`}>
 
       {movimento}
 
@@ -500,7 +502,7 @@ const FThSel = ({ v, onChange, opts }: { v: string; onChange: (x: string) => voi
 
 
 
-const FThX = () => <th className="px-2 py-1.5 bg-slate-50/80" />;
+const FThX = ({ cls = '' }: { cls?: string }) => <th className={`px-2 py-1.5 bg-slate-50/80 ${cls}`} />;
 
 
 
@@ -2366,7 +2368,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
 
 
-const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpdated }: {
+const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpdated, onNovoExercicio, onOpenSibling }: {
 
   row: GpcRecebido;
 
@@ -2379,6 +2381,10 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
   prevPositions: string[];
 
   onRecordUpdated?: () => Promise<void> | void;
+
+  onNovoExercicio?: (preset: Partial<GpcRecebido>) => void;
+
+  onOpenSibling?: (rec: GpcRecebido) => void;
 
 }) => {
 
@@ -2393,6 +2399,8 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
   const [signatoryUsers, setSignatoryUsers] = useState<{ id: string; name: string }[]>([]);
 
+  const [siblings, setSiblings] = useState<GpcRecebido[]>([]);
+
 
 
   useEffect(() => {
@@ -2404,6 +2412,18 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
     GpcService.getProcessoFull(row.processo_codigo).then(d => { setFull(d); setLoadingFull(false); });
 
   }, [row.processo_codigo]);
+
+
+
+  useEffect(() => {
+
+    if (!row.processo_codigo) { setSiblings([]); return; }
+
+    GpcService.getRecebidosByProcesso(row.processo_codigo).then(list => {
+      setSiblings(list.filter(s => s.codigo !== row.codigo));
+    });
+
+  }, [row.processo_codigo, row.codigo]);
 
 
 
@@ -2483,11 +2503,35 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
         </div>
 
-        <button className={BTN_PRI} onClick={onEdit}>
+        <div className="flex items-center gap-2">
 
-          <Edit size={13} />Editar Registro
+          {onNovoExercicio && row.processo_codigo != null && (
 
-        </button>
+            <button
+              className={BTN_SEC}
+              onClick={() => onNovoExercicio({
+                processo_codigo: row.processo_codigo,
+                processo: row.processo,
+                convenio: row.convenio,
+                entidade: row.entidade,
+                drs: row.drs,
+              })}
+              title="Cadastrar um novo ciclo/exercício para este mesmo processo"
+            >
+
+              <Plus size={13} />Novo Exercício
+
+            </button>
+
+          )}
+
+          <button className={BTN_PRI} onClick={onEdit}>
+
+            <Edit size={13} />Editar Registro
+
+          </button>
+
+        </div>
 
       </div>
 
@@ -3074,6 +3118,50 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
 
 
+        {siblings.length > 0 && (
+
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+
+            <Sec icon={<GitBranch size={13} />} title="Outros Ciclos deste Processo" />
+
+            <div className="space-y-2">
+
+              {siblings.map(s => (
+
+                <div key={s.codigo} className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3">
+
+                  <div className="min-w-0 flex-1">
+
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="font-bold text-slate-700">{s.exercicio ? `Exercício ${s.exercicio}` : `Registro #${s.codigo}`}</span>
+                      {s.posicao && <span className="text-slate-400">·</span>}
+                      {s.posicao && <span className="text-slate-500">{s.posicao}</span>}
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      Recebido em {fmtDate(s.data)}{s.situacao ? ` · ${s.situacao}` : ''}
+                    </div>
+
+                  </div>
+
+                  {onOpenSibling && (
+
+                    <button type="button" onClick={() => onOpenSibling(s)} className={BTN_SEC + ' text-xs px-3 py-1.5 flex-shrink-0'}>
+                      Abrir
+                    </button>
+
+                  )}
+
+                </div>
+
+              ))}
+
+            </div>
+
+          </section>
+
+        )}
+
         {prevPositions.length > 0 && (
 
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
@@ -3273,6 +3361,8 @@ interface RegistroModalProps {
 
   initial?: GpcRecebido;
 
+  presetProcesso?: Partial<GpcRecebido>;
+
   posicoes: GpcPosicao[];
 
   onSave: (form: Partial<GpcRecebido>, prev?: GpcRecebido) => Promise<GpcRecebido>;
@@ -3289,14 +3379,14 @@ interface RegistroModalProps {
 
 
 
-const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave, onClose, isAdmin, onRecordUpdated, onBackToView }) => {
+const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, posicoes, onSave, onClose, isAdmin, onRecordUpdated, onBackToView }) => {
 
   const { currentUser } = useApp();
   const { toast } = useToast();
 
   const [liveRecord, setLiveRecord] = useState<GpcRecebido | undefined>(initial);
 
-  const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? { responsavel_cadastro: currentUser?.name ?? null, posicao_id: 5, movimento: 'RECEBIDO' });
+  const [form, setForm] = useState<Partial<GpcRecebido>>(initial ?? { responsavel_cadastro: currentUser?.name ?? null, posicao_id: 5, movimento: 'RECEBIDO', ...presetProcesso });
 
   const [saving, setSaving] = useState(false);
 
@@ -3304,7 +3394,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
   const [savedOk, setSavedOk] = useState(false);
 
-  const [dupWarning, setDupWarning] = useState<{ count: number } | null>(null);
+  const [dupWarning, setDupWarning] = useState<{ groups: Awaited<ReturnType<typeof GpcService.findProcessoDuplicates>> } | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (dupWarning) scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [dupWarning]);
 
   const [activeTab, setActiveTab] = useState<'analise' | 'ident' | 'fluxo' | 'financeiro' | 'parcelamento'>('ident');
 
@@ -3465,13 +3561,15 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
 
 
 
-  const doSave = async () => {
+  const doSave = async (overrides?: Partial<GpcRecebido>) => {
 
     setSaving(true); setErr(''); setSavedOk(false); setDupWarning(null);
 
+    const submitForm = overrides ? { ...form, ...overrides } : form;
+
     try {
 
-      const saved = await onSave(form, liveRecord);
+      const saved = await onSave(submitForm, liveRecord);
 
       // Auto-save parcelamento inline form when tipo is set
       if (tipoParc !== '') {
@@ -3528,11 +3626,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
     // Duplicate check only for new records
     if (!liveRecord?.codigo && form.processo?.trim()) {
 
-      const count = await GpcService.checkDuplicateProcesso(form.processo.trim());
+      const groups = await GpcService.findProcessoDuplicates(form.processo.trim());
 
-      if (count > 0) {
+      if (groups.length > 0) {
 
-        setDupWarning({ count });
+        setDupWarning({ groups });
 
         return;
 
@@ -3624,7 +3722,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
         ))}
       </div>
 
-      <div className="max-h-[66vh] overflow-y-auto pr-1">
+      <div ref={scrollRef} className="max-h-[66vh] overflow-y-auto pr-1">
 
 
 
@@ -3641,20 +3739,45 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, posicoes, onSave
           )}
 
           {dupWarning && (
-            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
-              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-amber-800">
-                  Processo já cadastrado ({dupWarning.count}x)
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  O processo <span className="font-bold">"{form.processo}"</span> já possui {dupWarning.count} registro(s) no sistema. Deseja cadastrar mesmo assim?
-                </p>
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Processo já cadastrado ({dupWarning.groups.reduce((n, g) => n + g.rounds.length, 0)}x)
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    O processo <span className="font-bold">"{form.processo}"</span> já possui registro(s) no sistema. Se este é um novo ciclo/exercício do mesmo processo, vincule-o abaixo — a linha do tempo, produtividade e financeiro continuam separados por ciclo.
+                  </p>
+                </div>
+                <button type="button" onClick={() => setDupWarning(null)} className={BTN_SEC + ' text-xs px-3 py-1.5 flex-shrink-0'}>Cancelar</button>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <button type="button" onClick={() => setDupWarning(null)} className={BTN_SEC + ' text-xs px-3 py-1.5'}>Cancelar</button>
-                <button type="button" onClick={doSave} className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-xl hover:bg-amber-600 active:scale-95 transition-all">
-                  <Check size={13} /> Confirmar mesmo assim
+              <div className="space-y-2">
+                {dupWarning.groups.map((g, gi) => (
+                  <div key={gi} className="bg-white border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-slate-700 truncate">{g.entidade ?? g.convenio ?? 'Processo existente'}</div>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {g.rounds.map(r => (
+                          <span key={r.codigo} className="inline-flex items-center gap-1 text-[11px] bg-slate-50 border border-slate-200 text-slate-600 rounded-full px-2 py-0.5">
+                            {r.exercicio ? `Exercício ${r.exercicio}` : `#${r.codigo}`}{r.posicao ? ` · ${r.posicao}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {g.processo_codigo != null ? (
+                      <button type="button" onClick={() => doSave({ processo_codigo: g.processo_codigo })} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all flex-shrink-0">
+                        <Check size={13} /> Vincular a este processo
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 italic flex-shrink-0">cadastro antigo, sem vínculo</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <button type="button" onClick={() => doSave()} className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-xl hover:bg-amber-600 active:scale-95 transition-all">
+                  <Check size={13} /> Criar registro separado mesmo assim
                 </button>
               </div>
             </div>
@@ -6788,7 +6911,7 @@ export const GpcProcessos = () => {
 
   const [viewRow, setViewRow] = useState<GpcRecebido | null>(null);
 
-  const [modal, setModal] = useState<null | { data?: GpcRecebido }>(null);
+  const [modal, setModal] = useState<null | { data?: GpcRecebido; preset?: Partial<GpcRecebido> }>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ codigo: number; processo: string | null } | null>(null);
 
@@ -7345,25 +7468,25 @@ export const GpcProcessos = () => {
 
       {mainTab === 'registros' && (
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
 
             {/* Total */}
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-3.5 py-2.5 flex items-center gap-3">
 
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0 shadow-inner">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
 
-                <FileText size={20} className="text-slate-500" />
+                <FileText size={15} className="text-slate-500" />
 
               </div>
 
               <div className="flex-1 min-w-0">
 
-                <div className="text-3xl font-black text-slate-800 leading-none tracking-tight">{stats.total.toLocaleString('pt-BR')}</div>
+                <div className="text-lg font-bold text-slate-800 leading-none tracking-tight">{stats.total.toLocaleString('pt-BR')}</div>
 
-                <div className="text-xs font-semibold text-slate-500 mt-1">Total de Processos</div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 uppercase tracking-wide">Total de Processos</div>
 
               </div>
 
@@ -7371,21 +7494,22 @@ export const GpcProcessos = () => {
 
             {/* Em Análise */}
 
-            <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4 flex items-center gap-4">
+            <div className="bg-white rounded-xl border border-sky-100 shadow-sm px-3.5 py-2.5 flex items-center gap-3">
 
-              <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center flex-shrink-0 shadow-inner">
+              <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center flex-shrink-0">
 
-                <Search size={20} className="text-sky-500" />
+                <Search size={15} className="text-sky-500" />
 
               </div>
 
               <div className="flex-1 min-w-0">
 
-                <div className="text-3xl font-black text-sky-700 leading-none tracking-tight">{stats.emAnalise.toLocaleString('pt-BR')}</div>
+                <div className="flex items-baseline gap-1.5">
+                  <div className="text-lg font-bold text-sky-700 leading-none tracking-tight">{stats.emAnalise.toLocaleString('pt-BR')}</div>
+                  <div className="text-[10px] text-sky-400 font-medium">{stats.total > 0 ? Math.round((stats.emAnalise / stats.total) * 100) : 0}%</div>
+                </div>
 
-                <div className="text-xs font-semibold text-slate-500 mt-1">Em Análise</div>
-
-                <div className="text-[11px] text-sky-400 font-medium mt-0.5">{stats.total > 0 ? Math.round((stats.emAnalise / stats.total) * 100) : 0}% do total</div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 uppercase tracking-wide">Em Análise</div>
 
               </div>
 
@@ -7393,21 +7517,22 @@ export const GpcProcessos = () => {
 
             {/* Acima de Remessa */}
 
-            <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm px-5 py-4 flex items-center gap-4">
+            <div className="bg-white rounded-xl border border-indigo-100 shadow-sm px-3.5 py-2.5 flex items-center gap-3">
 
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center flex-shrink-0 shadow-inner">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
 
-                <ArrowUp size={20} className="text-indigo-500" />
+                <ArrowUp size={15} className="text-indigo-500" />
 
               </div>
 
               <div className="flex-1 min-w-0">
 
-                <div className="text-3xl font-black text-indigo-700 leading-none tracking-tight">{stats.acima.toLocaleString('pt-BR')}</div>
+                <div className="flex items-baseline gap-1.5">
+                  <div className="text-lg font-bold text-indigo-700 leading-none tracking-tight">{stats.acima.toLocaleString('pt-BR')}</div>
+                  <div className="text-[10px] text-indigo-400 font-medium">{stats.total > 0 ? Math.round((stats.acima / stats.total) * 100) : 0}%</div>
+                </div>
 
-                <div className="text-xs font-semibold text-slate-500 mt-1">Acima de Remessa</div>
-
-                <div className="text-[11px] text-indigo-400 font-medium mt-0.5">{stats.total > 0 ? Math.round((stats.acima / stats.total) * 100) : 0}% do total</div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 uppercase tracking-wide">Acima de Remessa</div>
 
               </div>
 
@@ -7415,21 +7540,22 @@ export const GpcProcessos = () => {
 
             {/* Parcelamentos */}
 
-            <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm px-5 py-4 flex items-center gap-4">
+            <div className="bg-white rounded-xl border border-emerald-100 shadow-sm px-3.5 py-2.5 flex items-center gap-3">
 
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center flex-shrink-0 shadow-inner">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
 
-                <DollarSign size={20} className="text-emerald-500" />
+                <DollarSign size={15} className="text-emerald-500" />
 
               </div>
 
               <div className="flex-1 min-w-0">
 
-                <div className="text-3xl font-black text-emerald-700 leading-none tracking-tight">{stats.parcelamentos.toLocaleString('pt-BR')}</div>
+                <div className="flex items-baseline gap-1.5">
+                  <div className="text-lg font-bold text-emerald-700 leading-none tracking-tight">{stats.parcelamentos.toLocaleString('pt-BR')}</div>
+                  <div className="text-[10px] text-emerald-400 font-medium">{stats.total > 0 ? Math.round((stats.parcelamentos / stats.total) * 100) : 0}%</div>
+                </div>
 
-                <div className="text-xs font-semibold text-slate-500 mt-1">Parcelamentos</div>
-
-                <div className="text-[11px] text-emerald-400 font-medium mt-0.5">{stats.total > 0 ? Math.round((stats.parcelamentos / stats.total) * 100) : 0}% do total</div>
+                <div className="text-[10px] font-semibold text-slate-500 mt-1 uppercase tracking-wide">Parcelamentos</div>
 
               </div>
 
@@ -7453,9 +7579,9 @@ export const GpcProcessos = () => {
 
             return (
 
-              <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
 
-                <ShieldCheck size={13} className="text-slate-400 flex-shrink-0" />
+                <ShieldCheck size={12} className="text-slate-400 flex-shrink-0" />
 
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">Situação</span>
 
@@ -7573,19 +7699,19 @@ export const GpcProcessos = () => {
 
           {/* -- Filter Panel -- */}
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center justify-between px-3.5 py-2 border-b border-slate-100">
 
               <div className="flex items-center gap-2">
 
-                <Search size={13} className="text-slate-400" />
+                <Search size={12} className="text-slate-400" />
 
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Filtros</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Filtros</span>
 
                 {Object.values(filters).some(Boolean) && (
 
-                  <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
 
                     {Object.values(filters).filter(Boolean).length} ativo{Object.values(filters).filter(Boolean).length !== 1 ? 's' : ''}
 
@@ -7601,11 +7727,11 @@ export const GpcProcessos = () => {
 
                   onClick={() => setFilters({ processo: '', convenio: '', entidade: '', exercicio: '', drs: '', responsavel: '', posicao_id: '', movimento: '', remessa: '', situacao: '' })}
 
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
 
                 >
 
-                  <X size={11} />Limpar filtros
+                  <X size={10} />Limpar filtros
 
                 </button>
 
@@ -7613,71 +7739,63 @@ export const GpcProcessos = () => {
 
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-3">
 
-              {/* Row 1 */}
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
 
                 <div>
 
-                  <label className={LABEL}>Processo</label>
+                  <label className={LABEL_SM}>Processo</label>
 
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.processo} onChange={e => setF('processo', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.processo} onChange={e => setF('processo', e.target.value)} />
 
                 </div>
 
                 <div>
 
-                  <label className={LABEL}>Convênio</label>
+                  <label className={LABEL_SM}>Convênio</label>
 
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.convenio} onChange={e => setF('convenio', e.target.value)} />
-
-                </div>
-
-                <div>
-
-                  <label className={LABEL}>Entidade</label>
-
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.entidade} onChange={e => setF('entidade', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.convenio} onChange={e => setF('convenio', e.target.value)} />
 
                 </div>
 
                 <div>
 
-                  <label className={LABEL}>Exercício</label>
+                  <label className={LABEL_SM}>Entidade</label>
 
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="ano" value={filters.exercicio} onChange={e => setF('exercicio', e.target.value)} />
-
-                </div>
-
-              </div>
-
-              {/* Row 2 */}
-
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-
-                <div>
-
-                  <label className={LABEL}>DRS</label>
-
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="nº" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.entidade} onChange={e => setF('entidade', e.target.value)} />
 
                 </div>
 
                 <div>
 
-                  <label className={LABEL}>Analista</label>
+                  <label className={LABEL_SM}>Exercício</label>
 
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="nome..." value={filters.responsavel} onChange={e => setF('responsavel', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="ano" value={filters.exercicio} onChange={e => setF('exercicio', e.target.value)} />
 
                 </div>
 
                 <div>
 
-                  <label className={LABEL}>Posição</label>
+                  <label className={LABEL_SM}>DRS</label>
 
-                  <select className={INPUT + ' py-2 text-xs'} value={filters.posicao_id} onChange={e => setF('posicao_id', e.target.value)}>
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="nº" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
+
+                </div>
+
+                <div>
+
+                  <label className={LABEL_SM}>Analista</label>
+
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="nome..." value={filters.responsavel} onChange={e => setF('responsavel', e.target.value)} />
+
+                </div>
+
+                <div>
+
+                  <label className={LABEL_SM}>Posição</label>
+
+                  <select className={INPUT + ' py-1.5 text-xs'} value={filters.posicao_id} onChange={e => setF('posicao_id', e.target.value)}>
 
                     <option value="">Todas</option>
 
@@ -7689,17 +7807,17 @@ export const GpcProcessos = () => {
 
                 <div>
 
-                  <label className={LABEL}>Movimento</label>
+                  <label className={LABEL_SM}>Movimento</label>
 
-                  <input className={INPUT + ' py-2 text-xs'} placeholder="filtrar..." value={filters.movimento} onChange={e => setF('movimento', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.movimento} onChange={e => setF('movimento', e.target.value)} />
 
                 </div>
 
                 <div>
 
-                  <label className={LABEL}>Situação</label>
+                  <label className={LABEL_SM}>Situação</label>
 
-                  <select className={INPUT + ' py-2 text-xs'} value={filters.situacao} onChange={e => setF('situacao', e.target.value)}>
+                  <select className={INPUT + ' py-1.5 text-xs'} value={filters.situacao} onChange={e => setF('situacao', e.target.value)}>
 
                     <option value="">Todas</option>
 
@@ -7719,7 +7837,7 @@ export const GpcProcessos = () => {
 
             {Object.values(filters).some(Boolean) && (
 
-              <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-400">
+              <div className="px-3.5 py-1.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-400">
 
                 <strong className="text-slate-600">{filtered.length.toLocaleString('pt-BR')}</strong> resultado{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
 
@@ -7743,7 +7861,7 @@ export const GpcProcessos = () => {
 
               <div className="overflow-x-auto">
 
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
 
                   <thead>
 
@@ -7763,15 +7881,15 @@ export const GpcProcessos = () => {
 
                       <SortTh label="Cadastro / Analistas" col="responsavel" sort={sort} onSort={toggleSort} />
 
-                      <SortTh label="Posição"     col="posicao"     sort={sort} onSort={toggleSort} />
+                      <SortTh label="Posição"     col="posicao"     sort={sort} onSort={toggleSort} cls="w-28" />
 
-                      <SortTh label="Movimento"   col="movimento"   sort={sort} onSort={toggleSort} />
+                      <SortTh label="Movimento"   col="movimento"   sort={sort} onSort={toggleSort} cls="w-28" />
 
                       <SortTh label="Remessa"     col="remessa"     sort={sort} onSort={toggleSort} cls="w-24" />
 
-                      <SortTh label="Situação"    col="situacao"    sort={sort} onSort={toggleSort} />
+                      <SortTh label="Situação"    col="situacao"    sort={sort} onSort={toggleSort} cls="w-28" />
 
-                      <FThX />
+                      <FThX cls="w-32" />
 
                     </tr>
 
@@ -7809,13 +7927,13 @@ export const GpcProcessos = () => {
 
                           {/* Processo + Entidade stacked */}
 
-                          <td className="px-4 py-4 min-w-[200px]">
+                          <td className="px-4 py-4">
 
                             <div className="flex flex-col gap-1">
 
                               <div className="flex items-center gap-1.5">
 
-                                <span className="font-bold text-blue-700 text-xs font-mono tracking-tight">
+                                <span className="font-bold text-blue-700 text-xs font-mono tracking-tight break-words">
 
                                   {r.processo ?? '-'}
 
@@ -7875,13 +7993,13 @@ export const GpcProcessos = () => {
 
                           </td>
 
-                          <td className="px-3 py-4 text-slate-500 whitespace-nowrap text-xs">{r.convenio ?? '-'}</td>
+                          <td className="px-3 py-4 text-slate-500 break-words text-xs">{r.convenio ?? '-'}</td>
 
                           {/* Entidade moved into processo cell */}
 
-                          <td className="px-3 py-4 text-slate-600 text-xs max-w-[180px]">
+                          <td className="px-3 py-4 text-slate-600 text-xs break-words">
 
-                            <span className="line-clamp-2" title={r.entidade ?? ''}>{r.entidade ?? '—'}</span>
+                            <span>{r.entidade ?? '—'}</span>
 
                           </td>
 
@@ -7895,7 +8013,7 @@ export const GpcProcessos = () => {
 
                           <td className="px-3 py-4 whitespace-nowrap text-slate-400 text-xs">{fmtDate(r.data)}</td>
 
-                          <td className="px-3 py-4 min-w-[160px]">
+                          <td className="px-3 py-4">
 
                             {/* Cadastrado por */}
 
@@ -7909,7 +8027,7 @@ export const GpcProcessos = () => {
 
                                 </div>
 
-                                <span className="text-xs text-slate-600 font-medium truncate max-w-[110px]" title={r.responsavel_cadastro || r.responsavel || ''}>
+                                <span className="text-xs text-slate-600 font-medium break-words">
 
                                   {r.responsavel_cadastro || r.responsavel}
 
@@ -8180,6 +8298,10 @@ export const GpcProcessos = () => {
 
           }}
 
+          onNovoExercicio={(preset) => { setModal({ preset }); setViewRow(null); }}
+
+          onOpenSibling={(rec) => setViewRow(rec)}
+
         />
 
       )}
@@ -8193,6 +8315,8 @@ export const GpcProcessos = () => {
         <RegistroModal
 
           initial={modal.data}
+
+          presetProcesso={modal.preset}
 
           posicoes={posicoes}
 
