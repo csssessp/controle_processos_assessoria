@@ -882,21 +882,29 @@ export const GpcService = {
     const all: { registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[] =
       await GpcServiceSelf.getProdutividadeDetalhado();
 
-    // Build pagesByProcesso from cgof_gpc_processos.num_paginas — same source used by the screen.
-    // INICIO_ANALISE events store num_paginas_analise only sporadically; the official
-    // page count lives on the processo record and must be the primary source.
-    const { data: processosData } = await supabase
-      .from('cgof_gpc_processos')
+    // Build pagesByProcesso from cgof_gpc_recebidos.num_paginas — registro_id references
+    // cgof_gpc_recebidos.codigo (same source the screen uses via allRows), NOT cgof_gpc_processos
+    // (a different table with its own independent codigo sequence).
+    const { data: recebidosData } = await supabase
+      .from('cgof_gpc_recebidos')
       .select('codigo, num_paginas')
       .not('num_paginas', 'is', null);
     const pagesByProcesso = new Map<number, number>();
-    for (const p of (processosData ?? [])) {
+    for (const p of (recebidosData ?? [])) {
       if (p.codigo != null && p.num_paginas) pagesByProcesso.set(p.codigo as number, p.num_paginas as number);
     }
 
-    // Filter by period
-    const prefix = mes ? `${ano}-${mes}` : ano;
-    const filtered = all.filter(e => e.data_evento.startsWith(prefix));
+    // Filter by period using the browser's local date fields (mirrors periodoKey() in
+    // GpcProcessos_v2.tsx). data_evento is a UTC timestamptz string; a raw string-prefix
+    // match would misattribute events near month boundaries to the wrong month.
+    const periodKey = (dataEvento: string): string => {
+      const dt = new Date(dataEvento);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      return mes ? `${y}-${m}` : String(y);
+    };
+    const target = mes ? `${ano}-${mes}` : ano;
+    const filtered = all.filter(e => periodKey(e.data_evento) === target);
 
     // Aggregate per technician — mirrors computeStats() in GpcProcessos_v2.tsx exactly:
     //   - CORRECAO counted inside movimentos (not separately)
