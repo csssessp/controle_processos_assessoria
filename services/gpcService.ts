@@ -32,6 +32,18 @@ export interface ExercicioRelatorio {
   saldo: number;          // ex_ant + repasse + aplicacao - gastos - devolvido
 }
 
+// Normaliza nome de técnico/responsável (trim + colapsa espaços + Title Case) para que
+// grafias divergentes vindas de cadastros antigos em texto livre (ex.: "ROSEMARIA" vs
+// "Rosemaria") sejam agrupadas como a mesma pessoa em vez de virarem linhas separadas
+// na produtividade.
+function normalizeNomeTecnico(nome: string): string {
+  return nome
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+}
+
 export const GpcService = {
 
   // ── LOOKUPS ──────────────────────────────────────────────────────────────
@@ -596,7 +608,7 @@ export const GpcService = {
       }
       return {
         registro_id: f.registro_id as number,
-        responsavel: f.tecnico as string,
+        responsavel: normalizeNomeTecnico(f.tecnico as string),
         evento,
         data_evento: f.data_evento as string,
         obs: mov || acao || null,
@@ -606,7 +618,7 @@ export const GpcService = {
 
     const prodEvents = (prodData ?? []).map((p: any) => ({
       registro_id: p.registro_id as number,
-      responsavel: p.responsavel as string,
+      responsavel: normalizeNomeTecnico(p.responsavel as string),
       evento: p.evento as string,
       data_evento: p.data_evento as string,
       obs: p.obs as string | null,
@@ -764,7 +776,7 @@ export const GpcService = {
     const paginasContadas = new Set<string>();
     const map: Record<string, { count: number; paginas: number; tempos: number[]; ultimo: string }> = {};
     for (const r of data ?? []) {
-      const t = r.tecnico as string;
+      const t = normalizeNomeTecnico(r.tecnico as string);
       if (!map[t]) map[t] = { count: 0, paginas: 0, tempos: [], ultimo: '' };
       map[t].count++;
       // Count pages only once per (tecnico, registro_id) — use the first event's value
