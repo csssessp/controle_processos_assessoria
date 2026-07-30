@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserRole, userHasArea } from '../types';
-import logoImg from '../img/logo1.png';
+import logoImg from '../img/BRASAO-3-texto-branco.png';
 import {
   Files,
   Users,
@@ -84,7 +84,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
       {/* ── Top Header ── */}
       <header className="bg-primary text-white shadow-md sticky top-0 z-50">
         <div className="max-w-full mx-auto px-4 sm:px-6">
-          <div className="flex items-center h-16 gap-3">
+          <div className="flex items-center h-20 gap-3">
 
             {/* Left: Hamburger + Logo */}
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -95,7 +95,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
               >
                 {drawerOpen ? <X size={22} /> : <Menu size={22} />}
               </button>
-              <img src={LogoImage} alt="Brasão SP" className="h-24 w-auto flex-shrink-0" />
+              <img src={LogoImage} alt="Brasão SP" className="h-16 w-auto flex-shrink-0" />
             </div>
 
             {/* Center: Title */}
