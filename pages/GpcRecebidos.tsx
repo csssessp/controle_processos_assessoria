@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
 import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { GpcRecebido, GpcPosicao } from '../types';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -156,6 +157,7 @@ const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }
 
 export const GpcRecebidos = () => {
   const { toast } = useToast();
+  const { confirmAction } = useConfirm();
   const [rows, setRows] = useState<GpcRecebido[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -177,7 +179,7 @@ export const GpcRecebidos = () => {
   useEffect(() => { GpcService.getPosicoes().then(setPosicoes); }, []);
 
   const handleDelete = async (codigo: number) => {
-    if (!confirm('Excluir este registro?')) return;
+    if (!(await confirmAction('Excluir este registro?', { danger: true }))) return;
     try { await GpcService.deleteRecebido(codigo); await load(); }
     catch (ex: any) { toast('error', ex.message); }
   };

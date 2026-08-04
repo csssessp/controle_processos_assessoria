@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import {
   FileSpreadsheet, Loader2, DollarSign, FolderOpen,
   ClipboardList, GitBranch, BarChart3, Layers, Info,
-  RefreshCw, CheckCircle2, Users2, ChevronDown, ChevronUp,
+  RefreshCw, CheckCircle2, Users2, ChevronDown, ChevronUp, ShieldAlert,
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
 
@@ -33,6 +33,22 @@ function exportXLSX(
 }
 
 const todayStr = () => new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+
+const SITUACAO_LABELS: Record<string, string> = {
+  REGULAR: 'Regular',
+  IRREGULAR: 'Irregular',
+  PARCIALMENTE_REGULAR: 'Parcialmente Regular',
+};
+
+const IRREGULAR_TIPO_LABELS: Record<string, string> = {
+  DIVIDA_ATIVA: 'Dívida Ativa',
+  CONTENCIOSO: 'Contencioso',
+  CADIN: 'Cadin',
+};
+
+const situacaoLabel = (s?: string | null) => (s ? (SITUACAO_LABELS[s] ?? s) : 'Não Avaliado');
+const irregularTiposLabel = (tipos?: string[] | null) =>
+  (tipos ?? []).map(t => IRREGULAR_TIPO_LABELS[t] ?? t).join(', ');
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
 
@@ -209,6 +225,30 @@ export const GpcRelatorios = () => {
     }], `gpc_parcelamentos_${todayStr()}.xlsx`);
   }, []);
 
+  const relRegistros = useCallback(async () => {
+    const rows = await GpcService.getAllRecebidos();
+    exportXLSX([{
+      name: 'Registros — Situação',
+      rows: rows.map(r => ({
+        'Código': r.codigo,
+        'Processo': r.processo ?? '',
+        'Convênio': r.convenio ?? '',
+        'Entidade': r.entidade ?? '',
+        'Exercício': r.exercicio ?? '',
+        'DRS': r.drs ?? '',
+        'Responsável': r.responsavel ?? '',
+        'Posição': r.posicao ?? '',
+        'Movimento': r.movimento ?? '',
+        'Data': r.data ?? '',
+        'Situação': situacaoLabel(r.situacao),
+        'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+        'Valor a Devolver (R$)': r.valor_a_devolver ?? 0,
+        'Valor Devolvido (R$)': r.valor_devolvido ?? 0,
+        'Obs. Situação': r.situacao_obs ?? '',
+      })),
+    }], `gpc_registros_situacao_${todayStr()}.xlsx`);
+  }, []);
+
   const relTas = useCallback(async () => {
     const rows = await GpcService.getAllTasExport();
     exportXLSX([{
@@ -240,15 +280,21 @@ export const GpcRelatorios = () => {
   }, []);
 
   const relCompleto = useCallback(async () => {
-    const [exercicios, reportData, processos, tas] = await Promise.all([
+    const [exercicios, reportData, processos, tas, recebidos] = await Promise.all([
       GpcService.getExerciciosRelatorio(),
       GpcService.getReportData(),
       GpcService.getAllProcessosExport(),
       GpcService.getAllTasExport(),
+      GpcService.getAllRecebidos(),
     ]);
 
-    const fmtBRL = (v: number | null | undefined) =>
+    const raw = (v: number | null | undefined) =>
       v == null ? 0 : v;
+
+    const regulares = recebidos.filter(r => r.situacao === 'REGULAR').length;
+    const irregulares = recebidos.filter(r => r.situacao === 'IRREGULAR').length;
+    const parcialmente = recebidos.filter(r => r.situacao === 'PARCIALMENTE_REGULAR').length;
+    const semSituacao = recebidos.filter(r => !r.situacao).length;
 
     exportXLSX([
       {
@@ -260,7 +306,11 @@ export const GpcRelatorios = () => {
           'Total de Parcelamentos': reportData.totalParcelamentos,
           'Parcelamentos Ativos': reportData.parcelamentosAtivos,
           'Termos Aditivos': reportData.totalTas,
-          'Valor Total Repasse (R$)': fmtBRL(reportData.valorTotalRepasse),
+          'Valor Total Repasse (R$)': raw(reportData.valorTotalRepasse),
+          'Registros Regulares': regulares,
+          'Registros Irregulares': irregulares,
+          'Registros Parcialmente Regulares': parcialmente,
+          'Registros Sem Avaliação': semSituacao,
         }],
       },
       {
@@ -279,6 +329,26 @@ export const GpcRelatorios = () => {
         })),
       },
       {
+        name: 'Registros — Situação',
+        rows: recebidos.map(r => ({
+          'Código': r.codigo,
+          'Processo': r.processo ?? '',
+          'Convênio': r.convenio ?? '',
+          'Entidade': r.entidade ?? '',
+          'Exercício': r.exercicio ?? '',
+          'DRS': r.drs ?? '',
+          'Responsável': r.responsavel ?? '',
+          'Posição': r.posicao ?? '',
+          'Movimento': r.movimento ?? '',
+          'Data': r.data ?? '',
+          'Situação': situacaoLabel(r.situacao),
+          'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+          'Valor a Devolver (R$)': raw(r.valor_a_devolver),
+          'Valor Devolvido (R$)': raw(r.valor_devolvido),
+          'Obs. Situação': r.situacao_obs ?? '',
+        })),
+      },
+      {
         name: 'Processos x Exercícios',
         rows: exercicios.map(e => ({
           'Código': e.processo_id,
@@ -286,12 +356,12 @@ export const GpcRelatorios = () => {
           'Convênio': e.convenio ?? '',
           'Entidade': e.entidade ?? '',
           'Exercício': e.exercicio ?? '',
-          'Ex. Anterior (R$)': fmtBRL(e.exercicio_anterior),
-          'Repasse (R$)': fmtBRL(e.repasse),
-          'Aplicação (R$)': fmtBRL(e.aplicacao),
+          'Ex. Anterior (R$)': raw(e.exercicio_anterior),
+          'Repasse (R$)': raw(e.repasse),
+          'Aplicação (R$)': raw(e.aplicacao),
           'Total Convênio (R$)': e.total_convenio,
-          'Gastos (R$)': fmtBRL(e.gastos),
-          'Devolvido (R$)': fmtBRL(e.devolvido),
+          'Gastos (R$)': raw(e.gastos),
+          'Devolvido (R$)': raw(e.devolvido),
           'Saldo (R$)': e.saldo,
         })),
       },
@@ -305,8 +375,8 @@ export const GpcRelatorios = () => {
           'Proc. Parcela': p.proc_parcela ?? '',
           'Tipo': p.tipo ?? '',
           'Exercício': p.exercicio ?? '',
-          'Valor Gerador (R$)': fmtBRL(p.valor_parcelado),
-          'Valor Corrigido (R$)': fmtBRL(p.valor_corrigido),
+          'Valor Gerador (R$)': raw(p.valor_parcelado),
+          'Valor Corrigido (R$)': raw(p.valor_corrigido),
           'Nº Parcelas': p.parcelas ?? '',
           'Em Dia': p.em_dia ? 'Sim' : 'Não',
           'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
@@ -322,7 +392,7 @@ export const GpcRelatorios = () => {
           'Entidade': t.entidade ?? '',
           'Número TA': t.numero ?? '',
           'Data': t.data ?? '',
-          'Custo (R$)': fmtBRL(t.custo),
+          'Custo (R$)': raw(t.custo),
         })),
       },
       {
@@ -429,6 +499,14 @@ export const GpcRelatorios = () => {
       onGenerate: relParcelamentos,
     },
     {
+      icon: ShieldAlert,
+      color: 'bg-red-500',
+      title: 'Registros — Situação',
+      description:
+        'Situação de regularidade de cada registro: Regular, Irregular ou Parcialmente Regular, com tipos de irregularidade e valores a devolver/devolvidos.',
+      onGenerate: relRegistros,
+    },
+    {
       icon: GitBranch,
       color: 'bg-indigo-500',
       title: 'Termos Aditivos',
@@ -450,8 +528,8 @@ export const GpcRelatorios = () => {
       color: 'bg-rose-600',
       title: 'Relatório Completo',
       description:
-        'Arquivo único com todas as abas: Resumo, Processos, Exercícios, Parcelamentos, TAs, DRS e Tipo.',
-      badge: '7 abas',
+        'Arquivo único com todas as abas: Resumo, Processos, Situação dos Registros, Exercícios, Parcelamentos, TAs, DRS e Tipo.',
+      badge: '8 abas',
       onGenerate: relCompleto,
     },
   ];

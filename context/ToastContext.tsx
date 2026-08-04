@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { onError } from '../services/errorBus';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -38,6 +39,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const dismiss = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
+
+  useEffect(() => onError(msg => toast('error', msg)), [toast]);
 
   return (
     <ToastContext.Provider value={{ toast }}>

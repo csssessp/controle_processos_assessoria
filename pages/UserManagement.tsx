@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { DbService } from '../services/dbService';
 import { generateUUID } from '../utils';
 import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
@@ -10,6 +11,7 @@ import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loade
 export const UserManagement = () => {
   const { saveUser, deleteUser, currentUser } = useApp();
   const { toast } = useToast();
+  const { confirmAction } = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -102,7 +104,7 @@ export const UserManagement = () => {
 
   const handleDelete = async (id: string) => {
     if (id === currentUser?.id) { toast('warning', 'Você não pode excluir a si mesmo.'); return; }
-    if (confirm("Tem certeza que deseja excluir este usuário?")) {
+    if (await confirmAction('Tem certeza que deseja excluir este usuário?', { danger: true })) {
       try {
         await deleteUser(id);
         await refreshUsers();

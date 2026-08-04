@@ -249,6 +249,17 @@ export interface GpcParcelamento {
   autorizacoes_log?: ParcAutorizacaoEntry[] | null;
 }
 
+export interface GpcParcela {
+  codigo: number;
+  parcelamento_id: number;
+  numero: number;
+  data_vencimento: string | null;
+  valor: number | null;
+  pago: boolean;
+  data_pagamento: string | null;
+  obs: string | null;
+}
+
 export interface GpcTa {
   codigo: number;
   processo_id: number | null;

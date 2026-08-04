@@ -16,12 +16,13 @@ import {
 
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
-  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star,
+  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks,
 
 } from 'lucide-react';
 
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../context/ConfirmContext';
 
 import { UserRole } from '../types';
 
@@ -33,7 +34,7 @@ import {
 
   GpcProcessoFull, GpcExercicio, GpcHistorico, GpcObjeto,
 
-  GpcParcelamento, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
+  GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
 
   GpcFluxoTecnico, ParcAutorizacaoEntry
 
@@ -1717,6 +1718,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
   // Admin: track which fluxo event is having its date edited
   const { toast } = useToast();
+  const { confirmAction } = useConfirm();
   const [editingDateId, setEditingDateId] = useState<number | null>(null);
   const [editingDateVal, setEditingDateVal] = useState<string>('');
   const [savingDateId, setSavingDateId] = useState<number | null>(null);
@@ -1744,7 +1746,8 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
     setAssinaturasLocal(next);
     onAssinaturaChange?.(next.join(' | '), '');
     if (registroId) {
-      GpcService.updateAssinatura(registroId, next.join(' | '), null).catch(console.error);
+      GpcService.updateAssinatura(registroId, next.join(' | '), null)
+        .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
     }
   };
   const removeAssinatura = (name: string) => {
@@ -1752,7 +1755,8 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
     setAssinaturasLocal(next);
     onAssinaturaChange?.(next.join(' | '), '');
     if (registroId) {
-      GpcService.updateAssinatura(registroId, next.join(' | ') || null, null).catch(console.error);
+      GpcService.updateAssinatura(registroId, next.join(' | ') || null, null)
+        .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
     }
   };
 
@@ -1778,7 +1782,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
   const handleDelete = async (id: number) => {
 
-    if (!confirm('Excluir este evento do fluxo?')) return;
+    if (!(await confirmAction('Excluir este evento do fluxo?', { danger: true }))) return;
 
     await GpcService.deleteFluxoTecnico(id);
 
@@ -3383,6 +3387,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   const { currentUser } = useApp();
   const { toast } = useToast();
+  const { confirmAction } = useConfirm();
 
   const [liveRecord, setLiveRecord] = useState<GpcRecebido | undefined>(initial);
 
@@ -3459,9 +3464,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   const [classifLocked, setClassifLocked] = useState(isEditing);
 
-  const tryUnlock = (setter: (v: boolean) => void) => {
+  const tryUnlock = async (setter: (v: boolean) => void) => {
 
-    if (window.confirm('Deseja desbloquear esta seção para edição?')) {
+    if (await confirmAction('Deseja desbloquear esta seção para edição?')) {
 
       setter(false);
 
@@ -3646,7 +3651,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   const confirmDeleteSub = async (action: () => Promise<void>) => {
 
-    if (!confirm('Confirma a exclusão?')) return;
+    if (!(await confirmAction('Confirma a exclusão?', { danger: true }))) return;
 
     try { await action(); await refreshFull(); }
 
@@ -4742,7 +4747,12 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                         );
                       }},
                       { label: 'Valor',     render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
-                      { label: 'Parcelas',  render: (r: GpcParcelamento) => r.parcelas ?? '-' },
+                      { label: 'Parcelas',  render: (r: GpcParcelamento) => (
+                        <button type="button" onClick={() => setSubModal({ type: 'parcelas', data: r })}
+                          className="inline-flex items-center gap-1 text-blue-700 hover:underline font-semibold">
+                          {r.parcelas ?? '-'} <ListChecks size={11} />
+                        </button>
+                      )},
                       { label: 'Em Dia',    render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
                       { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
                     ]}
@@ -4847,7 +4857,12 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                     }},
                     { label: 'Valor', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
                     { label: 'Valor Corrigido', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_corrigido)}</span> },
-                    { label: 'Parcelas', render: (r: GpcParcelamento) => r.parcelas ?? '-' },
+                    { label: 'Parcelas', render: (r: GpcParcelamento) => (
+                      <button type="button" onClick={() => setSubModal({ type: 'parcelas', data: r })}
+                        className="inline-flex items-center gap-1 text-blue-700 hover:underline font-semibold">
+                        {r.parcelas ?? '-'} <ListChecks size={11} />
+                      </button>
+                    )},
                     { label: 'Vl/Parcela', render: (r: GpcParcelamento) => r.valor_por_parcela ? fmt(r.valor_por_parcela) : (r.valor_corrigido && r.parcelas ? fmt(r.valor_corrigido / r.parcelas) : '-') },
                     { label: 'Em Dia', render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
                     { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
@@ -4967,6 +4982,22 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 initial={subModal.data}
 
                 onSave={async p => { await GpcService.saveParcelamento(p); await refreshFull(); setSubModal(null); }}
+
+                onClose={() => setSubModal(null)}
+
+              />
+
+            </Modal>
+
+          )}
+
+          {subModal.type === 'parcelas' && (
+
+            <Modal title={`Parcelas — ${subModal.data.tipo_parcelamento ?? 'Parcelamento'}`} onClose={() => setSubModal(null)} size="lg">
+
+              <ParcelasManager
+
+                parcelamento={subModal.data}
 
                 onClose={() => setSubModal(null)}
 
@@ -5480,7 +5511,208 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
 
 };
 
+// ---- ParcelaForm — cadastro/edição de uma parcela individual ----
+const ParcelaForm = ({ parcelamentoId, initial, defaultValor, defaultNumero, onSave, onClose }: {
+  parcelamentoId: number;
+  initial?: Partial<GpcParcela>;
+  defaultValor?: number | null;
+  defaultNumero?: number;
+  onSave: (p: Partial<GpcParcela>) => Promise<void>;
+  onClose: () => void;
+}) => {
+  const [f, setF] = useState<Partial<GpcParcela>>(initial ?? {
+    parcelamento_id: parcelamentoId,
+    numero: defaultNumero ?? 1,
+    valor: defaultValor ?? null,
+    pago: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k: keyof GpcParcela, v: any) => setF(p => ({ ...p, [k]: v }));
 
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true); setErr('');
+    try { await onSave({ ...f, parcelamento_id: parcelamentoId }); }
+    catch (ex: any) { setErr(ex.message); setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={LABEL}>Nº da Parcela *</label>
+          <input className={INPUT} type="number" min={1} value={f.numero ?? ''}
+            onChange={e => set('numero', e.target.value === '' ? null : Number(e.target.value))} required />
+        </div>
+        <div>
+          <label className={LABEL}>Vencimento</label>
+          <input className={INPUT} type="date" value={f.data_vencimento ?? ''} onChange={e => set('data_vencimento', e.target.value || null)} />
+        </div>
+        <div>
+          <label className={LABEL}>Valor (R$)</label>
+          <CurrencyInput value={f.valor} onChange={v => set('valor', v)} />
+        </div>
+        <div>
+          <label className={LABEL}>Data de Pagamento</label>
+          <input className={INPUT} type="date" value={f.data_pagamento ?? ''} onChange={e => set('data_pagamento', e.target.value || null)} disabled={!f.pago} />
+        </div>
+      </div>
+      <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${f.pago ? 'bg-green-50 border-green-400' : 'bg-white border-slate-200'}`}>
+        <input type="checkbox" checked={f.pago ?? false} onChange={e => {
+          const checked = e.target.checked;
+          setF(p => ({ ...p, pago: checked, data_pagamento: checked ? (p.data_pagamento ?? new Date().toISOString().slice(0, 10)) : null }));
+        }} className="w-4 h-4 accent-green-600 rounded" />
+        <div>
+          <div className={`text-sm font-semibold ${f.pago ? 'text-green-700' : 'text-slate-600'}`}>Pago</div>
+          <div className="text-[11px] text-slate-400">Marcar esta parcela como quitada</div>
+        </div>
+      </label>
+      <div>
+        <label className={LABEL}>Observações</label>
+        <textarea className={INPUT} rows={2} value={f.obs ?? ''} onChange={e => set('obs', e.target.value || null)} placeholder="Informações adicionais..." />
+      </div>
+      <div className="flex justify-end gap-3">
+        <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
+        <button type="submit" className={BTN_PRI} disabled={saving}>{saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}Salvar</button>
+      </div>
+    </form>
+  );
+};
+
+// ---- ParcelasManager — sub-tabela de parcelas individuais de um parcelamento ----
+const ParcelasManager = ({ parcelamento, onClose }: {
+  parcelamento: GpcParcelamento;
+  onClose: () => void;
+}) => {
+  const { toast } = useToast();
+  const { confirmAction } = useConfirm();
+  const [parcelas, setParcelas] = useState<GpcParcela[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState<null | { initial?: GpcParcela }>(null);
+  const [genDate, setGenDate] = useState('');
+  const [generating, setGenerating] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const rows = await GpcService.getParcelas(parcelamento.codigo);
+    setParcelas(rows);
+    setLoading(false);
+  }, [parcelamento.codigo]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const totalEsperado = parcelamento.parcelas ?? 0;
+  const pagas = parcelas.filter(p => p.pago).length;
+  const somaPaga = parcelas.filter(p => p.pago).reduce((s, p) => s + (p.valor ?? 0), 0);
+  const somaTotal = parcelas.reduce((s, p) => s + (p.valor ?? 0), 0);
+  const nextNumero = parcelas.reduce((m, p) => Math.max(m, p.numero), 0) + 1;
+  const defaultValor = parcelamento.valor_por_parcela ??
+    (parcelamento.valor_corrigido && parcelamento.parcelas ? parcelamento.valor_corrigido / parcelamento.parcelas : null);
+
+  const confirmDelete = async (r: GpcParcela) => {
+    if (!(await confirmAction('Confirma a exclusão desta parcela?', { danger: true }))) return;
+    try { await GpcService.deleteParcela(r.codigo); await load(); }
+    catch (ex: any) { toast('error', ex.message); }
+  };
+
+  const handleGerar = async () => {
+    if (!genDate || !totalEsperado) return;
+    setGenerating(true);
+    try {
+      await GpcService.bulkGenerateParcelas(parcelamento.codigo, totalEsperado, parcelamento.valor_por_parcela ?? null, genDate);
+      await load();
+      toast('success', `${totalEsperado} parcelas geradas.`);
+    } catch (ex: any) { toast('error', ex.message); }
+    finally { setGenerating(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-blue-500 font-semibold mb-0.5">Parcelas Cadastradas</div>
+          <div className="text-sm font-bold text-blue-700">{parcelas.length}{totalEsperado ? ` de ${totalEsperado}` : ''}</div>
+        </div>
+        <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-green-500 font-semibold mb-0.5">Pagas</div>
+          <div className="text-sm font-bold text-green-700">{pagas} — {fmt(somaPaga)}</div>
+        </div>
+        <div className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Total Lançado</div>
+          <div className="text-sm font-bold text-slate-700">{fmt(somaTotal)}</div>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 py-5 justify-center text-slate-400 text-sm">
+          <Loader2 size={16} className="animate-spin" />Carregando...
+        </div>
+      )}
+
+      {!loading && parcelas.length === 0 && (
+        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3">
+          <p className="text-xs text-slate-500">
+            Nenhuma parcela individual cadastrada ainda. Gere automaticamente {totalEsperado ? `as ${totalEsperado} parcelas previstas` : 'as parcelas'} ou adicione manualmente.
+          </p>
+          {!totalEsperado ? (
+            <p className="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
+              <AlertCircle size={12} />Informe o "Nº de Parcelas" no parcelamento para habilitar a geração automática.
+            </p>
+          ) : (
+            <div className="flex gap-2 items-end flex-wrap">
+              <div>
+                <label className={LABEL}>Data da 1ª Parcela</label>
+                <input className={INPUT} type="date" value={genDate} onChange={e => setGenDate(e.target.value)} />
+              </div>
+              <button type="button" className={BTN_PRI + ' text-xs'} disabled={!genDate || generating} onClick={handleGerar}>
+                {generating ? <Loader2 size={14} className="animate-spin" /> : <ListChecks size={14} />}
+                Gerar {totalEsperado} Parcelas Mensais
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && parcelas.length > 0 && (
+        <InlineTable
+          cols={[
+            { label: 'Nº', render: (r: GpcParcela) => <span className="font-semibold">{r.numero}</span> },
+            { label: 'Vencimento', render: (r: GpcParcela) => fmtDate(r.data_vencimento) },
+            { label: 'Valor', render: (r: GpcParcela) => <span className="text-green-700 font-medium">{fmt(r.valor)}</span> },
+            { label: 'Pago', render: (r: GpcParcela) => r.pago ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+            { label: 'Data Pagamento', render: (r: GpcParcela) => fmtDate(r.data_pagamento) },
+            { label: 'Obs.', render: (r: GpcParcela) => <span className="text-slate-500">{r.obs ?? '-'}</span> },
+          ]}
+          rows={parcelas}
+          onEdit={r => setFormOpen({ initial: r })}
+          onDelete={confirmDelete}
+          emptyMsg="Nenhuma parcela cadastrada"
+        />
+      )}
+
+      <div className="flex justify-between items-center pt-1">
+        <button type="button" className={BTN_SEC + ' text-xs'} onClick={() => setFormOpen({})}>
+          <Plus size={13} />Adicionar Parcela
+        </button>
+        <button type="button" className={BTN_SEC} onClick={onClose}>Fechar</button>
+      </div>
+
+      {formOpen && (
+        <Modal title={formOpen.initial ? 'Editar Parcela' : 'Nova Parcela'} onClose={() => setFormOpen(null)} size="md">
+          <ParcelaForm
+            parcelamentoId={parcelamento.codigo}
+            initial={formOpen.initial}
+            defaultValor={defaultValor}
+            defaultNumero={nextNumero}
+            onSave={async p => { await GpcService.saveParcela(p); await load(); setFormOpen(null); }}
+            onClose={() => setFormOpen(null)}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+};
 
 const TaForm = ({ processoId, initial, onSave, onClose }: {
 
@@ -7248,16 +7480,14 @@ export const GpcProcessos = () => {
         const analistas = form.responsaveis_analise?.length
           ? form.responsaveis_analise
           : form.responsavel ? [form.responsavel] : [currentUser?.name ?? 'GPC'];
-        for (const analista of analistas) {
-          await GpcService.saveFluxoTecnico({
-            registro_id: saved.codigo,
-            tecnico: analista,
-            movimento: 'CORREÇÃO DOCUMENTAL',
-            acao: form.correcao_obs,
-            num_paginas_analise: form.correcao_paginas ?? null,
-            data_evento: now,
-          });
-        }
+        await Promise.all(analistas.map(analista => GpcService.saveFluxoTecnico({
+          registro_id: saved.codigo,
+          tecnico: analista,
+          movimento: 'CORREÇÃO DOCUMENTAL',
+          acao: form.correcao_obs,
+          num_paginas_analise: form.correcao_paginas ?? null,
+          data_evento: now,
+        })));
         if (currentUser) {
           await GpcService.saveGpcLog(
             `Correção documental registrada no processo #${saved.codigo}`,

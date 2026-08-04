@@ -1,7 +1,8 @@
 import { supabase } from './supabaseClient';
+import { emitError } from './errorBus';
 import {
   GpcProcesso, GpcExercicio, GpcHistorico, GpcObjeto,
-  GpcParcelamento, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico
+  GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico
 } from '../types';
 
 export interface GpcReportData {
@@ -28,7 +29,7 @@ export interface ExercicioRelatorio {
   gastos: number | null;
   devolvido: number | null;
   // computed
-  total_convenio: number; // SOMA(EXERCICIOS.REPASSE) - apenas repasse
+  total_convenio: number; // repasse + aplicacao
   saldo: number;          // ex_ant + repasse + aplicacao - gastos - devolvido
 }
 
@@ -36,12 +37,39 @@ export interface ExercicioRelatorio {
 // grafias divergentes vindas de cadastros antigos em texto livre (ex.: "ROSEMARIA" vs
 // "Rosemaria") sejam agrupadas como a mesma pessoa em vez de virarem linhas separadas
 // na produtividade.
+function notifyFetchError(): void {
+  emitError('Não foi possível carregar os dados. Tente novamente.');
+}
+
 function normalizeNomeTecnico(nome: string): string {
   return nome
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+}
+
+// Busca todas as linhas de uma tabela em blocos de 1000, contornando o limite
+// padrão do PostgREST hospedado no Supabase (uma única página descartaria
+// silenciosamente linhas além da milésima).
+async function fetchAllRows<T = any>(
+  table: string,
+  select: string,
+  filter?: (q: any) => any,
+): Promise<T[]> {
+  const PAGE = 1000;
+  let all: T[] = [];
+  let from = 0;
+  while (true) {
+    let q = supabase.from(table).select(select);
+    if (filter) q = filter(q);
+    const { data, error } = await q.range(from, from + PAGE - 1);
+    if (error) { console.error(error); notifyFetchError(); break; }
+    all = all.concat((data ?? []) as T[]);
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
 }
 
 export const GpcService = {
@@ -53,7 +81,7 @@ export const GpcService = {
       .from('cgof_gpc_posicao')
       .select('*')
       .order('codigo');
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
     return data as GpcPosicao[];
   },
 
@@ -64,7 +92,7 @@ export const GpcService = {
       .eq('active', true)
       .or('role.in.(GPC,ADMIN),areas.cs.["gpc"]')
       .order('name');
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
     return (data ?? []) as { id: string; name: string }[];
   },
 
@@ -75,7 +103,7 @@ export const GpcService = {
       .eq('active', true)
       .eq('can_sign', true)
       .order('name');
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
     return (data ?? []) as { id: string; name: string }[];
   },
 
@@ -84,7 +112,7 @@ export const GpcService = {
       .from('cgof_gpc_classificacao')
       .select('*')
       .order('indice');
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
     return data as GpcClassificacao[];
   },
 
@@ -104,7 +132,7 @@ export const GpcService = {
     }
 
     const { data, error, count } = await query;
-    if (error) { console.error(error); return { data: [], count: 0 }; }
+    if (error) { console.error(error); notifyFetchError(); return { data: [], count: 0 }; }
     return { data: data as GpcProcesso[], count: count ?? 0 };
   },
 
@@ -133,7 +161,7 @@ export const GpcService = {
         .select('*, cgof_gpc_posicao(posicao)')
         .in('exercicio_id', exercicioCodigos)
         .order('data', { ascending: true });
-      historicos = (hRows ?? []).map((h: any) => ({
+      historicos = ((hRows ?? []) as (GpcHistorico & { cgof_gpc_posicao?: { posicao: string } | null })[]).map(h => ({
         ...h,
         posicao: h.cgof_gpc_posicao?.posicao ?? null,
       }));
@@ -154,13 +182,11 @@ export const GpcService = {
     const norm = (s: string) => s.replace(/[.\-/\s]/g, '').toLowerCase();
     const needle = norm(processo.trim());
     if (!needle) return 0;
-    // Fetch all process numbers (only the column we need, no limit)
-    const { data, error } = await supabase
-      .from('cgof_gpc_recebidos')
-      .select('processo')
-      .not('processo', 'is', null);
-    if (error) { console.error(error); return 0; }
-    return (data ?? []).filter((r: any) => norm(r.processo ?? '') === needle).length;
+    // Fetch all process numbers (only the column we need, paginated — no cap)
+    const rows = await fetchAllRows<{ processo: string | null }>(
+      'cgof_gpc_recebidos', 'processo', q => q.not('processo', 'is', null),
+    );
+    return rows.filter(r => norm(r.processo ?? '') === needle).length;
   },
 
   // Cadastros existentes que batem com o número do processo digitado, agrupados por
@@ -176,13 +202,17 @@ export const GpcService = {
     const norm = (s: string) => s.replace(/[.\-/\s]/g, '').toLowerCase();
     const needle = norm(processo.trim());
     if (!needle) return [];
-    const { data, error } = await supabase
-      .from('cgof_gpc_recebidos')
-      .select('codigo, processo_codigo, processo, convenio, entidade, exercicio, data, cgof_gpc_posicao(posicao)')
-      .not('processo', 'is', null);
-    if (error) { console.error(error); return []; }
+    const data = await fetchAllRows<{
+      codigo: number; processo_codigo: number | null; processo: string | null; convenio: string | null;
+      entidade: string | null; exercicio: string | null; data: string | null;
+      cgof_gpc_posicao?: { posicao: string } | null;
+    }>(
+      'cgof_gpc_recebidos',
+      'codigo, processo_codigo, processo, convenio, entidade, exercicio, data, cgof_gpc_posicao(posicao)',
+      q => q.not('processo', 'is', null),
+    );
 
-    const matches = (data ?? []).filter((r: any) => norm(r.processo ?? '') === needle);
+    const matches = data.filter(r => norm(r.processo ?? '') === needle);
     const groups = new Map<string, {
       processo_codigo: number | null;
       processo: string;
@@ -190,14 +220,14 @@ export const GpcService = {
       entidade: string | null;
       rounds: { codigo: number; exercicio: string | null; posicao: string | null; data: string | null }[];
     }>();
-    for (const r of matches as any[]) {
+    for (const r of matches) {
       // Linhas sem processo_codigo (cadastros antigos não vinculados) viram grupos
       // individuais — não há mestre para linkar.
       const key = r.processo_codigo != null ? `p${r.processo_codigo}` : `r${r.codigo}`;
       if (!groups.has(key)) {
         groups.set(key, {
           processo_codigo: r.processo_codigo ?? null,
-          processo: r.processo,
+          processo: r.processo ?? '',
           convenio: r.convenio ?? null,
           entidade: r.entidade ?? null,
           rounds: [],
@@ -221,11 +251,11 @@ export const GpcService = {
       .select('*, cgof_gpc_posicao(posicao)')
       .eq('processo_codigo', processoCodigo)
       .order('data', { ascending: false });
-    if (error) { console.error(error); return []; }
-    return (data ?? []).map((r: any) => ({
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return ((data ?? []) as (GpcRecebido & { cgof_gpc_posicao?: { posicao: string } | null })[]).map(r => ({
       ...r,
       posicao: r.cgof_gpc_posicao?.posicao ?? null,
-    })) as GpcRecebido[];
+    }));
   },
 
   saveGpcLog: async (description: string, userName: string, userId: string): Promise<void> => {
@@ -392,6 +422,69 @@ export const GpcService = {
     if (error) throw new Error(error.message);
   },
 
+  // ── PARCELA (individual, dentro de um parcelamento/reparcelamento) ────────
+
+  getParcelas: async (parcelamentoId: number): Promise<GpcParcela[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_parcela')
+      .select('*')
+      .eq('parcelamento_id', parcelamentoId)
+      .order('numero', { ascending: true });
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return (data ?? []) as GpcParcela[];
+  },
+
+  saveParcela: async (p: Partial<GpcParcela>): Promise<GpcParcela> => {
+    const payload = {
+      parcelamento_id: p.parcelamento_id,
+      numero: p.numero,
+      data_vencimento: p.data_vencimento ?? null,
+      valor: p.valor ?? null,
+      pago: p.pago ?? false,
+      data_pagamento: p.data_pagamento ?? null,
+      obs: p.obs ?? null,
+    };
+    if (p.codigo) {
+      const { data, error } = await supabase.from('cgof_gpc_parcela').update(payload).eq('codigo', p.codigo).select().single();
+      if (error) throw new Error(error.message);
+      return data as GpcParcela;
+    }
+    const { data, error } = await supabase.from('cgof_gpc_parcela').insert(payload).select().single();
+    if (error) throw new Error(error.message);
+    return data as GpcParcela;
+  },
+
+  deleteParcela: async (codigo: number): Promise<void> => {
+    const { error } = await supabase.from('cgof_gpc_parcela').delete().eq('codigo', codigo);
+    if (error) throw new Error(error.message);
+  },
+
+  bulkGenerateParcelas: async (
+    parcelamentoId: number,
+    quantidade: number,
+    valorPorParcela: number | null,
+    dataPrimeiraParcela: string,
+  ): Promise<GpcParcela[]> => {
+    const [anoStr, mesStr, diaStr] = dataPrimeiraParcela.split('-');
+    const ano = Number(anoStr), mes = Number(mesStr), dia = Number(diaStr);
+    const payload = Array.from({ length: quantidade }, (_, i) => {
+      const d = new Date(ano, mes - 1 + i, dia);
+      const vencimento = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return {
+        parcelamento_id: parcelamentoId,
+        numero: i + 1,
+        data_vencimento: vencimento,
+        valor: valorPorParcela ?? null,
+        pago: false,
+        data_pagamento: null,
+        obs: null,
+      };
+    });
+    const { data, error } = await supabase.from('cgof_gpc_parcela').insert(payload).select();
+    if (error) throw new Error(error.message);
+    return (data ?? []) as GpcParcela[];
+  },
+
   // ── TERMO ADITIVO ────────────────────────────────────────────────────────
 
   saveTa: async (t: Partial<GpcTa>): Promise<GpcTa> => {
@@ -419,21 +512,25 @@ export const GpcService = {
   // ── RELATÓRIOS ───────────────────────────────────────────────────────────
 
   getReportData: async (): Promise<GpcReportData> => {
-    const [procCount, exCount, parcCount, taCount, byDrsRows, byTipoRows, parcAtivos, repasse, parcDetalhes] = await Promise.all([
+    const [procCount, exCount, parcCount, taCount, parcAtivos, parcDetalhes] = await Promise.all([
       supabase.from('cgof_gpc_processos').select('*', { count: 'exact', head: true }),
       supabase.from('cgof_gpc_exercicio').select('*', { count: 'exact', head: true }),
       supabase.from('cgof_gpc_parcelamento').select('*', { count: 'exact', head: true }),
       supabase.from('cgof_gpc_ta').select('*', { count: 'exact', head: true }),
-      supabase.from('cgof_gpc_processos').select('drs').not('drs', 'is', null),
-      supabase.from('cgof_gpc_processos').select('tipo').not('tipo', 'is', null),
       supabase.from('cgof_gpc_parcelamento').select('*', { count: 'exact', head: true }).eq('em_dia', true),
-      supabase.from('cgof_gpc_exercicio').select('repasse'),
       supabase.from('cgof_gpc_parcelamento').select('*, cgof_gpc_processos(processo, convenio, entidade)'),
+    ]);
+
+    // Paginado: essas três consultas podem passar de 1000 linhas (ver fetchAllRows).
+    const [byDrsRows, byTipoRows, repasseRows] = await Promise.all([
+      fetchAllRows<{ drs: number }>('cgof_gpc_processos', 'drs', q => q.not('drs', 'is', null)),
+      fetchAllRows<{ tipo: string }>('cgof_gpc_processos', 'tipo', q => q.not('tipo', 'is', null)),
+      fetchAllRows<{ repasse: number | null }>('cgof_gpc_exercicio', 'repasse'),
     ]);
 
     // Aggregate DRS
     const drsCounts: Record<number, number> = {};
-    for (const r of byDrsRows.data ?? []) {
+    for (const r of byDrsRows) {
       drsCounts[r.drs] = (drsCounts[r.drs] ?? 0) + 1;
     }
     const byDrs = Object.entries(drsCounts)
@@ -442,7 +539,7 @@ export const GpcService = {
 
     // Aggregate Tipo
     const tipoCounts: Record<string, number> = {};
-    for (const r of byTipoRows.data ?? []) {
+    for (const r of byTipoRows) {
       const t = r.tipo ?? 'N/A';
       tipoCounts[t] = (tipoCounts[t] ?? 0) + 1;
     }
@@ -450,9 +547,11 @@ export const GpcService = {
       .map(([tipo, count]) => ({ tipo, count }))
       .sort((a, b) => b.count - a.count);
 
-    const valorTotalRepasse = (repasse.data ?? []).reduce((sum: number, r: any) => sum + (r.repasse ?? 0), 0);
+    const valorTotalRepasse = repasseRows.reduce((sum: number, r) => sum + (r.repasse ?? 0), 0);
 
-    const parcelamentosDetalhes = (parcDetalhes.data ?? []).map((p: any) => ({
+    const parcelamentosDetalhes = ((parcDetalhes.data ?? []) as (GpcParcelamento & {
+      cgof_gpc_processos?: { processo: string | null; convenio: string | null; entidade: string | null } | null;
+    })[]).map(p => ({
       ...p,
       processo: p.cgof_gpc_processos?.processo ?? null,
       convenio: p.cgof_gpc_processos?.convenio ?? null,
@@ -475,25 +574,15 @@ export const GpcService = {
   // ── RECEBIDOS ────────────────────────────────────────────────────────────
 
   getAllRecebidos: async (): Promise<GpcRecebido[]> => {
-    const BATCH = 1000;
-    let all: GpcRecebido[] = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from('cgof_gpc_recebidos')
-        .select('*, cgof_gpc_posicao(posicao)')
-        .order('codigo', { ascending: false })
-        .range(from, from + BATCH - 1);
-      if (error) { console.error(error); break; }
-      const rows = ((data ?? []) as any[]).map((r) => ({
-        ...r,
-        posicao: r.cgof_gpc_posicao?.posicao ?? null,
-      })) as GpcRecebido[];
-      all = all.concat(rows);
-      if (rows.length < BATCH) break;
-      from += BATCH;
-    }
-    return all;
+    const rows = await fetchAllRows<GpcRecebido & { cgof_gpc_posicao?: { posicao: string } | null }>(
+      'cgof_gpc_recebidos',
+      '*, cgof_gpc_posicao(posicao)',
+      q => q.order('codigo', { ascending: false }),
+    );
+    return rows.map(r => ({
+      ...r,
+      posicao: r.cgof_gpc_posicao?.posicao ?? null,
+    }));
   },
 
   getRecebidos: async (search = '', page = 1, pageSize = 25): Promise<{ data: GpcRecebido[]; count: number }> => {
@@ -510,9 +599,9 @@ export const GpcService = {
     }
 
     const { data, error, count } = await query;
-    if (error) { console.error(error); return { data: [], count: 0 }; }
+    if (error) { console.error(error); notifyFetchError(); return { data: [], count: 0 }; }
 
-    const rows = (data ?? []).map((r: any) => ({
+    const rows = ((data ?? []) as (GpcRecebido & { cgof_gpc_posicao?: { posicao: string } | null })[]).map(r => ({
       ...r,
       posicao: r.cgof_gpc_posicao?.posicao ?? null,
     })) as GpcRecebido[];
@@ -526,7 +615,7 @@ export const GpcService = {
       .select('*, cgof_gpc_posicao(posicao)')
       .eq('codigo', codigo)
       .single();
-    if (error) { console.error(error); return null; }
+    if (error) { console.error(error); notifyFetchError(); return null; }
     return { ...(data as any), posicao: (data as any).cgof_gpc_posicao?.posicao ?? null } as GpcRecebido;
   },
 
@@ -590,11 +679,11 @@ export const GpcService = {
       .select('*, cgof_gpc_posicao(posicao)')
       .eq('registro_id', registroId)
       .order('data_evento', { ascending: true });
-    if (error) { console.error(error); return []; }
-    return (data ?? []).map((r: any) => ({
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return ((data ?? []) as (GpcProdutividade & { cgof_gpc_posicao?: { posicao: string } | null })[]).map(r => ({
       ...r,
       posicao: r.cgof_gpc_posicao?.posicao ?? r.posicao ?? null,
-    })) as GpcProdutividade[];
+    }));
   },
 
   saveProdutividade: async (p: Partial<GpcProdutividade>): Promise<void> => {
@@ -623,7 +712,7 @@ export const GpcService = {
       .from('cgof_gpc_produtividade')
       .select('responsavel, data_evento')
       .not('responsavel', 'is', null);
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
     const counts: Record<string, number> = {};
     for (const r of data ?? []) {
       const mes = (r.data_evento as string).slice(0, 7);
@@ -654,7 +743,10 @@ export const GpcService = {
       .order('data_evento', { ascending: true });
     if (fluxoError) console.error(fluxoError);
 
-    const fluxoEvents = (fluxoData ?? []).map((f: any) => {
+    const fluxoEvents = ((fluxoData ?? []) as {
+      registro_id: number; tecnico: string; data_evento: string; posicao_id: number | null;
+      movimento: string | null; acao: string | null; num_paginas_analise: number | null;
+    }[]).map(f => {
       const mov = (f.movimento ?? '') as string;
       const acao = (f.acao ?? '') as string;
       // Events with movement text → MOVIMENTO; pure position change (no movement text) → POSICAO
@@ -681,7 +773,9 @@ export const GpcService = {
       };
     });
 
-    const prodEvents = (prodData ?? []).map((p: any) => ({
+    const prodEvents = ((prodData ?? []) as {
+      registro_id: number; responsavel: string; evento: string; data_evento: string; obs: string | null;
+    }[]).map(p => ({
       registro_id: p.registro_id as number,
       responsavel: normalizeNomeTecnico(p.responsavel as string),
       evento: p.evento as string,
@@ -701,11 +795,11 @@ export const GpcService = {
       .select('*, cgof_gpc_posicao(posicao)')
       .eq('registro_id', registroId)
       .order('data_evento', { ascending: true });
-    if (error) { console.error(error); return []; }
-    return (data ?? []).map((r: any) => ({
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return ((data ?? []) as (GpcFluxoTecnico & { cgof_gpc_posicao?: { posicao: string } | null })[]).map(r => ({
       ...r,
       posicao: r.cgof_gpc_posicao?.posicao ?? r.posicao ?? null,
-    })) as GpcFluxoTecnico[];
+    }));
   },
 
   saveFluxoTecnico: async (f: Partial<GpcFluxoTecnico>): Promise<GpcFluxoTecnico> => {
@@ -761,9 +855,13 @@ export const GpcService = {
     const { data, error } = await supabase
       .from('cgof_gpc_recebidos')
       .select('posicao_id, remessa, responsavel, is_parcelamento, num_paginas, entidade, created_at, cgof_gpc_posicao(posicao)');
-    if (error) { console.error(error); return null; }
+    if (error) { console.error(error); notifyFetchError(); return null; }
 
-    const rows = (data ?? []).map((r: any) => ({
+    const rows = ((data ?? []) as unknown as {
+      posicao_id: number | null; remessa: 'ACIMA' | 'ABAIXO' | null; responsavel: string | null;
+      is_parcelamento: boolean | null; num_paginas: number | null; entidade: string | null;
+      created_at: string | null; cgof_gpc_posicao?: { posicao: string } | null;
+    }[]).map(r => ({
       ...r,
       posicao: r.cgof_gpc_posicao?.posicao ?? null,
     }));
@@ -772,12 +870,12 @@ export const GpcService = {
 
     // By posição
     const posMap: Record<string, number> = {};
-    rows.forEach((r: any) => { const k = r.posicao ?? 'Não definida'; posMap[k] = (posMap[k] || 0) + 1; });
+    rows.forEach(r => { const k = r.posicao ?? 'Não definida'; posMap[k] = (posMap[k] || 0) + 1; });
     const byPosicao = Object.entries(posMap).map(([posicao, count]) => ({ posicao, count })).sort((a, b) => b.count - a.count);
 
     // By remessa
     const remMap: Record<string, number> = {};
-    rows.forEach((r: any) => {
+    rows.forEach(r => {
       const k = r.remessa === 'ACIMA' ? 'Acima de Remessa' : r.remessa === 'ABAIXO' ? 'Abaixo de Remessa' : 'Não Informado';
       remMap[k] = (remMap[k] || 0) + 1;
     });
@@ -785,11 +883,11 @@ export const GpcService = {
 
     // By responsável (top 8)
     const respMap: Record<string, number> = {};
-    rows.forEach((r: any) => { if (r.responsavel) { respMap[r.responsavel] = (respMap[r.responsavel] || 0) + 1; } });
+    rows.forEach(r => { if (r.responsavel) { const k = normalizeNomeTecnico(r.responsavel); respMap[k] = (respMap[k] || 0) + 1; } });
     const byResponsavel = Object.entries(respMap).map(([responsavel, count]) => ({ responsavel, count })).sort((a, b) => b.count - a.count).slice(0, 8);
 
     // Parcelamento
-    const comParcelamento = rows.filter((r: any) => r.is_parcelamento).length;
+    const comParcelamento = rows.filter(r => r.is_parcelamento).length;
     const semParcelamento = total - comParcelamento;
 
     // Complexidade
@@ -800,7 +898,7 @@ export const GpcService = {
       { label: 'Muito Alta (>500)', count: 0, color: '#ef4444' },
       { label: 'Não informado', count: 0, color: '#94a3b8' },
     ];
-    rows.forEach((r: any) => {
+    rows.forEach(r => {
       const n = r.num_paginas;
       if (!n || n === 0) cxBuckets[4].count++;
       else if (n <= 50) cxBuckets[0].count++;
@@ -812,12 +910,12 @@ export const GpcService = {
 
     // Top entidades (top 8)
     const entMap: Record<string, number> = {};
-    rows.forEach((r: any) => { if (r.entidade) { entMap[r.entidade] = (entMap[r.entidade] || 0) + 1; } });
+    rows.forEach(r => { if (r.entidade) { entMap[r.entidade] = (entMap[r.entidade] || 0) + 1; } });
     const topEntidades = Object.entries(entMap).map(([entidade, count]) => ({ entidade, count })).sort((a, b) => b.count - a.count).slice(0, 8);
 
     // By mês (last 6 months)
     const mesMap: Record<string, number> = {};
-    rows.forEach((r: any) => { if (r.created_at) { const mes = (r.created_at as string).slice(0, 7); mesMap[mes] = (mesMap[mes] || 0) + 1; } });
+    rows.forEach(r => { if (r.created_at) { const mes = r.created_at.slice(0, 7); mesMap[mes] = (mesMap[mes] || 0) + 1; } });
     const byMes = Object.entries(mesMap).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([mes, count]) => ({ mes, count }));
 
     return { total, byPosicao, byRemessa, byResponsavel, comParcelamento, semParcelamento, complexidade, topEntidades, byMes };
@@ -835,7 +933,7 @@ export const GpcService = {
       .select('tecnico, registro_id, data_evento, tempo_dias, num_paginas_analise')
       .not('tecnico', 'is', null)
       .order('data_evento', { ascending: true }); // ascending so first event comes first
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
 
     // To avoid page duplication: track which (tecnico, registro_id) pairs we already counted pages for
     const paginasContadas = new Set<string>();
@@ -865,29 +963,21 @@ export const GpcService = {
   getExerciciosRelatorio: async (): Promise<ExercicioRelatorio[]> => {
     // Paginate to bypass PostgREST default 1000-row limit on hosted Supabase.
     // Includes rows with NULL financial data (exercises registered but not yet filled).
-    const PAGE = 1000;
-    let all: any[] = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from('cgof_gpc_exercicio')
-        .select('*, cgof_gpc_processos(processo, convenio, entidade)')
-        .order('processo_id', { ascending: true })
-        .order('exercicio', { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) { console.error(error); break; }
-      all = [...all, ...(data ?? [])];
-      if (!data || data.length < PAGE) break;
-      from += PAGE;
-    }
+    const all = await fetchAllRows<GpcExercicio & {
+      cgof_gpc_processos?: { processo: string | null; convenio: string | null; entidade: string | null } | null;
+    }>(
+      'cgof_gpc_exercicio',
+      '*, cgof_gpc_processos(processo, convenio, entidade)',
+      q => q.order('processo_id', { ascending: true }).order('exercicio', { ascending: true }),
+    );
 
-    return all.map((e: any) => {
+    return all.map(e => {
       const repasse   = e.repasse   ?? 0;
       const aplicacao = e.aplicacao ?? 0;
       const exAnt     = e.exercicio_anterior ?? 0;
       const gastos    = e.gastos    ?? 0;
       const devolvido = e.devolvido ?? 0;
-      const total_convenio = repasse; // CORRIGIDO: Total do Convênio = apenas REPASSE
+      const total_convenio = repasse + aplicacao; // Total do Convênio = Repasse + Aplicação (mesma fórmula da tela de edição)
       const saldo = Math.round((exAnt + repasse + aplicacao - gastos - devolvido) * 100) / 100;
       return {
         processo_id: e.processo_id,
@@ -913,7 +1003,7 @@ export const GpcService = {
       .from('cgof_gpc_processos')
       .select('*')
       .order('codigo', { ascending: true });
-    if (error) { console.error(error); return []; }
+    if (error) { console.error(error); notifyFetchError(); return []; }
     return (data ?? []) as GpcProcesso[];
   },
 
@@ -923,8 +1013,10 @@ export const GpcService = {
       .select('*, cgof_gpc_processos(processo, convenio, entidade)')
       .order('processo_id', { ascending: true })
       .order('data', { ascending: true });
-    if (error) { console.error(error); return []; }
-    return (data ?? []).map((t: any) => ({
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return ((data ?? []) as (GpcTa & {
+      cgof_gpc_processos?: { processo: string | null; convenio: string | null; entidade: string | null } | null;
+    })[]).map(t => ({
       ...t,
       processo: t.cgof_gpc_processos?.processo ?? null,
       convenio: t.cgof_gpc_processos?.convenio ?? null,
@@ -962,10 +1054,11 @@ export const GpcService = {
     // Build pagesByProcesso from cgof_gpc_recebidos.num_paginas — registro_id references
     // cgof_gpc_recebidos.codigo (same source the screen uses via allRows), NOT cgof_gpc_processos
     // (a different table with its own independent codigo sequence).
-    const { data: recebidosData } = await supabase
+    const { data: recebidosData, error: recebidosError } = await supabase
       .from('cgof_gpc_recebidos')
       .select('codigo, num_paginas')
       .not('num_paginas', 'is', null);
+    if (recebidosError) console.error(recebidosError);
     const pagesByProcesso = new Map<number, number>();
     for (const p of (recebidosData ?? [])) {
       if (p.codigo != null && p.num_paginas) pagesByProcesso.set(p.codigo as number, p.num_paginas as number);

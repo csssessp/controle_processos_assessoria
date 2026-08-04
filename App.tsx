@@ -3,6 +3,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { ToastProvider } from './context/ToastContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { ProcessManager } from './pages/ProcessManager';
@@ -117,9 +118,11 @@ export default function App() {
   return (
     <AppProvider>
       <ToastProvider>
-        <HashRouter>
-          <AppRoutes />
-        </HashRouter>
+        <ConfirmProvider>
+          <HashRouter>
+            <AppRoutes />
+          </HashRouter>
+        </ConfirmProvider>
       </ToastProvider>
     </AppProvider>
   );

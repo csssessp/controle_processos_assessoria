@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { generateUUID } from '../utils';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { Process, CGOF_OPTIONS, ProcessQueryParams, UserRole, PRESTACAO_STATUS_OPTIONS, PrestacaoConta } from '../types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -198,6 +199,7 @@ const getInitialState = <T,>(key: string, defaultValue: T): T => {
 export const ProcessManager = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { confirmAction } = useConfirm();
   const {
     processes, totalProcessesCount, fetchProcesses, fetchProcessHistory, currentUser,
     saveProcess, deleteLastMovement, deleteProcess, loading, importProcesses, savePrestacaoConta
@@ -1414,14 +1416,14 @@ export const ProcessManager = () => {
                 </button>
                 )}
                 {!isViewOnly && (
-                <button 
-                  onClick={() => {
-                    if (confirm('Tem certeza que deseja excluir este fluxo completamente? Esta ação não pode ser desfeita.')) {
+                <button
+                  onClick={async () => {
+                    if (await confirmAction('Tem certeza que deseja excluir este fluxo completamente? Esta ação não pode ser desfeita.', { danger: true })) {
                       setDeleteType('process');
                       setIsHistoryModalOpen(false);
                       setIsPasswordModalOpen(true);
                     }
-                  }} 
+                  }}
                   className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" 
                   title="Excluir fluxo"
                 >
@@ -1471,15 +1473,15 @@ export const ProcessManager = () => {
                                                 </button>
                                                 )}
                                                 {!isViewOnly && (
-                                                <button 
-                                                    onClick={() => {
-                                                      if (confirm('Tem certeza que deseja excluir esta movimentação?')) {
+                                                <button
+                                                    onClick={async () => {
+                                                      if (await confirmAction('Tem certeza que deseja excluir esta movimentação?', { danger: true })) {
                                                         setSelectedProcessNumber(item.number);
                                                         setSelectedMovementToDelete(item);
                                                         setDeleteType('movement');
                                                         setIsPasswordModalOpen(true);
                                                       }
-                                                    }} 
+                                                    }}
                                                     className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                                     title="Excluir esta movimentação"
                                                 >
