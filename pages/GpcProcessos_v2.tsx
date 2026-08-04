@@ -16,7 +16,7 @@ import {
 
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
-  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks,
+  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap,
 
 } from 'lucide-react';
 
@@ -229,35 +229,35 @@ const CurrencyInput = ({ value, onChange, placeholder = '0,00' }: {
 
 
 
-const POS_CFG: Record<number, { bg: string; text: string; dot: string }> = {
+const POS_CFG: Record<number, { bg: string; text: string; dot: string; border: string }> = {
 
-  1:  { bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500' },
+  1:  { bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500',    border: 'border-blue-200' },
 
-  2:  { bg: 'bg-orange-50',  text: 'text-orange-700',  dot: 'bg-orange-500' },
+  2:  { bg: 'bg-orange-50',  text: 'text-orange-700',  dot: 'bg-orange-500',  border: 'border-orange-200' },
 
-  3:  { bg: 'bg-yellow-50',  text: 'text-yellow-700',  dot: 'bg-yellow-500' },
+  3:  { bg: 'bg-yellow-50',  text: 'text-yellow-700',  dot: 'bg-yellow-500',  border: 'border-yellow-200' },
 
-  4:  { bg: 'bg-purple-50',  text: 'text-purple-700',  dot: 'bg-purple-500' },
+  4:  { bg: 'bg-purple-50',  text: 'text-purple-700',  dot: 'bg-purple-500',  border: 'border-purple-200' },
 
-  5:  { bg: 'bg-slate-100',  text: 'text-slate-600',   dot: 'bg-slate-400' },
+  5:  { bg: 'bg-slate-100',  text: 'text-slate-600',   dot: 'bg-slate-400',   border: 'border-slate-200' },
 
-  6:  { bg: 'bg-green-50',   text: 'text-green-700',   dot: 'bg-green-500' },
+  6:  { bg: 'bg-green-50',   text: 'text-green-700',   dot: 'bg-green-500',   border: 'border-green-200' },
 
-  7:  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  7:  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-200' },
 
-  8:  { bg: 'bg-indigo-50',  text: 'text-indigo-700',  dot: 'bg-indigo-500' },
+  8:  { bg: 'bg-indigo-50',  text: 'text-indigo-700',  dot: 'bg-indigo-500',  border: 'border-indigo-200' },
 
-  9:  { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500' },
+  9:  { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     border: 'border-red-200' },
 
-  10: { bg: 'bg-teal-50',    text: 'text-teal-700',    dot: 'bg-teal-500' },
+  10: { bg: 'bg-teal-50',    text: 'text-teal-700',    dot: 'bg-teal-500',    border: 'border-teal-200' },
 
-  11: { bg: 'bg-cyan-50',    text: 'text-cyan-700',    dot: 'bg-cyan-500' },
+  11: { bg: 'bg-cyan-50',    text: 'text-cyan-700',    dot: 'bg-cyan-500',    border: 'border-cyan-200' },
 
-  12: { bg: 'bg-pink-50',    text: 'text-pink-700',    dot: 'bg-pink-500' },
+  12: { bg: 'bg-pink-50',    text: 'text-pink-700',    dot: 'bg-pink-500',    border: 'border-pink-200' },
 
 };
 
-const POS_DEF = { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' };
+const POS_DEF = { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', border: 'border-slate-200' };
 
 
 
@@ -269,7 +269,7 @@ const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }
 
   return (
 
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${c.bg} ${c.text} ${c.border}`}>
 
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
 
@@ -335,7 +335,7 @@ const MovimentoBadge = ({ movimento }: { movimento: string | null | undefined })
 
   return (
 
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border break-words ${c.bg} ${c.text} ${c.border}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border break-words ${c.bg} ${c.text} ${c.border}`}>
 
       {movimento}
 
@@ -511,11 +511,11 @@ const FThX = ({ cls = '' }: { cls?: string }) => <th className={`px-2 py-1.5 bg-
 
 
 
-const Modal = ({ title, subtitle, onClose, onBack, children, size = 'lg' }: {
+const Modal = ({ title, subtitle, onClose, onBack, children, size = 'lg', nested = false }: {
 
   title: string; subtitle?: string; onClose: () => void; onBack?: () => void;
 
-  children: React.ReactNode; size?: 'md' | 'lg' | 'xl';
+  children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; nested?: boolean;
 
 }) => {
 
@@ -525,7 +525,7 @@ const Modal = ({ title, subtitle, onClose, onBack, children, size = 'lg' }: {
 
     <div
 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${nested ? 'bg-black/30' : 'bg-black/60 backdrop-blur-sm'}`}
 
       onClick={onClose}
 
@@ -702,6 +702,20 @@ function InlineTable<T extends { codigo: number }>({ cols, rows, onEdit, onDelet
   );
 
 }
+
+
+
+// ---- Sec (section header) — shared by the view and edit panels so both look the same ----
+const Sec = ({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) => (
+  <div className="flex items-center gap-2.5 mb-4">
+    <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+      {icon}
+    </span>
+    <span className="text-sm font-bold text-slate-700">{title}</span>
+    <div className="flex-1 h-px bg-slate-100" />
+    {action}
+  </div>
+);
 
 
 
@@ -2441,26 +2455,6 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
 
 
-  const Sec = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
-
-    <div className="flex items-center gap-2.5 mb-4">
-
-      <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
-
-        {icon}
-
-      </span>
-
-      <span className="text-sm font-bold text-slate-700">{title}</span>
-
-      <div className="flex-1 h-px bg-slate-100" />
-
-    </div>
-
-  );
-
-
-
   const cpxLabel = (n: number | null | undefined) => {
 
     if (!n) return null;
@@ -3659,27 +3653,59 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   };
 
-
-
-  const Sec = ({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) => (
-
-    <div className="flex items-center gap-3 mb-4">
-
-      <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500">
-
-        {icon}
-
-      </span>
-
-      <span className="text-sm font-bold text-slate-700">{title}</span>
-
-      <div className="flex-1 h-px bg-slate-100" />
-
-      {action}
-
-    </div>
-
-  );
+  // Tabela de Parcelamento/Reparcelamento — usada tanto na visão resumida da aba
+  // Análise quanto na aba dedicada (que também mostra Valor Corrigido/Vl-Parcela).
+  const ParcelamentoSection = ({ detailed }: { detailed?: boolean }) => {
+    if (!full) return null;
+    return (
+      <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+        <Sec
+          icon={<DollarSign size={13} />}
+          title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
+          action={
+            <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
+              <Plus size={12} />Adicionar
+            </button>
+          }
+        />
+        <InlineTable
+          cols={[
+            { label: 'Tipo', render: (r: GpcParcelamento) => (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+              }`}>{r.tipo_parcelamento ?? r.tipo ?? '-'}</span>
+            )},
+            { label: detailed ? 'Exercícios' : 'Exercício', render: (r: GpcParcelamento) => {
+              const years = r.exercicios && r.exercicios.length > 0 ? r.exercicios : (r.exercicio ? [r.exercicio] : null);
+              if (!years) return '-';
+              return (
+                <span className="flex flex-wrap gap-1">
+                  {years.map(y => (
+                    <span key={y} className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold border border-blue-100">{y}</span>
+                  ))}
+                </span>
+              );
+            }},
+            { label: 'Valor', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
+            ...(detailed ? [{ label: 'Valor Corrigido', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_corrigido)}</span> }] : []),
+            { label: 'Parcelas', render: (r: GpcParcelamento) => (
+              <button type="button" onClick={() => setSubModal({ type: 'parcelas', data: r })}
+                className="inline-flex items-center gap-1 text-blue-700 hover:underline font-semibold">
+                {r.parcelas ?? '-'} <ListChecks size={11} />
+              </button>
+            )},
+            ...(detailed ? [{ label: 'Vl/Parcela', render: (r: GpcParcelamento) => r.valor_por_parcela ? fmt(r.valor_por_parcela) : (r.valor_corrigido && r.parcelas ? fmt(r.valor_corrigido / r.parcelas) : '-') }] : []),
+            { label: 'Em Dia', render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+            { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+          ]}
+          rows={full.parcelamentos ?? []}
+          onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
+          onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
+          emptyMsg={detailed ? 'Nenhum registro de parcelamento/reparcelamento cadastrado' : 'Nenhum parcelamento cadastrado'}
+        />
+      </section>
+    );
+  };
 
 
 
@@ -3937,10 +3963,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                   </label>
                 </div>
                 <div>
-                  <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${parcForm.parcelas_concluidas ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200'}`}>
-                    <input type="checkbox" checked={parcForm.parcelas_concluidas ?? false} onChange={e => setParc('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />
+                  <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${parcForm.parcelas_concluidas ? 'bg-green-50 border-green-400' : 'bg-white border-slate-200'}`}>
+                    <input type="checkbox" checked={parcForm.parcelas_concluidas ?? false} onChange={e => setParc('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-green-600 rounded" />
                     <div>
-                      <div className={`text-sm font-semibold ${parcForm.parcelas_concluidas ? 'text-blue-700' : 'text-slate-600'}`}>Concluído</div>
+                      <div className={`text-sm font-semibold ${parcForm.parcelas_concluidas ? 'text-green-700' : 'text-slate-600'}`}>Concluído</div>
                       <div className="text-[11px] text-slate-400">Parcelamento quitado</div>
                     </div>
                   </label>
@@ -4717,52 +4743,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
 
                 {/* Parcelamentos — only for non-parcelamento-type processes */}
-                {!tipoParc && (
-                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                  <Sec
-                    icon={<DollarSign size={13} />}
-                    title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
-                    action={
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
-                        <Plus size={12} />Adicionar
-                      </button>
-                    }
-                  />
-                  <InlineTable
-                    cols={[
-                      { label: 'Tipo', render: (r: GpcParcelamento) => (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                          r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                        }`}>{r.tipo_parcelamento ?? r.tipo ?? '-'}</span>
-                      )},
-                      { label: 'Exercício', render: (r: GpcParcelamento) => {
-                        const years = r.exercicios && r.exercicios.length > 0 ? r.exercicios : (r.exercicio ? [r.exercicio] : null);
-                        if (!years) return '-';
-                        return (
-                          <span className="flex flex-wrap gap-1">
-                            {years.map(y => (
-                              <span key={y} className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold border border-blue-100">{y}</span>
-                            ))}
-                          </span>
-                        );
-                      }},
-                      { label: 'Valor',     render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
-                      { label: 'Parcelas',  render: (r: GpcParcelamento) => (
-                        <button type="button" onClick={() => setSubModal({ type: 'parcelas', data: r })}
-                          className="inline-flex items-center gap-1 text-blue-700 hover:underline font-semibold">
-                          {r.parcelas ?? '-'} <ListChecks size={11} />
-                        </button>
-                      )},
-                      { label: 'Em Dia',    render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
-                      { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
-                    ]}
-                    rows={full.parcelamentos ?? []}
-                    onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
-                    onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
-                    emptyMsg="Nenhum parcelamento cadastrado"
-                  />
-                </section>
-                )}
+                {!tipoParc && <ParcelamentoSection />}
 
                 {/* TAs */}
 
@@ -4826,54 +4807,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 <Loader2 size={16} className="animate-spin" />Carregando...
               </div>
             )}
-            {!loadingFull && full && (
-              <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                <Sec
-                  icon={<DollarSign size={13} />}
-                  title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
-                  action={
-                    <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
-                      <Plus size={12} />Adicionar
-                    </button>
-                  }
-                />
-                <InlineTable
-                  cols={[
-                    { label: 'Tipo', render: (r: GpcParcelamento) => (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                        r.tipo_parcelamento === 'REPARCELAMENTO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                      }`}>{r.tipo_parcelamento ?? r.tipo ?? '-'}</span>
-                    )},
-                    { label: 'Exercícios', render: (r: GpcParcelamento) => {
-                      const years = r.exercicios && r.exercicios.length > 0 ? r.exercicios : (r.exercicio ? [r.exercicio] : null);
-                      if (!years) return '-';
-                      return (
-                        <span className="flex flex-wrap gap-1">
-                          {years.map(y => (
-                            <span key={y} className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold border border-blue-100">{y}</span>
-                          ))}
-                        </span>
-                      );
-                    }},
-                    { label: 'Valor', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_parcelado)}</span> },
-                    { label: 'Valor Corrigido', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_corrigido)}</span> },
-                    { label: 'Parcelas', render: (r: GpcParcelamento) => (
-                      <button type="button" onClick={() => setSubModal({ type: 'parcelas', data: r })}
-                        className="inline-flex items-center gap-1 text-blue-700 hover:underline font-semibold">
-                        {r.parcelas ?? '-'} <ListChecks size={11} />
-                      </button>
-                    )},
-                    { label: 'Vl/Parcela', render: (r: GpcParcelamento) => r.valor_por_parcela ? fmt(r.valor_por_parcela) : (r.valor_corrigido && r.parcelas ? fmt(r.valor_corrigido / r.parcelas) : '-') },
-                    { label: 'Em Dia', render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
-                    { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
-                  ]}
-                  rows={full.parcelamentos ?? []}
-                  onEdit={r => setSubModal({ type: 'parcelamento', data: r })}
-                  onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
-                  emptyMsg="Nenhum registro de parcelamento/reparcelamento cadastrado"
-                />
-              </section>
-            )}
+            {!loadingFull && full && <ParcelamentoSection detailed />}
           </div>
         )}
 
@@ -4911,7 +4845,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
             return (
 
-              <Modal title={subModal.data ? 'Editar Exercício' : 'Novo Exercício'} onClose={() => setSubModal(null)} size="md">
+              <Modal title={subModal.data ? 'Editar Exercício' : 'Novo Exercício'} onClose={() => setSubModal(null)} size="md" nested>
 
                 <ExercicioForm
 
@@ -4953,7 +4887,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
           {subModal.type === 'objeto' && (
 
-            <Modal title={subModal.data ? 'Editar Objeto' : 'Novo Objeto'} onClose={() => setSubModal(null)} size="md">
+            <Modal title={subModal.data ? 'Editar Objeto' : 'Novo Objeto'} onClose={() => setSubModal(null)} size="md" nested>
 
               <ObjetoForm
 
@@ -4973,7 +4907,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
           {subModal.type === 'parcelamento' && (
 
-            <Modal title={subModal.data ? 'Editar Parcelamento / Reparcelamento' : 'Novo Parcelamento / Reparcelamento'} onClose={() => setSubModal(null)} size="lg">
+            <Modal title={subModal.data ? 'Editar Parcelamento / Reparcelamento' : 'Novo Parcelamento / Reparcelamento'} onClose={() => setSubModal(null)} size="lg" nested>
 
               <ParcelamentoForm
 
@@ -4993,7 +4927,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
           {subModal.type === 'parcelas' && (
 
-            <Modal title={`Parcelas — ${subModal.data.tipo_parcelamento ?? 'Parcelamento'}`} onClose={() => setSubModal(null)} size="lg">
+            <Modal title={`Parcelas — ${subModal.data.tipo_parcelamento ?? 'Parcelamento'}`} onClose={() => setSubModal(null)} size="lg" nested>
 
               <ParcelasManager
 
@@ -5009,7 +4943,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
           {subModal.type === 'ta' && (
 
-            <Modal title={subModal.data ? 'Editar TA' : 'Novo Termo Aditivo'} onClose={() => setSubModal(null)} size="md">
+            <Modal title={subModal.data ? 'Editar TA' : 'Novo Termo Aditivo'} onClose={() => setSubModal(null)} size="md" nested>
 
               <TaForm
 
@@ -5482,10 +5416,10 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
             <div className="text-[11px] text-slate-400">Parcelas em dia</div>
           </div>
         </label>
-        <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${f.parcelas_concluidas ? 'bg-blue-50 border-blue-400' : 'bg-white border-slate-200'}`}>
-          <input type="checkbox" checked={f.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded" />
+        <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${f.parcelas_concluidas ? 'bg-green-50 border-green-400' : 'bg-white border-slate-200'}`}>
+          <input type="checkbox" checked={f.parcelas_concluidas ?? false} onChange={e => set('parcelas_concluidas', e.target.checked)} className="w-4 h-4 accent-green-600 rounded" />
           <div>
-            <div className={`text-sm font-semibold ${f.parcelas_concluidas ? 'text-blue-700' : 'text-slate-600'}`}>Concluído</div>
+            <div className={`text-sm font-semibold ${f.parcelas_concluidas ? 'text-green-700' : 'text-slate-600'}`}>Concluído</div>
             <div className="text-[11px] text-slate-400">Parcelamento quitado</div>
           </div>
         </label>
@@ -5674,6 +5608,16 @@ const ParcelasManager = ({ parcelamento, onClose }: {
         </div>
       )}
 
+      {!loading && parcelas.length > 0 && totalEsperado > 0 && parcelas.length !== totalEsperado && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+          <AlertCircle size={14} className="text-amber-600 shrink-0" />
+          <p className="text-xs text-amber-700">
+            O parcelamento prevê <strong>{totalEsperado}</strong> parcela{totalEsperado === 1 ? '' : 's'}, mas há <strong>{parcelas.length}</strong> cadastrada{parcelas.length === 1 ? '' : 's'} aqui.
+            Ajuste o "Nº de Parcelas" no parcelamento ou adicione/remova parcelas para manter os dois números alinhados.
+          </p>
+        </div>
+      )}
+
       {!loading && parcelas.length > 0 && (
         <InlineTable
           cols={[
@@ -5699,7 +5643,7 @@ const ParcelasManager = ({ parcelamento, onClose }: {
       </div>
 
       {formOpen && (
-        <Modal title={formOpen.initial ? 'Editar Parcela' : 'Nova Parcela'} onClose={() => setFormOpen(null)} size="md">
+        <Modal title={formOpen.initial ? 'Editar Parcela' : 'Nova Parcela'} onClose={() => setFormOpen(null)} size="md" nested>
           <ParcelaForm
             parcelamentoId={parcelamento.codigo}
             initial={formOpen.initial}
@@ -5911,9 +5855,16 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     GpcService.getProdutividadeDetalhado().then(d => { setEvents(d); setLoading(false); });
 
-    GpcService.getFluxoResumoTecnicos().then(setFluxoResumo);
-
   }, []);
+
+  // Refaz a busca do resumo de fluxo sempre que o período muda — antes ele era buscado
+  // uma única vez (sempre "geral"), o que misturava um denominador de todo o histórico
+  // com o numerador (páginas) já filtrado por período, distorcendo "páginas por ação".
+  useEffect(() => {
+
+    GpcService.getFluxoResumoTecnicos(gran, period === 'geral' ? undefined : period).then(setFluxoResumo);
+
+  }, [gran, period]);
 
 
 
@@ -6772,9 +6723,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                         </div>
 
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
 
-                          {st.tempMedio <= 5 ? '? Tempo Rápido' : st.tempMedio <= 15 ? '~ Tempo Regular' : '! Tempo Lento'}
+                          {st.tempMedio <= 5
+                            ? <><Zap size={10} />Tempo Rápido</>
+                            : st.tempMedio <= 15
+                              ? <><Clock size={10} />Tempo Regular</>
+                              : <><AlertTriangle size={10} />Tempo Lento</>}
 
                         </div>
 
@@ -7971,7 +7926,7 @@ export const GpcProcessos = () => {
 
             <div className="p-3">
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-9 gap-2.5">
 
                 <div>
 
@@ -8097,9 +8052,9 @@ export const GpcProcessos = () => {
 
                     <tr className="bg-slate-50/80 border-b border-slate-100">
 
-                      <SortTh label="Processo"    col="processo"    sort={sort} onSort={toggleSort} />
+                      <SortTh label="Processo"    col="processo"    sort={sort} onSort={toggleSort} cls="w-40" />
 
-                      <SortTh label="Convênio"    col="convenio"    sort={sort} onSort={toggleSort} />
+                      <SortTh label="Convênio"    col="convenio"    sort={sort} onSort={toggleSort} cls="w-24" />
 
                       <SortTh label="Entidade"    col="entidade"    sort={sort} onSort={toggleSort} />
 
@@ -8109,7 +8064,7 @@ export const GpcProcessos = () => {
 
                       <SortTh label="Data"        col="data"        sort={sort} onSort={toggleSort} cls="w-24" />
 
-                      <SortTh label="Cadastro / Analistas" col="responsavel" sort={sort} onSort={toggleSort} />
+                      <SortTh label="Cadastro / Analistas" col="responsavel" sort={sort} onSort={toggleSort} cls="w-48" />
 
                       <SortTh label="Posição"     col="posicao"     sort={sort} onSort={toggleSort} cls="w-28" />
 
@@ -8341,7 +8296,7 @@ export const GpcProcessos = () => {
 
                                 {r.valor_devolvido != null && r.valor_devolvido >= (r.valor_a_devolver ?? 0)
 
-                                  ? <span className="text-green-600">? Quitado</span>
+                                  ? <span className="text-green-600 inline-flex items-center gap-1"><Check size={11} />Quitado</span>
 
                                   : <span>Pend: {fmt((r.valor_a_devolver ?? 0) - (r.valor_devolvido ?? 0))}</span>}
 

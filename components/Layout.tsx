@@ -83,7 +83,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* ── Top Header ── */}
       <header className="bg-primary text-white shadow-md sticky top-0 z-50">
-        <div className="max-w-full mx-auto px-4 sm:px-6">
+        <div className="max-w-full px-4 sm:px-6">
           <div className="flex items-center h-20 gap-3">
 
             {/* Left: Hamburger + Logo */}
@@ -100,6 +100,9 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
 
             {/* Center: Title */}
             <div className="flex-1 flex items-center justify-center gap-3 min-w-0">
+              <span className="sm:hidden text-xs font-bold uppercase tracking-wide text-white truncate">
+                Controle de Processos
+              </span>
               <div className="hidden sm:flex flex-col min-w-0 text-center">
                 <h1 className="text-sm sm:text-base font-bold tracking-wide leading-tight uppercase text-white">
                   Sistema de Controle de Processos
@@ -182,9 +185,6 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
           {isGpc && (
             <>
               <SectionLabel label="GPC" />
-              <div className="mb-1.5 mx-3">
-                <div className="h-px bg-slate-700" />
-              </div>
               <DrawerItem to="/gpc" icon={ClipboardList} label="Processos GPC" />
               <DrawerItem to="/gpc/relatorios" icon={BarChart2} label="Relatórios GPC" />
             </>
@@ -214,7 +214,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
           </Link>
           <button
             onClick={() => { setDrawerOpen(false); logout(); }}
-            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-red-600/30 text-slate-300 hover:text-red-400 text-sm font-medium transition-colors border border-slate-700"
+            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-500 text-sm font-medium transition-colors border border-slate-700"
           >
             <LogOut size={15} />Sair da conta
           </button>
@@ -223,9 +223,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
 
       {/* ── Main Content ── */}
       <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-4 md:p-6">
-        <div className="max-w-full mx-auto">
-          {children}
-        </div>
+        {children}
       </main>
     </div>
   );

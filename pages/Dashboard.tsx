@@ -99,7 +99,7 @@ export const Dashboard = () => {
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      const label = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
       const entrada = processes.filter(p => p.entryDate?.startsWith(key)).length;
       const saida = processes.filter(p => p.processDate?.startsWith(key)).length;
       months.push({ month: label, entrada, saida });
@@ -282,8 +282,8 @@ export const Dashboard = () => {
                     )}
                   </div>
                 </div>
-                <span className="text-[8px] text-slate-400 font-medium leading-none mt-1 whitespace-nowrap" style={{ writingMode: monthlyProcesses.length > 8 ? 'vertical-rl' : undefined, transform: monthlyProcesses.length > 8 ? 'rotate(180deg)' : undefined }}>
-                  {m.month.substring(0, 7)}
+                <span className="text-[8px] text-slate-400 font-medium leading-none mt-1 whitespace-nowrap">
+                  {m.month}
                 </span>
               </div>
             ))}
@@ -305,7 +305,7 @@ export const Dashboard = () => {
                     <span className="text-xs text-slate-600 font-medium truncate max-w-[60%]">{item.name}</span>
                     <span className="text-xs font-bold text-slate-800">{item.count} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span></span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                   </div>
                 </div>
@@ -333,7 +333,7 @@ export const Dashboard = () => {
                     <span className="text-xs text-slate-700 truncate max-w-[70%]" title={s.name}>{s.name}</span>
                     <span className="text-xs font-bold text-slate-700">{s.count}</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5">
+                  <div className="w-full bg-slate-100 rounded-full h-2">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(s.count / maxSector) * 100}%`, backgroundColor: s.color }} />
                   </div>
                 </div>
@@ -360,7 +360,7 @@ export const Dashboard = () => {
                       <span className="text-xs text-slate-700 truncate max-w-[70%]" title={item.name}>{item.name}</span>
                       <span className="text-xs font-bold text-slate-700">{item.count}</span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5">
+                    <div className="w-full bg-slate-100 rounded-full h-2">
                       <div className="h-full rounded-full transition-all duration-500 bg-pink-400" style={{ width: `${(item.count / maxInt) * 100}%` }} />
                     </div>
                   </div>
@@ -536,41 +536,12 @@ export const Dashboard = () => {
 
           {/* GPC KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-teal-50 rounded-xl p-3 border border-teal-100">
-              <div className="flex items-center gap-1.5 mb-2">
-                <FolderOpen size={14} className="text-teal-500" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Total Recebidos</span>
-              </div>
-              <p className="text-2xl font-black text-teal-700">{gpcData.total}</p>
-            </div>
-            <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Users size={14} className="text-amber-500" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Parcelamentos</span>
-              </div>
-              <p className="text-2xl font-black text-amber-700">{gpcData.comParcelamento}</p>
-              <p className="text-[10px] text-amber-600 mt-0.5">{gpcData.semParcelamento} sem parcelamento</p>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-              <div className="flex items-center gap-1.5 mb-2">
-                <BarChart3 size={14} className="text-blue-500" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Acima Remessa</span>
-              </div>
-              <p className="text-2xl font-black text-blue-700">
-                {gpcData.byRemessa.find(r => r.remessa === 'Acima de Remessa')?.count ?? 0}
-              </p>
-              <p className="text-[10px] text-blue-600 mt-0.5">
-                {gpcData.byRemessa.find(r => r.remessa === 'Abaixo de Remessa')?.count ?? 0} abaixo
-              </p>
-            </div>
-            <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Building2 size={14} className="text-purple-500" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Posições Ativas</span>
-              </div>
-              <p className="text-2xl font-black text-purple-700">{gpcData.byPosicao.length}</p>
-              <p className="text-[10px] text-purple-600 mt-0.5">tipos de posição</p>
-            </div>
+            <KPICard icon={FolderOpen} label="Total Recebidos" value={gpcData.total} color="teal" />
+            <KPICard icon={Users} label="Parcelamentos" value={gpcData.comParcelamento} color="amber"
+              subtitle={`${gpcData.semParcelamento} sem parcelamento`} />
+            <KPICard icon={BarChart3} label="Acima Remessa" value={gpcData.byRemessa.find(r => r.remessa === 'Acima de Remessa')?.count ?? 0} color="blue"
+              subtitle={`${gpcData.byRemessa.find(r => r.remessa === 'Abaixo de Remessa')?.count ?? 0} abaixo`} />
+            <KPICard icon={Building2} label="Posições Ativas" value={gpcData.byPosicao.length} color="purple" subtitle="tipos de posição" />
           </div>
 
           {/* GPC Charts Row 1 */}
@@ -591,7 +562,7 @@ export const Dashboard = () => {
                         <span className="text-xs text-slate-600 font-medium truncate max-w-[60%]">{item.posicao}</span>
                         <span className="text-xs font-bold text-slate-800">{item.count} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span></span>
                       </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: GPC_COLORS[i % GPC_COLORS.length] }} />
                       </div>
                     </div>
@@ -649,7 +620,7 @@ export const Dashboard = () => {
                           <span className="text-xs text-slate-700 truncate max-w-[70%]" title={item.responsavel}>{item.responsavel}</span>
                           <span className="text-xs font-bold text-slate-700">{item.count}</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                        <div className="w-full bg-slate-100 rounded-full h-2">
                           <div className="h-full rounded-full transition-all duration-500 bg-blue-400" style={{ width: `${(item.count / maxR) * 100}%` }} />
                         </div>
                       </div>
@@ -677,7 +648,7 @@ export const Dashboard = () => {
                           <span className="text-xs text-slate-700 truncate max-w-[70%]" title={item.entidade}>{item.entidade}</span>
                           <span className="text-xs font-bold text-slate-700">{item.count}</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                        <div className="w-full bg-slate-100 rounded-full h-2">
                           <div className="h-full rounded-full transition-all duration-500 bg-teal-400" style={{ width: `${(item.count / maxE) * 100}%` }} />
                         </div>
                       </div>
@@ -736,7 +707,7 @@ export const Dashboard = () => {
                           </div>
                           <span className="text-xs font-bold">{item.count} <span className="text-[10px] text-slate-400">({pct}%)</span></span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5">
+                        <div className="w-full bg-slate-100 rounded-full h-2">
                           <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
                         </div>
                       </div>
@@ -803,7 +774,7 @@ export const Dashboard = () => {
 };
 
 // ─── Componentes auxiliares ─────────────────────────────────────────
-const KPICard = ({ icon: Icon, label, value, color, accent }: { icon: any; label: string; value: string | number; color: string; accent?: boolean }) => {
+const KPICard = ({ icon: Icon, label, value, color, subtitle }: { icon: any; label: string; value: string | number; color: string; accent?: boolean; subtitle?: string }) => {
   const colorMap: Record<string, { bg: string; text: string; icon: string; border: string }> = {
     blue:   { bg: 'bg-blue-50',   text: 'text-blue-700',   icon: 'text-blue-500',   border: 'border-blue-100' },
     red:    { bg: 'bg-red-50',    text: 'text-red-700',    icon: 'text-red-500',    border: 'border-red-100' },
@@ -813,16 +784,18 @@ const KPICard = ({ icon: Icon, label, value, color, accent }: { icon: any; label
     slate:  { bg: 'bg-slate-50',  text: 'text-slate-700',  icon: 'text-slate-500',  border: 'border-slate-200' },
     indigo: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: 'text-indigo-500', border: 'border-indigo-100' },
     purple: { bg: 'bg-purple-50', text: 'text-purple-700', icon: 'text-purple-500', border: 'border-purple-100' },
+    teal:   { bg: 'bg-teal-50',   text: 'text-teal-700',   icon: 'text-teal-500',   border: 'border-teal-100' },
   };
   const c = colorMap[color] || colorMap.slate;
 
   return (
-    <div className={`${c.bg} rounded-xl p-3 border ${c.border} transition-all hover:shadow-md`}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <Icon size={14} className={c.icon} />
+    <div className={`${c.bg} rounded-xl p-3 border ${c.border} transition-all hover:shadow-md min-w-0`}>
+      <div className="flex items-center gap-1.5 mb-2 min-w-0">
+        <Icon size={14} className={`${c.icon} shrink-0`} />
         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight leading-none truncate">{label}</span>
       </div>
-      <p className={`text-2xl font-black ${c.text} leading-none`}>{value}</p>
+      <p className={`text-2xl font-black ${c.text} leading-none truncate`}>{value}</p>
+      {subtitle && <p className={`text-[10px] ${c.icon} mt-0.5 truncate`}>{subtitle}</p>}
     </div>
   );
 };
@@ -837,8 +810,8 @@ const MiniStat = ({ label, value, color }: { label: string; value: number; color
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   };
   return (
-    <div className={`rounded-lg p-3 border text-center ${colorMap[color] || colorMap.slate}`}>
-      <p className="text-xl font-black leading-none">{value}</p>
+    <div className={`rounded-xl p-3 border text-center ${colorMap[color] || colorMap.slate}`}>
+      <p className="text-2xl font-black leading-none">{value}</p>
       <p className="text-[10px] font-bold uppercase mt-1 opacity-70">{label}</p>
     </div>
   );

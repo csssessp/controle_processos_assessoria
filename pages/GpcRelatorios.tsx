@@ -59,9 +59,9 @@ const KpiCard = ({
     <div className={`p-3 rounded-xl ${color} shrink-0`}>
       <Icon size={20} className="text-white" />
     </div>
-    <div>
+    <div className="min-w-0">
       <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">{label}</p>
-      <p className="text-2xl font-bold text-slate-800 mt-0.5">
+      <p className="text-2xl font-bold text-slate-800 mt-0.5 truncate">
         {typeof value === 'number' ? value.toLocaleString('pt-BR') : value}
       </p>
     </div>
@@ -559,8 +559,9 @@ export const GpcRelatorios = () => {
 
       {/* ── KPIs ───────────────────────────────────────────────────────────── */}
       {loadingKpis && !kpis ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
           <Loader2 size={28} className="animate-spin text-blue-500" />
+          <p className="text-slate-500 text-sm">Carregando indicadores...</p>
         </div>
       ) : kpis ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

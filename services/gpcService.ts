@@ -41,6 +41,22 @@ function notifyFetchError(): void {
   emitError('Não foi possível carregar os dados. Tente novamente.');
 }
 
+type Granularidade = 'dia' | 'mes' | 'ano' | 'geral';
+
+// Converte um timestamp para a chave de período local (evita o bug de "virar o mês/dia
+// errado" que uma comparação de prefixo de string UTC causaria perto da virada). Mesma
+// lógica usada por periodoKey() em pages/GpcProcessos_v2.tsx — mantém tela e serviço
+// agrupando os eventos exatamente da mesma forma.
+function localPeriodKey(dataEvento: string, gran: Granularidade): string {
+  if (gran === 'geral') return 'geral';
+  const dt = new Date(dataEvento);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  if (gran === 'dia') return `${y}-${m}-${String(dt.getDate()).padStart(2, '0')}`;
+  if (gran === 'mes') return `${y}-${m}`;
+  return String(y);
+}
+
 function normalizeNomeTecnico(nome: string): string {
   return nome
     .trim()
@@ -707,24 +723,6 @@ export const GpcService = {
     if (error) throw new Error(error.message);
   },
 
-  getProdutividadeResumo: async (): Promise<{ responsavel: string; mes: string; count: number }[]> => {
-    const { data, error } = await supabase
-      .from('cgof_gpc_produtividade')
-      .select('responsavel, data_evento')
-      .not('responsavel', 'is', null);
-    if (error) { console.error(error); notifyFetchError(); return []; }
-    const counts: Record<string, number> = {};
-    for (const r of data ?? []) {
-      const mes = (r.data_evento as string).slice(0, 7);
-      const key = `${r.responsavel}||${mes}`;
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return Object.entries(counts).map(([key, count]) => {
-      const sep = key.lastIndexOf('||');
-      return { responsavel: key.slice(0, sep), mes: key.slice(sep + 2), count };
-    }).sort((a, b) => b.mes.localeCompare(a.mes) || b.count - a.count);
-  },
-
   getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[]> => {
     // Source 1: cgof_gpc_produtividade — only CADASTRO + INICIO_ANALISE (fired by DB triggers, dates are always correct)
     const { data: prodData, error: prodError } = await supabase
@@ -921,7 +919,10 @@ export const GpcService = {
     return { total, byPosicao, byRemessa, byResponsavel, comParcelamento, semParcelamento, complexidade, topEntidades, byMes };
   },
 
-  getFluxoResumoTecnicos: async (): Promise<{
+  getFluxoResumoTecnicos: async (
+    gran: Granularidade = 'geral',
+    period?: string,
+  ): Promise<{
     tecnico: string;
     total_registros: number;
     total_paginas: number;
@@ -935,10 +936,18 @@ export const GpcService = {
       .order('data_evento', { ascending: true }); // ascending so first event comes first
     if (error) { console.error(error); notifyFetchError(); return []; }
 
+    // Filtra pelo mesmo período selecionado na tela (client-side, mesma lógica de
+    // localPeriodKey/periodoKey) — sem isso, esta função sempre agregava TODO o
+    // histórico, enquanto o restante da tela de Produtividade já filtrava por período,
+    // produzindo uma razão "páginas por ação" inconsistente ao trocar o período.
+    const rows = (gran === 'geral' || !period)
+      ? (data ?? [])
+      : (data ?? []).filter(r => localPeriodKey(r.data_evento as string, gran) === period);
+
     // To avoid page duplication: track which (tecnico, registro_id) pairs we already counted pages for
     const paginasContadas = new Set<string>();
     const map: Record<string, { count: number; paginas: number; tempos: number[]; ultimo: string }> = {};
-    for (const r of data ?? []) {
+    for (const r of rows) {
       const t = normalizeNomeTecnico(r.tecnico as string);
       if (!map[t]) map[t] = { count: 0, paginas: 0, tempos: [], ultimo: '' };
       map[t].count++;
@@ -1067,14 +1076,8 @@ export const GpcService = {
     // Filter by period using the browser's local date fields (mirrors periodoKey() in
     // GpcProcessos_v2.tsx). data_evento is a UTC timestamptz string; a raw string-prefix
     // match would misattribute events near month boundaries to the wrong month.
-    const periodKey = (dataEvento: string): string => {
-      const dt = new Date(dataEvento);
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth() + 1).padStart(2, '0');
-      return mes ? `${y}-${m}` : String(y);
-    };
     const target = mes ? `${ano}-${mes}` : ano;
-    const filtered = all.filter(e => periodKey(e.data_evento) === target);
+    const filtered = all.filter(e => localPeriodKey(e.data_evento, mes ? 'mes' : 'ano') === target);
 
     // Aggregate per technician — mirrors computeStats() in GpcProcessos_v2.tsx exactly:
     //   - CORRECAO counted inside movimentos (not separately)

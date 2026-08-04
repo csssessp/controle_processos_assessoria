@@ -37,21 +37,22 @@ const exportCSV = (rows: GpcRecebido[], posicoes: GpcPosicao[]) => {
 
 // ─── shared styles ───────────────────────────────────────────────────────────
 
-const INPUT = 'w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-const LABEL = 'block text-xs font-medium text-slate-600 mb-1';
-const BTN_PRIMARY = 'flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50';
-const BTN_GHOST = 'flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors';
+const INPUT = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all shadow-sm placeholder:text-slate-300';
+const LABEL = 'block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5';
+const BTN_PRIMARY = 'inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
+const BTN_PRIMARY_GREEN = BTN_PRIMARY.replace('bg-blue-600', 'bg-green-600').replace('hover:bg-blue-700', 'hover:bg-green-700');
+const BTN_GHOST = 'inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-600 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all shadow-sm';
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-      <div className="flex items-center justify-between px-6 py-4 border-b">
-        <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
-        <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100"><X size={18}/></button>
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="bg-slate-50/95 rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl">
+        <h3 className="text-base font-bold text-slate-800">{title}</h3>
+        <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button>
       </div>
-      <div className="overflow-y-auto flex-1 px-6 py-4">{children}</div>
+      <div className="overflow-y-auto flex-1 px-6 py-5">{children}</div>
     </div>
   </div>
 );
@@ -79,7 +80,7 @@ const RecebidoForm = ({ initial, posicoes, onSave, onClose }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {err && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16}/>{err}</div>}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={LABEL}>Número do Processo</label>
           <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required/>
@@ -130,27 +131,33 @@ const RecebidoForm = ({ initial, posicoes, onSave, onClose }: {
   );
 };
 
-// ─── posição badge ────────────────────────────────────────────────────────────
+// ─── posição badge (mesma paleta/formato usado em GpcProcessos_v2.tsx) ────────
 
-const POSICAO_COLORS: Record<number, string> = {
-  1: 'bg-blue-100 text-blue-700',
-  2: 'bg-orange-100 text-orange-700',
-  3: 'bg-yellow-100 text-yellow-700',
-  4: 'bg-purple-100 text-purple-700',
-  5: 'bg-slate-100 text-slate-600',
-  6: 'bg-green-100 text-green-700',
-  7: 'bg-emerald-100 text-emerald-700',
-  8: 'bg-indigo-100 text-indigo-700',
-  9: 'bg-red-100 text-red-600',
-  10: 'bg-teal-100 text-teal-700',
-  11: 'bg-cyan-100 text-cyan-700',
-  12: 'bg-pink-100 text-pink-700',
+const POS_CFG: Record<number, { bg: string; text: string; dot: string; border: string }> = {
+  1:  { bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500',    border: 'border-blue-200' },
+  2:  { bg: 'bg-orange-50',  text: 'text-orange-700',  dot: 'bg-orange-500',  border: 'border-orange-200' },
+  3:  { bg: 'bg-yellow-50',  text: 'text-yellow-700',  dot: 'bg-yellow-500',  border: 'border-yellow-200' },
+  4:  { bg: 'bg-purple-50',  text: 'text-purple-700',  dot: 'bg-purple-500',  border: 'border-purple-200' },
+  5:  { bg: 'bg-slate-100',  text: 'text-slate-600',   dot: 'bg-slate-400',   border: 'border-slate-200' },
+  6:  { bg: 'bg-green-50',   text: 'text-green-700',   dot: 'bg-green-500',   border: 'border-green-200' },
+  7:  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-200' },
+  8:  { bg: 'bg-indigo-50',  text: 'text-indigo-700',  dot: 'bg-indigo-500',  border: 'border-indigo-200' },
+  9:  { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     border: 'border-red-200' },
+  10: { bg: 'bg-teal-50',    text: 'text-teal-700',    dot: 'bg-teal-500',    border: 'border-teal-200' },
+  11: { bg: 'bg-cyan-50',    text: 'text-cyan-700',    dot: 'bg-cyan-500',    border: 'border-cyan-200' },
+  12: { bg: 'bg-pink-50',    text: 'text-pink-700',    dot: 'bg-pink-500',    border: 'border-pink-200' },
 };
+const POS_DEF = { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400', border: 'border-slate-200' };
 
 const PosicaoBadge = ({ id, label }: { id: number | null; label: string | null }) => {
-  if (!id || !label) return <span className="text-slate-400">—</span>;
-  const cls = POSICAO_COLORS[id] ?? 'bg-slate-100 text-slate-600';
-  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>;
+  if (!id || !label) return <span className="text-slate-300 text-xs">-</span>;
+  const c = POS_CFG[id] ?? POS_DEF;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${c.bg} ${c.text} ${c.border}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
+      {label}
+    </span>
+  );
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -196,7 +203,7 @@ export const GpcRecebidos = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="flex items-center gap-1.5 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className={BTN_PRIMARY_GREEN}
             onClick={async () => {
               // load all for export
               const all = await GpcService.getRecebidos('', 1, 9999);
@@ -215,7 +222,7 @@ export const GpcRecebidos = () => {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
         <input
-          className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={INPUT + ' pl-10'}
           placeholder="Buscar por processo, entidade, convênio ou responsável..."
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
@@ -225,26 +232,29 @@ export const GpcRecebidos = () => {
       {/* Filter badges for posição */}
       {posicoes.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {posicoes.map(p => (
-            <button
-              key={p.codigo}
-              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${POSICAO_COLORS[p.codigo] ?? 'bg-slate-100 text-slate-600'} hover:opacity-80`}
-              onClick={() => { setSearch(p.posicao ?? ''); setPage(1); }}
-              title={`Filtrar por: ${p.posicao}`}
-            >
-              {p.posicao}
-            </button>
-          ))}
+          {posicoes.map(p => {
+            const c = POS_CFG[p.codigo] ?? POS_DEF;
+            return (
+              <button
+                key={p.codigo}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${c.bg} ${c.text} ${c.border} hover:opacity-80`}
+                onClick={() => { setSearch(p.posicao ?? ''); setPage(1); }}
+                title={`Filtrar por: ${p.posicao}`}
+              >
+                {p.posicao}
+              </button>
+            );
+          })}
           {search && (
-            <button className="px-2.5 py-1 text-xs rounded-full border bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setSearch('')}>
-              ✕ Limpar filtro
+            <button className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full border border-transparent bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setSearch('')}>
+              <X size={11} />Limpar filtro
             </button>
           )}
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16"><Loader2 size={28} className="animate-spin text-blue-500"/></div>
         ) : (
@@ -266,11 +276,11 @@ export const GpcRecebidos = () => {
                     <td className="px-3 py-3 text-sm text-center text-slate-600">{r.exercicio ?? '-'}</td>
                     <td className="px-3 py-3 text-sm text-center text-slate-600">{r.drs ?? '-'}</td>
                     <td className="px-3 py-3 text-sm whitespace-nowrap text-slate-600">{fmtDate(r.data)}</td>
-                    <td className="px-3 py-3 text-sm text-slate-600">{r.responsavel ?? '-'}</td>
+                    <td className="px-3 py-3 text-sm text-slate-600 max-w-[160px] truncate" title={r.responsavel ?? ''}>{r.responsavel ?? '-'}</td>
                     <td className="px-3 py-3">
                       <PosicaoBadge id={r.posicao_id} label={r.posicao ?? null}/>
                     </td>
-                    <td className="px-3 py-3 text-sm text-slate-600">{r.movimento ?? '-'}</td>
+                    <td className="px-3 py-3 text-sm text-slate-600 max-w-[160px] truncate" title={r.movimento ?? ''}>{r.movimento ?? '-'}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1">
                         <button className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors" title="Editar" onClick={() => setModal({ data: r })}><Edit size={15}/></button>
