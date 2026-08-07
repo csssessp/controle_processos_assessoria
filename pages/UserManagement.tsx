@@ -8,6 +8,12 @@ import { generateUUID } from '../utils';
 import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
 import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin, Eye } from 'lucide-react';
 
+// "GPC" (o nível, não a área) dá acesso ampliado dentro das telas de GPC (ver
+// isAdminView em GpcProcessos_v2.tsx) — é diferente de ter a Área GPC marcada,
+// que só dá acesso normal à tela. Rótulo "USER GPC" para não confundir com a área.
+const roleLabel = (role: UserRole): string =>
+  role === UserRole.ADMIN ? 'ADMIN' : role === UserRole.GPC ? 'USER GPC' : 'USER';
+
 export const UserManagement = () => {
   const { saveUser, deleteUser, currentUser } = useApp();
   const { toast } = useToast();
@@ -155,18 +161,18 @@ export const UserManagement = () => {
                   <td className="px-6 py-3">
                     <span className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded w-fit ${u.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-700' : u.role === UserRole.GPC ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
                       {u.role === UserRole.ADMIN ? <Shield size={12}/> : null}
-                      {u.role}
+                      {roleLabel(u.role)}
                     </span>
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex flex-wrap gap-1">
                       {u.role === UserRole.ADMIN ? (
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">Todas</span>
-                      ) : (u.areas && u.areas.length > 0) ? u.areas.map(a => (
-                        <span key={a} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${a === 'gpc' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                          {a === 'gpc' ? 'GPC' : 'Assessoria'}
-                        </span>
-                      )) : (
+                      ) : (u.areas && u.areas.length > 0) ? u.areas.map(a => {
+                        const cls = a === 'gpc' ? 'bg-blue-50 text-blue-600' : a === 'ggcon' ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600';
+                        const label = USER_AREA_OPTIONS.find(o => o.value === a)?.label ?? a;
+                        return <span key={a} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
+                      }) : (
                         <span className="text-[10px] text-slate-400">—</span>
                       )}
                     </div>
@@ -263,14 +269,14 @@ export const UserManagement = () => {
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
                     <input type="checkbox" name="isGpc" defaultChecked={editingUser?.role === UserRole.GPC} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"/>
-                    <span className="flex items-center gap-1 text-blue-700 font-medium">GPC</span>
+                    <span className="flex items-center gap-1 text-blue-700 font-medium">USER GPC</span>
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none ml-auto">
                     <input type="checkbox" name="active" defaultChecked={editingUser ? editingUser.active : true} className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-500"/>
                     <span>Ativo</span>
                   </label>
                 </div>
-                <p className="text-[10px] text-slate-400">Se Administrador estiver marcado, o perfil GPC é ignorado. Sem nenhum marcado, o usuário é perfil Usuário padrão.</p>
+                <p className="text-[10px] text-slate-400">"USER GPC" dá acesso ampliado dentro das telas de GPC (visão/edição de supervisor) — é diferente de marcar a Área GPC abaixo, que só dá acesso normal à tela. Se Administrador estiver marcado, o perfil USER GPC é ignorado. Sem nenhum marcado, o usuário é perfil Usuário padrão.</p>
               </div>
 
               <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">

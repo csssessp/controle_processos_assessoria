@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight,
-  X, Check, Loader2, AlertCircle, Download, Scale, Activity, Lock, ArrowUp, ArrowDown, ArrowUpDown,
+  X, Check, Loader2, AlertCircle, Download, Scale, Activity, Lock, ArrowUp, ArrowDown, ArrowUpDown, Flag, MoreVertical, RotateCcw,
 } from 'lucide-react';
 import { GgconService, GgconSortField, diasSemMovimentacao, alertaComiteGestor, deriveSituacaoFromEtapa } from '../services/ggconService';
 import { MUNICIPIOS, buscarDRSPorMunicipio } from '../services/ggconMunicipios';
@@ -65,7 +66,7 @@ const fmtBRL = (v: number | null | undefined) =>
 
 const exportXLSX = (rows: GgconProcesso[]) => {
   const sheetRows = rows.map(r => ({
-    'Código': r.codigo, 'Processo SEI': r.processo_sei, 'Nº Demanda': r.numero_demanda ?? '',
+    'Urgente': r.urgente ? 'Sim' : 'Não', 'Código': r.codigo, 'Processo SEI': r.processo_sei, 'Nº Demanda': r.numero_demanda ?? '',
     'Interessado': r.interessado ?? '', 'Tipo': r.tipo ?? '', 'Etapa': r.etapa ?? '',
     'Técnico': r.tecnico_responsavel ?? '', 'Coordenadoria': r.coordenadoria ?? '',
     'DRS/Unidade': r.drs_unidade ?? '', 'Município': r.municipio ?? '',
@@ -110,6 +111,8 @@ const LABEL = 'block text-[11px] font-bold text-slate-400 uppercase tracking-wid
 const BTN_PRIMARY = 'inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
 const BTN_PRIMARY_GREEN = BTN_PRIMARY.replace('bg-blue-600', 'bg-green-600').replace('hover:bg-blue-700', 'hover:bg-green-700');
 const BTN_GHOST = 'inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-600 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all shadow-sm';
+const BTN_MUTED = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors';
+const BTN_PRIMARY_LG = 'inline-flex items-center gap-2 px-5 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg';
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
@@ -206,6 +209,12 @@ const GgconForm = ({ initial, tecnicos, onSave, onClose }: {
           </span>
         </div>
       )}
+
+      <label className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${form.urgente ? 'bg-red-50 border-red-400' : 'bg-white border-slate-200'}`}>
+        <input type="checkbox" checked={form.urgente ?? false} onChange={e => set('urgente', e.target.checked)} className="w-4 h-4 accent-red-600 rounded"/>
+        <Flag size={14} className={form.urgente ? 'text-red-600' : 'text-slate-400'}/>
+        <span className={`text-sm font-semibold ${form.urgente ? 'text-red-700' : 'text-slate-600'}`}>Marcar como urgente (fica no topo da lista)</span>
+      </label>
 
       <Sec title="Identificação" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -368,10 +377,95 @@ const EtapaBadge = ({ etapa }: { etapa: string | null }) => {
   );
 };
 
+// Faixa de Paralisação — mesma classificação e cores da planilha (coluna P / regras
+// condicionais em modLayout.LayoutSEI: "Até 15 dias" verde, "16 a 30" e "31 a 60" âmbar
+// (mesma cor nas duas faixas), "Mais de 60 dias" vermelho).
+const faixaParalisacao = (dias: number): { label: string; bg: string; text: string; border: string } => {
+  if (dias > 60) return { label: 'Mais de 60 dias', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' };
+  if (dias > 30) return { label: '31 a 60 dias', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
+  if (dias > 15) return { label: '16 a 30 dias', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
+  return { label: 'Até 15 dias', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
+};
+
 const DiasParadoBadge = ({ dias }: { dias: number | null }) => {
   if (dias == null) return <span className="text-slate-300 text-xs">-</span>;
-  const cls = dias > 60 ? 'text-red-600 font-bold' : dias > 30 ? 'text-amber-600 font-semibold' : 'text-slate-500';
-  return <span className={`text-xs ${cls}`}>{dias}d</span>;
+  const f = faixaParalisacao(dias);
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${f.bg} ${f.text} ${f.border}`} title={f.label}>
+      {dias}d
+    </span>
+  );
+};
+
+// ─── Menu de ações da linha (três pontos) — junta Editar/Excluir num só botão pra
+// não ocupar tanto espaço horizontal da tabela. ────────────────────────────────
+
+const RowMenu = ({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // O menu é renderizado num portal em document.body (posição fixa calculada a partir
+  // do botão) em vez de "absolute" dentro da célula — a tabela fica num card com
+  // overflow-hidden (cantos arredondados), que cortaria o menu nas últimas linhas.
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.right - 128 });
+    }
+    setOpen(o => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const closeOnScroll = () => setOpen(false);
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', closeOnScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', closeOnScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+        title="Mais ações"
+        onClick={toggle}
+      >
+        <MoreVertical size={16}/>
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 w-32"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            onClick={() => { setOpen(false); onEdit(); }}
+          >
+            <Edit size={14}/>Editar
+          </button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            onClick={() => { setOpen(false); onDelete(); }}
+          >
+            <Trash2 size={14}/>Excluir
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
+  );
 };
 
 // ─── Confirmação por senha (mesmo requisito de segurança usado em ProcessManager.tsx
@@ -469,7 +563,8 @@ const HistoricoTimelineModal = ({ processoSei, rows, loading, isViewOnly, onClos
                     <div className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all ${atual ? 'bg-green-50 border-green-300' : 'bg-white border-slate-200'}`}>
                       <div className="flex justify-between items-start gap-3 mb-2">
                         <div className="min-w-0">
-                          <span className={`text-[10px] uppercase font-bold block mb-1 ${atual ? 'text-green-700' : 'text-slate-400'}`}>
+                          <span className={`text-[10px] uppercase font-bold block mb-1 flex items-center gap-1 ${atual ? 'text-green-700' : 'text-slate-400'}`}>
+                            {item.urgente && <Flag size={10} className="text-red-600" fill="currentColor"/>}
                             {atual ? '● Situação Atual' : 'Movimentação'}
                           </span>
                           <EtapaBadge etapa={item.etapa} />
@@ -519,12 +614,22 @@ const FILTROS_STORAGE_KEY = 'ggcon_filtros';
 
 type FiltrosPersistidos = {
   search: string; etapaFiltro: string; tecnicoFiltro: string; coordenadoriaFiltro: string;
+  dataInicioFiltro: string; dataFimFiltro: string;
   sortBy: GgconSortField; sortOrder: 'asc' | 'desc';
 };
 
 const FILTROS_PADRAO: FiltrosPersistidos = {
-  search: '', etapaFiltro: '', tecnicoFiltro: '', coordenadoriaFiltro: '', sortBy: 'codigo', sortOrder: 'desc',
+  search: '', etapaFiltro: '', tecnicoFiltro: '', coordenadoriaFiltro: '',
+  dataInicioFiltro: '', dataFimFiltro: '', sortBy: 'codigo', sortOrder: 'desc',
 };
+
+// Atalhos de período — filtram por Data da Movimentação.
+const PERIODOS_RAPIDOS: { label: string; dias: number }[] = [
+  { label: 'Hoje', dias: 0 },
+  { label: '7 dias', dias: 7 },
+  { label: '30 dias', dias: 30 },
+  { label: '90 dias', dias: 90 },
+];
 
 const carregarFiltrosPersistidos = (): FiltrosPersistidos => {
   try {
@@ -547,6 +652,8 @@ export const GgconProcessos = () => {
   const [etapaFiltro, setEtapaFiltro] = useState(filtrosIniciais.etapaFiltro);
   const [tecnicoFiltro, setTecnicoFiltro] = useState(filtrosIniciais.tecnicoFiltro);
   const [coordenadoriaFiltro, setCoordenadoriaFiltro] = useState(filtrosIniciais.coordenadoriaFiltro);
+  const [dataInicioFiltro, setDataInicioFiltro] = useState(filtrosIniciais.dataInicioFiltro);
+  const [dataFimFiltro, setDataFimFiltro] = useState(filtrosIniciais.dataFimFiltro);
   const [sortBy, setSortBy] = useState<GgconSortField>(filtrosIniciais.sortBy);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(filtrosIniciais.sortOrder);
   const [loading, setLoading] = useState(false);
@@ -563,18 +670,45 @@ export const GgconProcessos = () => {
   const PAGE_SIZE = 25;
 
   useEffect(() => {
-    localStorage.setItem(FILTROS_STORAGE_KEY, JSON.stringify({ search, etapaFiltro, tecnicoFiltro, coordenadoriaFiltro, sortBy, sortOrder }));
-  }, [search, etapaFiltro, tecnicoFiltro, coordenadoriaFiltro, sortBy, sortOrder]);
+    localStorage.setItem(FILTROS_STORAGE_KEY, JSON.stringify({
+      search, etapaFiltro, tecnicoFiltro, coordenadoriaFiltro, dataInicioFiltro, dataFimFiltro, sortBy, sortOrder,
+    }));
+  }, [search, etapaFiltro, tecnicoFiltro, coordenadoriaFiltro, dataInicioFiltro, dataFimFiltro, sortBy, sortOrder]);
 
   const load = useCallback(async () => {
     setLoading(true);
     const result = await GgconService.getProcessos({
-      search, page, pageSize: PAGE_SIZE, etapa: etapaFiltro, tecnico: tecnicoFiltro, coordenadoria: coordenadoriaFiltro, sortBy, sortOrder,
+      search, page, pageSize: PAGE_SIZE, etapa: etapaFiltro, tecnico: tecnicoFiltro, coordenadoria: coordenadoriaFiltro,
+      dataInicio: dataInicioFiltro, dataFim: dataFimFiltro, sortBy, sortOrder,
     });
     setRows(result.data);
     setCount(result.count);
     setLoading(false);
-  }, [search, page, etapaFiltro, tecnicoFiltro, coordenadoriaFiltro, sortBy, sortOrder]);
+  }, [search, page, etapaFiltro, tecnicoFiltro, coordenadoriaFiltro, dataInicioFiltro, dataFimFiltro, sortBy, sortOrder]);
+
+  const filtrosAtivos = !!(search || etapaFiltro || tecnicoFiltro || coordenadoriaFiltro || dataInicioFiltro || dataFimFiltro);
+  const ordenacaoAlterada = sortBy !== FILTROS_PADRAO.sortBy || sortOrder !== FILTROS_PADRAO.sortOrder;
+
+  const limparFiltros = () => {
+    setSearch(FILTROS_PADRAO.search);
+    setEtapaFiltro(FILTROS_PADRAO.etapaFiltro);
+    setTecnicoFiltro(FILTROS_PADRAO.tecnicoFiltro);
+    setCoordenadoriaFiltro(FILTROS_PADRAO.coordenadoriaFiltro);
+    setDataInicioFiltro(FILTROS_PADRAO.dataInicioFiltro);
+    setDataFimFiltro(FILTROS_PADRAO.dataFimFiltro);
+    setSortBy(FILTROS_PADRAO.sortBy);
+    setSortOrder(FILTROS_PADRAO.sortOrder);
+    setPage(1);
+  };
+
+  const aplicarPeriodoRapido = (dias: number) => {
+    const fim = new Date();
+    const inicio = new Date();
+    inicio.setDate(inicio.getDate() - dias);
+    setDataInicioFiltro(inicio.toISOString().slice(0, 10));
+    setDataFimFiltro(fim.toISOString().slice(0, 10));
+    setPage(1);
+  };
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { GgconService.getTecnicos().then(setTecnicos); }, []);
@@ -671,29 +805,31 @@ export const GgconProcessos = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Processos GGCON</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{count.toLocaleString('pt-BR')} movimentações registradas</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            className={BTN_PRIMARY_GREEN}
-            onClick={async () => {
-              const all = await GgconService.getAllProcessos();
-              exportXLSX(all);
-            }}
-          >
-            <Download size={14}/>Exportar XLSX
-          </button>
-          <button className={BTN_GHOST} title="Exporta a página atual (o que está sendo exibido na tabela)" onClick={() => exportPDF(rows)}>
-            <Download size={14}/>PDF
-          </button>
-          {!isViewOnly && (
-            <button className={BTN_PRIMARY} onClick={() => setOverlay({ type: 'form' })}>
-              <Plus size={16}/>Novo Registro
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Processos GGCON</h2>
+            <p className="text-sm text-slate-500 mt-0.5">{count.toLocaleString('pt-BR')} movimentações registradas</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              className={BTN_MUTED}
+              onClick={async () => {
+                const all = await GgconService.getAllProcessos();
+                exportXLSX(all);
+              }}
+            >
+              <Download size={12}/>XLSX
             </button>
-          )}
+            <button className={BTN_MUTED} title="Exporta a página atual (o que está sendo exibido na tabela)" onClick={() => exportPDF(rows)}>
+              <Download size={12}/>PDF
+            </button>
+          </div>
         </div>
+        {!isViewOnly && (
+          <button className={BTN_PRIMARY_LG} onClick={() => setOverlay({ type: 'form' })}>
+            <Plus size={18}/>Novo Registro
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -721,6 +857,44 @@ export const GgconProcessos = () => {
         </select>
       </div>
 
+      {/* Período + reset */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-500">Movimentação de</label>
+          <input
+            type="date" className={INPUT + ' sm:w-40 py-2'}
+            value={dataInicioFiltro}
+            onChange={e => { setDataInicioFiltro(e.target.value); setPage(1); }}
+          />
+          <label className="text-xs font-semibold text-slate-500">até</label>
+          <input
+            type="date" className={INPUT + ' sm:w-40 py-2'}
+            value={dataFimFiltro}
+            onChange={e => { setDataFimFiltro(e.target.value); setPage(1); }}
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          {PERIODOS_RAPIDOS.map(p => (
+            <button
+              key={p.label}
+              className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-slate-200 transition-colors"
+              onClick={() => aplicarPeriodoRapido(p.dias)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {(filtrosAtivos || ordenacaoAlterada) && (
+          <button
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
+            title="Remove todos os filtros e volta à ordenação padrão (últimos cadastrados primeiro)"
+            onClick={limparFiltros}
+          >
+            <RotateCcw size={12}/>Limpar filtros e voltar ao padrão
+          </button>
+        )}
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {loading ? (
@@ -733,7 +907,7 @@ export const GgconProcessos = () => {
                   {([
                     ['Processo SEI', 'processo_sei'], ['Nº Demanda', null], ['Interessado', 'interessado'],
                     ['Tipo', 'tipo'], ['Etapa', 'etapa'], ['Técnico', 'tecnico_responsavel'],
-                    ['Coordenadoria', 'coordenadoria'], ['Data Mov.', 'data_movimentacao'], ['Parado', null], ['', null],
+                    ['Coordenadoria', 'coordenadoria'], ['Data Mov.', 'data_movimentacao'], ['Parado', 'data_movimentacao'], ['', null],
                   ] as [string, GgconSortField | null][]).map(([h, field]) => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
                       {field ? (
@@ -749,8 +923,9 @@ export const GgconProcessos = () => {
                 {rows.map(r => {
                   const dias = diasSemMovimentacao(r);
                   return (
-                    <tr key={r.codigo} className="border-t border-slate-100 hover:bg-blue-50/30 transition-colors">
+                    <tr key={r.codigo} className={`border-t transition-colors ${r.urgente ? 'bg-red-50/60 border-red-100 hover:bg-red-50' : 'border-slate-100 hover:bg-blue-50/30'}`}>
                       <td className="px-3 py-3 text-sm max-w-[150px] truncate">
+                        {r.urgente && <Flag size={12} className="inline text-red-600 mr-1 -mt-0.5" fill="currentColor"/>}
                         <button
                           className="font-medium text-blue-700 hover:text-blue-900 hover:underline transition-colors"
                           title={`Ver histórico de ${r.processo_sei}`}
@@ -768,14 +943,12 @@ export const GgconProcessos = () => {
                       <td className="px-3 py-3 text-sm whitespace-nowrap text-slate-600">{fmtDate(r.data_movimentacao)}</td>
                       <td className="px-3 py-3"><DiasParadoBadge dias={dias} /></td>
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-1">
-                          {!isViewOnly && (
-                            <button className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors" title="Editar" onClick={() => setOverlay({ type: 'form', data: r })}><Edit size={15}/></button>
-                          )}
-                          {!isViewOnly && (
-                            <button className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600 transition-colors" title="Excluir" onClick={() => requestDeleteMovimentacao(r.codigo)}><Trash2 size={15}/></button>
-                          )}
-                        </div>
+                        {!isViewOnly && (
+                          <RowMenu
+                            onEdit={() => setOverlay({ type: 'form', data: r })}
+                            onDelete={() => requestDeleteMovimentacao(r.codigo)}
+                          />
+                        )}
                       </td>
                     </tr>
                   );

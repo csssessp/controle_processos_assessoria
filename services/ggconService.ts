@@ -77,6 +77,8 @@ export interface GgconProcessosFiltro {
   etapa?: string;
   tecnico?: string;
   coordenadoria?: string;
+  dataInicio?: string;
+  dataFim?: string;
   sortBy?: GgconSortField;
   sortOrder?: 'asc' | 'desc';
 }
@@ -85,11 +87,13 @@ export const GgconService = {
   getProcessos: async (f: GgconProcessosFiltro = {}): Promise<{ data: GgconProcesso[]; count: number }> => {
     const {
       search = '', page = 1, pageSize = 25, etapa = '', tecnico = '', coordenadoria = '',
-      sortBy = 'codigo', sortOrder = 'desc',
+      dataInicio = '', dataFim = '', sortBy = 'codigo', sortOrder = 'desc',
     } = f;
     let query = supabase
       .from('cgof_ggcon_processos')
       .select('*', { count: 'exact' })
+      // Urgentes sempre no topo, independente da ordenação escolhida pelo usuário.
+      .order('urgente', { ascending: false })
       .order(sortBy, { ascending: sortOrder === 'asc' })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -101,6 +105,8 @@ export const GgconService = {
     if (etapa.trim()) query = query.eq('etapa', etapa);
     if (tecnico.trim()) query = query.eq('tecnico_responsavel', tecnico);
     if (coordenadoria.trim()) query = query.eq('coordenadoria', coordenadoria);
+    if (dataInicio.trim()) query = query.gte('data_movimentacao', dataInicio);
+    if (dataFim.trim()) query = query.lte('data_movimentacao', dataFim);
 
     const { data, error, count } = await query;
     if (error) { console.error(error); notifyFetchError(); return { data: [], count: 0 }; }
@@ -179,6 +185,7 @@ export const GgconService = {
       area_encaminhamento: p.area_encaminhamento ?? null,
       data_envio: p.data_envio ?? null,
       proxima_providencia: p.proxima_providencia ?? null,
+      urgente: p.urgente ?? false,
     };
     if (p.codigo) {
       const { data, error } = await supabase.from('cgof_ggcon_processos').update(payload).eq('codigo', p.codigo).select().single();

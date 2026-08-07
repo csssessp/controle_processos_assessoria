@@ -371,6 +371,7 @@ export interface GgconProcesso {
   area_encaminhamento: string | null;
   data_envio: string | null;
   proxima_providencia: string | null;
+  urgente: boolean;
   created_at?: string;
   updated_at?: string;
 }
