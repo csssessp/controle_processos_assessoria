@@ -219,6 +219,23 @@ export const GgconService = {
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
   },
 
+  // Para o FILTRO da listagem (não para o formulário de cadastro): além dos usuários
+  // cadastrados, inclui quem já aparece no histórico da planilha mas ainda não tem
+  // usuário no sistema (ex.: técnicos antigos/afastados) — senão o filtro não acha
+  // movimentações antigas atribuídas a eles.
+  getTecnicosFiltro: async (): Promise<string[]> => {
+    const [registrados, historico] = await Promise.all([
+      GgconService.getTecnicos(),
+      fetchAllRows<{ tecnico_responsavel: string | null }>('cgof_ggcon_processos', 'tecnico_responsavel'),
+    ]);
+    const nomes = new Set(registrados);
+    for (const row of historico) {
+      const nome = row.tecnico_responsavel?.trim();
+      if (nome) nomes.add(nome);
+    }
+    return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  },
+
   // Espelha os painéis "Executivo" e "Operacional" da planilha de origem.
   getDashboard: async (): Promise<{
     processosUnicos: number;

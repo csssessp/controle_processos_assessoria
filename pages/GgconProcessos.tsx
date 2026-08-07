@@ -662,6 +662,7 @@ export const GgconProcessos = () => {
   // empilharem um atrás do outro, que é o que acontecia com dois estados separados).
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
+  const [tecnicosFiltro, setTecnicosFiltro] = useState<string[]>([]);
   const [historico, setHistorico] = useState<GgconProcesso[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null
@@ -712,6 +713,7 @@ export const GgconProcessos = () => {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { GgconService.getTecnicos().then(setTecnicos); }, []);
+  useEffect(() => { GgconService.getTecnicosFiltro().then(setTecnicosFiltro); }, []);
 
   const toggleSort = (field: GgconSortField) => {
     if (sortBy === field) { setSortOrder(o => o === 'asc' ? 'desc' : 'asc'); }
@@ -849,7 +851,7 @@ export const GgconProcessos = () => {
         </select>
         <select className={INPUT + ' sm:w-44'} value={tecnicoFiltro} onChange={e => { setTecnicoFiltro(e.target.value); setPage(1); }}>
           <option value="">Todos os técnicos</option>
-          {tecnicos.map(t => <option key={t} value={t}>{t}</option>)}
+          {tecnicosFiltro.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <select className={INPUT + ' sm:w-44'} value={coordenadoriaFiltro} onChange={e => { setCoordenadoriaFiltro(e.target.value); setPage(1); }}>
           <option value="">Todas as coordenadorias</option>
