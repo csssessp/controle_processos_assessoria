@@ -15,18 +15,21 @@ import { Profile } from './pages/Profile';
 import { UserRole, userHasArea } from './types';
 import { GpcProcessos } from './pages/GpcProcessos_v2';
 import { GpcRelatorios } from './pages/GpcRelatorios';
+import { GgconProcessos } from './pages/GgconProcessos';
+import { GgconRelatorios } from './pages/GgconRelatorios';
 
 /** Resolve a home page based on user areas */
 const getHomePath = (user: User | null): string => {
   if (!user) return '/login';
   if (userHasArea(user, 'assessoria')) return '/dashboard';
   if (userHasArea(user, 'gpc')) return '/gpc';
+  if (userHasArea(user, 'ggcon')) return '/ggcon';
   return '/dashboard';
 };
 
 import type { User } from './types';
 
-const ProtectedRoute = ({ children, adminOnly = false, requireArea }: { children?: React.ReactNode, adminOnly?: boolean, requireArea?: 'assessoria' | 'gpc' }) => {
+const ProtectedRoute = ({ children, adminOnly = false, requireArea }: { children?: React.ReactNode, adminOnly?: boolean, requireArea?: 'assessoria' | 'gpc' | 'ggcon' }) => {
   const { currentUser } = useApp();
   
   if (!currentUser) {
@@ -106,6 +109,18 @@ const AppRoutes = () => {
       <Route path="/gpc/relatorios" element={
         <ProtectedRoute requireArea="gpc">
           <GpcRelatorios />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/ggcon" element={
+        <ProtectedRoute requireArea="ggcon">
+          <GgconProcessos />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/ggcon/relatorios" element={
+        <ProtectedRoute requireArea="ggcon">
+          <GgconRelatorios />
         </ProtectedRoute>
       } />
 

@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   ShieldCheck,
   ChevronRight,
+  FolderKanban,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -71,12 +72,15 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
   const LogoImage = logoImg;
 
   const isGpc = userHasArea(currentUser, 'gpc');
+  const isGgcon = userHasArea(currentUser, 'ggcon');
   const isAssessoria = userHasArea(currentUser, 'assessoria');
   const isAdmin = currentUser?.role === UserRole.ADMIN;
   const sectorLabel = currentUser?.role === UserRole.ADMIN
     ? 'ADMINISTRADOR'
     : currentUser?.role === UserRole.GPC
     ? 'GRUPO DE PRESTAÇÃO DE CONTAS'
+    : isGgcon && !isAssessoria
+    ? 'GGCON'
     : 'ASSESSORIA';
 
   return (
@@ -187,6 +191,15 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
               <SectionLabel label="GPC" />
               <DrawerItem to="/gpc" icon={ClipboardList} label="Processos GPC" />
               <DrawerItem to="/gpc/relatorios" icon={BarChart2} label="Relatórios GPC" />
+            </>
+          )}
+
+          {/* GGCON — users with ggcon area access */}
+          {isGgcon && (
+            <>
+              <SectionLabel label="GGCON" />
+              <DrawerItem to="/ggcon" icon={FolderKanban} label="Processos GGCON" />
+              <DrawerItem to="/ggcon/relatorios" icon={BarChart2} label="Relatórios GGCON" />
             </>
           )}
 

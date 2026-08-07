@@ -56,6 +56,7 @@ export const UserManagement = () => {
     const selectedAreas: UserArea[] = [];
     if (formData.get('area_assessoria') === 'on') selectedAreas.push('assessoria');
     if (formData.get('area_gpc') === 'on') selectedAreas.push('gpc');
+    if (formData.get('area_ggcon') === 'on') selectedAreas.push('ggcon');
 
     if (selectedAreas.length === 0 && role !== UserRole.ADMIN) {
         setErrorMsg('Selecione ao menos uma área de acesso para o usuário.');
@@ -82,7 +83,7 @@ export const UserManagement = () => {
       email: formData.get('email') as string,
       role: role,
       active: formData.get('active') === 'on',
-      areas: role === UserRole.ADMIN ? ['assessoria', 'gpc'] : selectedAreas,
+      areas: role === UserRole.ADMIN ? ['assessoria', 'gpc', 'ggcon'] : selectedAreas,
       can_sign: formData.get('can_sign') === 'on',
       view_only: formData.get('view_only') === 'on',
       // If password field is empty, do not send it (service will ignore update)
@@ -300,6 +301,10 @@ export const UserManagement = () => {
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
                     <input type="checkbox" name="area_gpc" defaultChecked={editingUser?.areas?.includes('gpc') ?? false} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"/>
                     <span className="flex items-center gap-1 text-blue-700 font-medium">Processos GPC</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                    <input type="checkbox" name="area_ggcon" defaultChecked={editingUser?.areas?.includes('ggcon') ?? false} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"/>
+                    <span className="flex items-center gap-1 text-purple-700 font-medium">Processos GGCON</span>
                   </label>
                 </div>
                 <p className="text-[10px] text-slate-400">Selecione as áreas que o usuário terá acesso. Administradores têm acesso a todas as áreas automaticamente.</p>

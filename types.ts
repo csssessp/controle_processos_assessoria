@@ -16,10 +16,11 @@ export const CGOF_OPTIONS = [
 ] as const;
 
 // Áreas de acesso disponíveis no sistema
-export type UserArea = 'assessoria' | 'gpc';
+export type UserArea = 'assessoria' | 'gpc' | 'ggcon';
 export const USER_AREA_OPTIONS: { value: UserArea; label: string }[] = [
   { value: 'assessoria', label: 'Processos Assessoria' },
   { value: 'gpc', label: 'Processos GPC' },
+  { value: 'ggcon', label: 'Processos GGCON' },
 ];
 
 export interface User {
@@ -339,4 +340,37 @@ export interface GpcProdutividade {
   data_evento: string;
   obs: string | null;
   created_at?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GGCON — Controle de Entrada de Processos SEI
+// Cada registro é uma movimentação de um processo SEI (mesmo processo_sei pode
+// repetir em várias linhas ao longo do tempo — ver services/ggconService.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GgconProcesso {
+  codigo: number;
+  processo_sei: string;
+  numero_demanda: string | null;
+  data_entrada: string | null;
+  data_recebimento: string | null;
+  municipio: string | null;
+  drs_unidade: string | null;
+  coordenadoria: string | null;
+  interessado: string | null;
+  assunto: string | null;
+  tipo: string | null;
+  tecnico_responsavel: string | null;
+  etapa: string | null;
+  data_movimentacao: string | null;
+  aguardando_assinatura: boolean;
+  comite_gestor: boolean;
+  consultoria_juridica: boolean;
+  valor_estado: number | null;
+  observacoes: string | null;
+  area_encaminhamento: string | null;
+  data_envio: string | null;
+  proxima_providencia: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
