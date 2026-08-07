@@ -510,6 +510,11 @@ const HistoricoTimelineModal = ({ processoSei, rows, loading, isViewOnly, onClos
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+type Overlay =
+  | null
+  | { type: 'form'; data?: Partial<GgconProcesso>; returnToHistorico?: string }
+  | { type: 'historico'; processoSei: string };
+
 const FILTROS_STORAGE_KEY = 'ggcon_filtros';
 
 type FiltrosPersistidos = {
@@ -545,9 +550,11 @@ export const GgconProcessos = () => {
   const [sortBy, setSortBy] = useState<GgconSortField>(filtrosIniciais.sortBy);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(filtrosIniciais.sortOrder);
   const [loading, setLoading] = useState(false);
-  const [modal, setModal] = useState<null | { data?: Partial<GgconProcesso> }>(null);
+  // Único estado para qual overlay de tela cheia está aberto — form (novo/editar/nova
+  // movimentação) OU histórico, nunca os dois ao mesmo tempo (evita os dois se
+  // empilharem um atrás do outro, que é o que acontecia com dois estados separados).
+  const [overlay, setOverlay] = useState<Overlay>(null);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
-  const [historicoModal, setHistoricoModal] = useState<null | { processoSei: string }>(null);
   const [historico, setHistorico] = useState<GgconProcesso[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null
@@ -590,12 +597,12 @@ export const GgconProcessos = () => {
   }, []);
 
   useEffect(() => {
-    if (historicoModal) loadHistorico(historicoModal.processoSei);
-  }, [historicoModal, loadHistorico]);
+    if (overlay?.type === 'historico') loadHistorico(overlay.processoSei);
+  }, [overlay, loadHistorico]);
 
   const refreshAfterChange = async () => {
     await load();
-    if (historicoModal) await loadHistorico(historicoModal.processoSei);
+    if (overlay?.type === 'historico') await loadHistorico(overlay.processoSei);
   };
 
   const requestDeleteMovimentacao = async (codigo: number) => {
@@ -617,17 +624,28 @@ export const GgconProcessos = () => {
       await GgconService.deleteProcesso(deleteRequest.codigo);
     } else {
       await GgconService.deleteFluxo(deleteRequest.processoSei);
-      setHistoricoModal(null);
+      setOverlay(null);
     }
     setDeleteRequest(null);
     await refreshAfterChange();
     toast('success', 'Excluído com sucesso.');
   };
 
+  // Abrir o formulário (edição de uma movimentação ou "Nova Movimentação") a partir do
+  // histórico troca o overlay de "historico" para "form" — como é um único estado,
+  // nunca dá pra ter os dois abertos ao mesmo tempo. Guarda o processo_sei em
+  // "returnToHistorico" para reabrir o histórico quando o form fechar.
+  const abrirEdicaoDeMovimentacao = (row: GgconProcesso) => {
+    const processoSei = overlay?.type === 'historico' ? overlay.processoSei : undefined;
+    setOverlay({ type: 'form', data: row, returnToHistorico: processoSei });
+  };
+
   const abrirNovaMovimentacao = () => {
     if (!historico.length) return;
     const atual = historico[historico.length - 1];
-    setModal({
+    const processoSei = overlay?.type === 'historico' ? overlay.processoSei : undefined;
+    setOverlay({
+      type: 'form',
       data: {
         processo_sei: atual.processo_sei,
         municipio: atual.municipio,
@@ -638,7 +656,13 @@ export const GgconProcessos = () => {
         tecnico_responsavel: atual.tecnico_responsavel,
         data_entrada: new Date().toISOString().slice(0, 10),
       },
+      returnToHistorico: processoSei,
     });
+  };
+
+  const fecharModalForm = () => {
+    const returnTo = overlay?.type === 'form' ? overlay.returnToHistorico : undefined;
+    setOverlay(returnTo ? { type: 'historico', processoSei: returnTo } : null);
   };
 
   const totalPages = Math.ceil(count / PAGE_SIZE);
@@ -665,7 +689,7 @@ export const GgconProcessos = () => {
             <Download size={14}/>PDF
           </button>
           {!isViewOnly && (
-            <button className={BTN_PRIMARY} onClick={() => setModal({})}>
+            <button className={BTN_PRIMARY} onClick={() => setOverlay({ type: 'form' })}>
               <Plus size={16}/>Novo Registro
             </button>
           )}
@@ -730,7 +754,7 @@ export const GgconProcessos = () => {
                         <button
                           className="font-medium text-blue-700 hover:text-blue-900 hover:underline transition-colors"
                           title={`Ver histórico de ${r.processo_sei}`}
-                          onClick={() => setHistoricoModal({ processoSei: r.processo_sei })}
+                          onClick={() => setOverlay({ type: 'historico', processoSei: r.processo_sei })}
                         >
                           {r.processo_sei}
                         </button>
@@ -746,7 +770,7 @@ export const GgconProcessos = () => {
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1">
                           {!isViewOnly && (
-                            <button className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors" title="Editar" onClick={() => setModal({ data: r })}><Edit size={15}/></button>
+                            <button className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors" title="Editar" onClick={() => setOverlay({ type: 'form', data: r })}><Edit size={15}/></button>
                           )}
                           {!isViewOnly && (
                             <button className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600 transition-colors" title="Excluir" onClick={() => requestDeleteMovimentacao(r.codigo)}><Trash2 size={15}/></button>
@@ -777,32 +801,32 @@ export const GgconProcessos = () => {
       )}
 
       {/* Modal */}
-      {modal !== null && (
+      {overlay?.type === 'form' && (
         <Modal
-          title={modal.data?.codigo ? 'Editar Movimentação' : 'Novo Registro'}
-          subtitle={modal.data?.processo_sei ? `Processo SEI ${modal.data.processo_sei}` : 'Cadastre um processo ou uma nova movimentação de um processo já existente'}
-          onClose={() => setModal(null)}
+          title={overlay.data?.codigo ? 'Editar Movimentação' : overlay.data?.processo_sei ? 'Nova Movimentação' : 'Novo Registro'}
+          subtitle={overlay.data?.processo_sei ? `Processo SEI ${overlay.data.processo_sei}` : 'Cadastre um processo ou uma nova movimentação de um processo já existente'}
+          onClose={fecharModalForm}
         >
           <GgconForm
-            initial={modal.data}
+            initial={overlay.data}
             tecnicos={tecnicos}
             onSave={async (p) => { await GgconService.saveProcesso(p); await refreshAfterChange(); }}
-            onClose={() => setModal(null)}
+            onClose={fecharModalForm}
           />
         </Modal>
       )}
 
       {/* Histórico do fluxo */}
-      {historicoModal !== null && (
+      {overlay?.type === 'historico' && (
         <HistoricoTimelineModal
-          processoSei={historicoModal.processoSei}
+          processoSei={overlay.processoSei}
           rows={historico}
           loading={historicoLoading}
           isViewOnly={isViewOnly}
-          onClose={() => setHistoricoModal(null)}
-          onEdit={(row) => setModal({ data: row })}
+          onClose={() => setOverlay(null)}
+          onEdit={abrirEdicaoDeMovimentacao}
           onDeleteMovimentacao={(codigo) => requestDeleteMovimentacao(codigo)}
-          onDeleteFluxo={() => requestDeleteFluxo(historicoModal.processoSei)}
+          onDeleteFluxo={() => requestDeleteFluxo(overlay.processoSei)}
           onNovaMovimentacao={abrirNovaMovimentacao}
         />
       )}
