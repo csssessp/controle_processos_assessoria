@@ -723,13 +723,29 @@ export const GpcService = {
     if (error) throw new Error(error.message);
   },
 
+  updateProdutividade: async (id: number, p: Partial<GpcProdutividade>): Promise<void> => {
+    const update: Record<string, any> = {};
+    if (p.obs !== undefined)        update.obs = p.obs;
+    if (p.posicao_id !== undefined) update.posicao_id = p.posicao_id;
+    if (p.posicao !== undefined)    update.posicao = p.posicao;
+    if (p.data_evento !== undefined) update.data_evento = p.data_evento;
+    const { error } = await supabase.from('cgof_gpc_produtividade').update(update).eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  deleteProdutividade: async (id: number): Promise<void> => {
+    const { error } = await supabase.from('cgof_gpc_produtividade').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[]> => {
-    // Source 1: cgof_gpc_produtividade — only CADASTRO + INICIO_ANALISE (fired by DB triggers, dates are always correct)
+    // Source 1: cgof_gpc_produtividade — CADASTRO + INICIO_ANALISE (fired by DB triggers, dates are always correct)
+    // + CADASTRO_EXERCICIO (logged directly by ExercicioForm when a técnico registers a new exercício/ano)
     const { data: prodData, error: prodError } = await supabase
       .from('cgof_gpc_produtividade')
       .select('registro_id, responsavel, evento, data_evento, obs')
       .not('responsavel', 'is', null)
-      .in('evento', ['INICIO_ANALISE', 'CADASTRO'])
+      .in('evento', ['INICIO_ANALISE', 'CADASTRO', 'CADASTRO_EXERCICIO'])
       .order('data_evento', { ascending: true });
     if (prodError) console.error(prodError);
 
@@ -752,7 +768,7 @@ export const GpcService = {
       let evento: string;
       if (mov === 'CORREÇÃO DOCUMENTAL') {
         evento = 'CORRECAO';
-      } else if (mov === 'EM ANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || acao.toUpperCase().includes('ANÁLISE')) {
+      } else if (mov === 'EM ANÁLISE' || mov === 'REANÁLISE' || mov === 'INÍCIO DA ANÁLISE' || acao.toUpperCase().includes('ANÁLISE')) {
         evento = 'INICIO_ANALISE';
       } else if (mov.trim()) {
         evento = 'MOVIMENTO';
@@ -1042,8 +1058,10 @@ export const GpcService = {
       cadastros: number;
       analises: number;
       posicoes: number;
-      movimentos: number; // includes CORRECAO (same as screen)
-      total: number;       // = analises + posicoes + movimentos (Cadastros excluded, same as screen)
+      movimentos: number; // pure movement/status changes only — NOT correções
+      correcoes: number;  // CORRECAO events — correção documental é trabalho analítico, contado à parte
+      exercicios: number; // CADASTRO_EXERCICIO events
+      total: number;       // = analises + posicoes + movimentos + correcoes + exercicios (Cadastros excluded, same as screen)
       paginas: number;
     }[];
     eventos: {
@@ -1080,21 +1098,23 @@ export const GpcService = {
     const filtered = all.filter(e => localPeriodKey(e.data_evento, mes ? 'mes' : 'ano') === target);
 
     // Aggregate per technician — mirrors computeStats() in GpcProcessos_v2.tsx exactly:
-    //   - CORRECAO counted inside movimentos (not separately)
-    //   - Total = analises + posicoes + movimentos (Cadastros NOT counted)
+    //   - CORRECAO is trabalho analítico próprio, contado em sua própria categoria (não em movimentos)
+    //   - Total = analises + posicoes + movimentos + correcoes + exercicios (Cadastros NOT counted)
     //   - Pages: official num_paginas for INICIO_ANALISE (deduped); num_paginas_analise for CORRECAO
     type Stats = {
       cadastros: number;
       analises: Set<number>;
       posicoes: number;
       movimentos: number;
+      correcoes: number;
+      exercicios: number;
       seenAnalise: Set<number>;
       paginas: number;
     };
     const map: Record<string, Stats> = {};
     for (const e of filtered) {
       if (!map[e.responsavel]) {
-        map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, seenAnalise: new Set(), paginas: 0 };
+        map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, seenAnalise: new Set(), paginas: 0 };
       }
       const s = map[e.responsavel];
       if (e.evento === 'CADASTRO')       s.cadastros++;
@@ -1109,9 +1129,10 @@ export const GpcService = {
       if (e.evento === 'POSICAO')        s.posicoes++;
       if (e.evento === 'MOVIMENTO')      s.movimentos++;
       if (e.evento === 'CORRECAO') {
-        s.movimentos++; // counted as movement on screen
+        s.correcoes++;
         s.paginas += e.num_paginas_analise ?? pagesByProcesso.get(e.registro_id) ?? 0;
       }
+      if (e.evento === 'CADASTRO_EXERCICIO') s.exercicios++;
     }
 
     const resumo = Object.entries(map).map(([responsavel, s]) => ({
@@ -1120,7 +1141,9 @@ export const GpcService = {
       analises: s.analises.size,
       posicoes: s.posicoes,
       movimentos: s.movimentos,
-      total: s.analises.size + s.posicoes + s.movimentos, // mirrors screen (no cadastros)
+      correcoes: s.correcoes,
+      exercicios: s.exercicios,
+      total: s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios, // mirrors screen (no cadastros)
       paginas: s.paginas,
     })).sort((a, b) => b.total - a.total);
 

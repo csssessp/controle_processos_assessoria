@@ -431,11 +431,12 @@ export const GpcRelatorios = () => {
         : `Ano ${prodAno}`;
 
       const evtLbl = (e: string) =>
-        e === 'INICIO_ANALISE' ? 'Início de Análise'
-        : e === 'POSICAO'     ? 'Avanço de Posição'
-        : e === 'MOVIMENTO'   ? 'Atualização de Movimento'
-        : e === 'CORRECAO'    ? 'Correção Documental'
-        : e === 'CADASTRO'    ? 'Cadastro'
+        e === 'INICIO_ANALISE'     ? 'Início de Análise'
+        : e === 'POSICAO'          ? 'Avanço de Posição'
+        : e === 'MOVIMENTO'        ? 'Atualização de Movimento'
+        : e === 'CORRECAO'         ? 'Correção Documental'
+        : e === 'CADASTRO'         ? 'Cadastro'
+        : e === 'CADASTRO_EXERCICIO' ? 'Exercício Cadastrado'
         : e;
 
       exportXLSX([
@@ -446,9 +447,11 @@ export const GpcRelatorios = () => {
             'Cadastros': t.cadastros,
             'Processos Analisados': t.analises,
             'Avanços de Posição': t.posicoes,
-            'Atualizações de Movimento': t.movimentos, // inclui Correções Documentais (igual à tela)
-            'Total de Ações': t.total,                 // = Analisados + Posições + Movimentos (sem Cadastros)
-            'Páginas Analisadas': t.paginas,
+            'Atualizações de Movimento': t.movimentos,
+            'Correções Documentais': t.correcoes,       // trabalho analítico de revisão, contado à parte
+            'Exercícios Cadastrados': t.exercicios,
+            'Total de Ações': t.total,                  // = Analisados + Posições + Movimentos + Correções + Exercícios (sem Cadastros)
+            'Páginas Trabalhadas': t.paginas,            // páginas de análises + páginas de correções documentais
           })),
         },
         {

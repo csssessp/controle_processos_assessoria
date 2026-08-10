@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
+import { createPortal } from 'react-dom';
+
 import * as XLSX from 'xlsx';
 
 import {
@@ -16,7 +18,7 @@ import {
 
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
-  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap,
+  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap, MoreVertical,
 
 } from 'lucide-react';
 
@@ -504,6 +506,90 @@ const FThSel = ({ v, onChange, opts }: { v: string; onChange: (x: string) => voi
 
 
 const FThX = ({ cls = '' }: { cls?: string }) => <th className={`px-2 py-1.5 bg-slate-50/80 ${cls}`} />;
+
+
+
+// ---- RowMenu: junta Ver/Editar/Excluir num só botão de três pontos, liberando
+// espaço horizontal da tabela (mesmo padrão usado em GgconProcessos.tsx) ----
+
+const RowMenu = ({ onView, onEdit, onDelete }: { onView: () => void; onEdit?: () => void; onDelete?: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Renderizado num portal em document.body (posição fixa calculada a partir do botão)
+  // em vez de "absolute" dentro da célula — a tabela fica num card com overflow-hidden
+  // (cantos arredondados) que cortaria o menu nas últimas linhas.
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.right - 160 });
+    }
+    setOpen(o => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const closeOnScroll = () => setOpen(false);
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', closeOnScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', closeOnScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+        title="Mais ações"
+        onClick={e => { e.stopPropagation(); toggle(); }}
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 w-40"
+          style={{ top: pos.top, left: pos.left }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors"
+            onClick={() => { setOpen(false); onView(); }}
+          >
+            <Eye size={14} />Ver detalhes
+          </button>
+          {onEdit && (
+            <button
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              onClick={() => { setOpen(false); onEdit(); }}
+            >
+              <Edit size={14} />Editar
+            </button>
+          )}
+          {onDelete && (
+            <button
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              onClick={() => { setOpen(false); onDelete(); }}
+            >
+              <Trash2 size={14} />Excluir
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
 
 
 
@@ -5744,9 +5830,13 @@ interface TechStats {
 
   posicoes: number;       // POSICAO events
 
-  movimentos: number;     // MOVIMENTO events
+  movimentos: number;     // MOVIMENTO events (pure movement/status changes only — NOT correções)
 
-  total: number;          // analises + posicoes + movimentos (excludes cadastros)
+  correcoes: number;      // CORRECAO events — correção documental é trabalho analítico, contado à parte
+
+  exercicios: number;     // CADASTRO_EXERCICIO events
+
+  total: number;          // analises + posicoes + movimentos + correcoes + exercicios (excludes cadastros)
 
 }
 
@@ -5791,11 +5881,11 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
 
   const inPeriod = gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period);
 
-  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number }> = {};
+  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number; correcoes: number; exercicios: number }> = {};
 
   for (const e of inPeriod) {
 
-    if (!map[e.responsavel]) map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0 };
+    if (!map[e.responsavel]) map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0 };
 
     if (e.evento === 'CADASTRO')       map[e.responsavel].cadastros++;
 
@@ -5805,7 +5895,11 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
 
     if (e.evento === 'MOVIMENTO')      map[e.responsavel].movimentos++;
 
-    if (e.evento === 'CORRECAO')       map[e.responsavel].movimentos++; // Correção documental é um tipo de movimentação
+    // Correção documental é trabalho analítico (o técnico revisa páginas do processo) —
+    // contada em sua própria categoria, não escondida dentro de "Movimentos".
+    if (e.evento === 'CORRECAO')       map[e.responsavel].correcoes++;
+
+    if (e.evento === 'CADASTRO_EXERCICIO') map[e.responsavel].exercicios++;
 
   }
 
@@ -5821,7 +5915,11 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
 
     movimentos: s.movimentos,
 
-    total:      s.analises.size + s.posicoes + s.movimentos, // cadastros NOT counted in total
+    correcoes:  s.correcoes,
+
+    exercicios: s.exercicios,
+
+    total:      s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios, // cadastros NOT counted in total
 
   })).sort((a, b) => b.total - a.total);
 
@@ -5944,9 +6042,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     movimentos: acc.movimentos + s.movimentos,
 
+    correcoes: acc.correcoes + s.correcoes,
+
+    exercicios: acc.exercicios + s.exercicios,
+
     total: acc.total + s.total,
 
-  }), { analises: 0, posicoes: 0, movimentos: 0, total: 0 }), [stats]);
+  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, total: 0 }), [stats]);
 
 
 
@@ -5958,9 +6060,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     movimentos: acc.movimentos + s.movimentos,
 
+    correcoes: acc.correcoes + s.correcoes,
+
+    exercicios: acc.exercicios + s.exercicios,
+
     total: acc.total + s.total,
 
-  }), { analises: 0, posicoes: 0, movimentos: 0, total: 0 }), [prevStats]);
+  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, total: 0 }), [prevStats]);
 
 
 
@@ -6094,13 +6200,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     // Sheet 1: Resumo por técnico
 
-    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento',
+    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento', 'Correções Documentais', 'Exercícios Cadastrados',
 
-      'Total de Ações', 'Ações no Fluxo', 'Páginas Analisadas', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
+      'Total de Ações', 'Ações no Fluxo', 'Páginas Trabalhadas', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
 
     const b1 = technicians.map(t => [
 
-      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.total,
+      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.correcoes, t.exercicios, t.total,
 
       t.fluxoRegistros, t.paginas,
 
@@ -6114,7 +6220,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...b1]);
 
-    ws1['!cols'] = [25, 20, 20, 24, 14, 14, 18, 16, 17, 20].map(w => ({ wch: w }));
+    ws1['!cols'] = [25, 20, 20, 24, 14, 20, 20, 14, 18, 16, 17, 20].map(w => ({ wch: w }));
 
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por Técnico');
 
@@ -6124,7 +6230,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     const evtLbl = (e: string) =>
 
-      e === 'INICIO_ANALISE' ? 'Início de Análise' : e === 'POSICAO' ? 'Avanço de Posição' : e === 'MOVIMENTO' ? 'Atualização de Movimento' : e;
+      e === 'INICIO_ANALISE' ? 'Início de Análise' : e === 'POSICAO' ? 'Avanço de Posição' : e === 'MOVIMENTO' ? 'Atualização de Movimento' : e === 'CADASTRO_EXERCICIO' ? 'Exercício Cadastrado' : e === 'CORRECAO' ? 'Correção Documental' : e === 'CADASTRO' ? 'Cadastro' : e;
 
     const b2 = inPeriodEvents.map(e => {
 
@@ -6258,7 +6364,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
       {/* KPI totals */}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
 
         <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4">
 
@@ -6311,6 +6417,42 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           <div className="text-xs text-slate-400 mt-0.5">estágios registrados</div>
 
           <Delta cur={totals.movimentos} prev={prevTotals.movimentos} />
+
+        </div>
+
+        <div className="bg-white rounded-2xl border border-rose-100 shadow-sm px-5 py-4">
+
+          <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center mb-3">
+
+            <PenLine size={18} className="text-rose-600" />
+
+          </div>
+
+          <div className="text-3xl font-black text-rose-700">{totals.correcoes.toLocaleString('pt-BR')}</div>
+
+          <div className="text-xs font-bold text-slate-600 mt-1">Correções Documentais</div>
+
+          <div className="text-xs text-slate-400 mt-0.5">trabalho analítico de revisão</div>
+
+          <Delta cur={totals.correcoes} prev={prevTotals.correcoes} />
+
+        </div>
+
+        <div className="bg-white rounded-2xl border border-teal-100 shadow-sm px-5 py-4">
+
+          <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center mb-3">
+
+            <BookOpen size={18} className="text-teal-600" />
+
+          </div>
+
+          <div className="text-3xl font-black text-teal-700">{totals.exercicios.toLocaleString('pt-BR')}</div>
+
+          <div className="text-xs font-bold text-slate-600 mt-1">Exercícios Cadastrados</div>
+
+          <div className="text-xs text-slate-400 mt-0.5">exercícios registrados no período</div>
+
+          <Delta cur={totals.exercicios} prev={prevTotals.exercicios} />
 
         </div>
 
@@ -6378,11 +6520,15 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider" title="Avanços de posição registrados">Posições</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="Atualizações de movimento">Movimentos</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="Alterações de estágio/status do processo (sem revisão de páginas)">Movimentos</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider">Total</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-rose-500 uppercase tracking-wider" title="Correções documentais registradas — trabalho analítico de revisão do processo">Correções</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Total de páginas analisadas pelo técnico no período">Páginas Analisadas</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-teal-500 uppercase tracking-wider" title="Exercícios registrados nos processos">Exercícios</th>
+
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider" title="Analisados + Posições + Movimentos + Correções + Exercícios (Cadastros não entram no total)">Total</th>
+
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Soma das páginas dos processos analisados (uma vez por processo) + páginas de cada correção documental registrada">Páginas Trabalhadas</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Tempo médio em dias entre os eventos registrados pelo técnico">Tempo Médio</th>
 
@@ -6396,7 +6542,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
               {technicians.map(t => {
 
-                const totalComposition = t.analises + t.posicoes + t.movimentos;
+                const totalComposition = t.analises + t.posicoes + t.movimentos + t.correcoes + t.exercicios;
 
                 const pct = totals.total > 0 ? Math.round((t.total / totals.total) * 100) : 0;
 
@@ -6488,6 +6634,31 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                     </td>
 
+                    {/* Correções */}
+
+                    <td className="px-4 py-3 text-center">
+
+                      {t.correcoes > 0
+
+                        ? <span className="inline-block min-w-[32px] px-2 py-0.5 bg-rose-50 text-rose-700 rounded-lg text-sm font-bold">{t.correcoes}</span>
+
+                        : <span className="text-slate-300">—</span>}
+
+                    </td>
+
+                    {/* Exercícios */}
+
+                    <td className="px-4 py-3 text-center">
+
+                      {t.exercicios > 0
+
+
+                        ? <span className="inline-block min-w-[32px] px-2 py-0.5 bg-teal-50 text-teal-700 rounded-lg text-sm font-bold">{t.exercicios}</span>
+
+                        : <span className="text-slate-300">—</span>}
+
+                    </td>
+
                     {/* Total */}
 
                     <td className="px-4 py-3 text-center">
@@ -6544,6 +6715,10 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                             {t.movimentos > 0 && <div style={{ width: `${(t.movimentos / totalComposition) * 100}%` }} className="bg-purple-400" />}
 
+                            {t.correcoes  > 0 && <div style={{ width: `${(t.correcoes  / totalComposition) * 100}%` }} className="bg-rose-400" />}
+
+                            {t.exercicios > 0 && <div style={{ width: `${(t.exercicios / totalComposition) * 100}%` }} className="bg-teal-400" />}
+
                           </div>
 
                           <div className="flex h-1.5 rounded-full bg-slate-100 overflow-hidden">
@@ -6584,10 +6759,16 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                 {/* Movimentos */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold">{totals.movimentos}</span></td>
 
+                {/* Correções */}
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-rose-50 text-rose-700 rounded-lg text-xs font-bold">{totals.correcoes}</span></td>
+
+                {/* Exercícios */}
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-700 rounded-lg text-xs font-bold">{totals.exercicios}</span></td>
+
                 {/* Total */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold">{totals.total}</span></td>
 
-                {/* Páginas Analisadas */}
+                {/* Páginas Trabalhadas */}
                 <td className="px-4 py-2.5 text-center text-xs font-bold text-slate-500">{(() => { const tp = technicians.reduce((s, t) => s + (t.paginas ?? 0), 0); return tp > 0 ? tp.toLocaleString('pt-BR') : '—'; })()}</td>
 
                 {/* Tempo Médio + Composição */}
@@ -6610,6 +6791,10 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-amber-400 inline-block" />Avanços de posição</span>
 
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-purple-400 inline-block" />Atualizações de movimento</span>
+
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-rose-400 inline-block" />Correções documentais</span>
+
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-teal-400 inline-block" />Exercícios cadastrados</span>
 
             <span className="ml-auto flex items-center gap-1">Tempo: <span className="text-green-600 font-semibold">=5d rápido</span> · <span className="text-amber-600 font-semibold">=15d regular</span> · <span className="text-red-600 font-semibold">&gt;15d lento</span></span>
 
@@ -6669,7 +6854,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <>
 
-                  <div className="grid grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 flex-shrink-0">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100 flex-shrink-0">
 
                     {[
 
@@ -6678,6 +6863,10 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                       { label: 'Posições', value: st.posicoes, color: 'text-amber-700', bg: 'bg-amber-50' },
 
                       { label: 'Movimentos', value: st.movimentos, color: 'text-purple-700', bg: 'bg-purple-50' },
+
+                      { label: 'Correções', value: st.correcoes, color: 'text-rose-700', bg: 'bg-rose-50' },
+
+                      { label: 'Exercícios', value: st.exercicios, color: 'text-teal-700', bg: 'bg-teal-50' },
 
                       { label: 'Total', value: st.total, color: 'text-blue-700', bg: 'bg-blue-50' },
 
@@ -6703,7 +6892,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                         <div className="text-lg font-black text-slate-700">{st.paginas.toLocaleString('pt-BR')}</div>
 
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Páginas Analisadas</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide" title="Análises + correções documentais">Páginas Trabalhadas</div>
 
                       </div>
 
@@ -7260,29 +7449,12 @@ export const GpcProcessos = () => {
         );
       }
 
-      if (form.responsavel) {
-
-        await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel, posicao_id: form.posicao_id ?? null, posicao: posLabel, evento: 'CRIACAO', data_evento: now });
-
-      }
-
-      // If created already in EM ANÁLISE, register start of analysis
-
-      if (form.movimento === 'EM ANÁLISE') {
-
-        await GpcService.saveProdutividade({
-
-          registro_id: saved.codigo, responsavel: form.responsavel ?? null,
-
-          posicao_id: form.posicao_id ?? null, posicao: posLabel,
-
-          evento: 'INICIO_ANALISE', data_evento: now,
-
-          obs: `Processo criado já em análise${form.responsavel ? ' por ' + form.responsavel : ''}`,
-
-        });
-
-      }
+      // CADASTRO e INICIO_ANALISE já são registrados automaticamente pelos triggers do
+      // banco (fn_log_cadastro_produtividade / fn_log_analistas_produtividade) a partir de
+      // responsavel_cadastro / responsaveis_analise. O campo legado form.responsavel não é
+      // mais preenchido pela UI (registros antigos podem trazê-lo do banco com texto livre,
+      // ex.: "MARCO"), então gravar produtividade a partir dele criava eventos fantasmas
+      // desconectados dos técnicos realmente atribuídos.
 
     } else {
 
@@ -7300,33 +7472,10 @@ export const GpcProcessos = () => {
 
 
 
-      // 1. Responsible changed
-
-      if (form.responsavel !== prev.responsavel && form.responsavel) {
-
-        await GpcService.saveProdutividade({ registro_id: saved.codigo, responsavel: form.responsavel, posicao_id: form.posicao_id ?? null, posicao: posLabel, evento: 'RESPONSAVEL', data_evento: now });
-
-      }
-
-
-
-      // 2. Process entering EM ANÁLISE (e.g. new technician starts analysis)
-
-      if (prev.movimento !== 'EM ANÁLISE' && form.movimento === 'EM ANÁLISE') {
-
-        await GpcService.saveProdutividade({
-
-          registro_id: saved.codigo, responsavel: form.responsavel ?? null,
-
-          posicao_id: form.posicao_id ?? null, posicao: posLabel,
-
-          evento: 'INICIO_ANALISE', data_evento: now,
-
-          obs: `Iniciado em análise${form.responsavel ? ' por ' + form.responsavel : ''}`,
-
-        });
-
-      }
+      // Mudança de responsável e início de análise já são registrados automaticamente
+      // pelos triggers do banco a partir de responsavel_cadastro / responsaveis_analise
+      // (ver comentário acima). O campo legado form.responsavel não reflete mais os
+      // analistas atribuídos e não deve ser usado para gravar produtividade.
 
 
 
@@ -7414,40 +7563,89 @@ export const GpcProcessos = () => {
 
       }
 
-      // 5. Correção documental — registra evento quando há obs de correção preenchida pela primeira vez ou alterada
+      // 5. Correção documental — registra evento quando há obs de correção preenchida pela primeira vez ou
+      // alterada. Se o técnico preencheu errado e corrigiu no MESMO DIA, o evento de produtividade já
+      // registrado é atualizado (ou removido, se o campo foi limpo) em vez de duplicar/deixar um crédito
+      // incorreto parado — a contabilização passa a refletir o valor final e correto. Uma edição num dia
+      // diferente é tratada como uma nova correção (ex.: processo devolvido de novo depois de resolvido).
       const correcaoAlterada =
         (form.correcao_obs ?? '') !== (prev.correcao_obs ?? '') ||
         (form.correcao_paginas ?? 0) !== (prev.correcao_paginas ?? 0);
-      if (correcaoAlterada && form.correcao_obs) {
-        const corrDesc = form.correcao_paginas
-          ? `Correção documental — ${form.correcao_paginas} pág. — ${form.correcao_obs}`
-          : `Correção documental — ${form.correcao_obs}`;
-        await GpcService.saveProdutividade({
-          registro_id: saved.codigo,
-          responsavel: form.responsavel ?? null,
-          posicao_id: form.posicao_id ?? null,
-          posicao: posLabel,
-          evento: 'CORRECAO',
-          data_evento: now,
-          obs: corrDesc,
-        });
-        // Também registra no fluxo técnico para aparecer na linha do tempo
-        const analistas = form.responsaveis_analise?.length
-          ? form.responsaveis_analise
-          : form.responsavel ? [form.responsavel] : [currentUser?.name ?? 'GPC'];
-        await Promise.all(analistas.map(analista => GpcService.saveFluxoTecnico({
-          registro_id: saved.codigo,
-          tecnico: analista,
-          movimento: 'CORREÇÃO DOCUMENTAL',
-          acao: form.correcao_obs,
-          num_paginas_analise: form.correcao_paginas ?? null,
-          data_evento: now,
-        })));
-        if (currentUser) {
-          await GpcService.saveGpcLog(
-            `Correção documental registrada no processo #${saved.codigo}`,
-            currentUser.name, currentUser.id
-          );
+      if (correcaoAlterada) {
+        const hadPrev = !!(prev.correcao_obs && prev.correcao_obs.trim());
+        const hasNew = !!(form.correcao_obs && form.correcao_obs.trim());
+
+        const [prevProdCorrecoes, prevFluxoCorrecoes] = hadPrev
+          ? await Promise.all([
+              GpcService.getProdutividade(saved.codigo),
+              GpcService.getFluxoTecnico(saved.codigo),
+            ])
+          : [[], []];
+        const lastProdCorrecao = prevProdCorrecoes
+          .filter(e => e.evento === 'CORRECAO')
+          .sort((a, b) => a.data_evento.localeCompare(b.data_evento))
+          .pop();
+        const lastFluxoCorrecao = prevFluxoCorrecoes
+          .filter(e => e.movimento === 'CORREÇÃO DOCUMENTAL')
+          .sort((a, b) => a.data_evento.localeCompare(b.data_evento))
+          .pop();
+        const sameDayAsLast = !!lastProdCorrecao && periodoKey(lastProdCorrecao.data_evento, 'dia') === periodoKey(now, 'dia');
+        const isFixInPlace = hadPrev && sameDayAsLast;
+
+        if (hasNew) {
+          const corrDesc = form.correcao_paginas
+            ? `Correção documental — ${form.correcao_paginas} pág. — ${form.correcao_obs}`
+            : `Correção documental — ${form.correcao_obs}`;
+          const analistas = form.responsaveis_analise?.length
+            ? form.responsaveis_analise
+            : form.responsavel ? [form.responsavel] : [currentUser?.name ?? 'GPC'];
+
+          if (isFixInPlace && lastProdCorrecao) {
+            await GpcService.updateProdutividade(lastProdCorrecao.id, {
+              posicao_id: form.posicao_id ?? null, posicao: posLabel, obs: corrDesc, data_evento: now,
+            });
+          } else {
+            await GpcService.saveProdutividade({
+              registro_id: saved.codigo, responsavel: form.responsavel ?? null,
+              posicao_id: form.posicao_id ?? null, posicao: posLabel,
+              evento: 'CORRECAO', data_evento: now, obs: corrDesc,
+            });
+          }
+
+          // Também registra no fluxo técnico para aparecer na linha do tempo
+          if (isFixInPlace && lastFluxoCorrecao) {
+            await GpcService.saveFluxoTecnico({
+              id: lastFluxoCorrecao.id, registro_id: saved.codigo, tecnico: lastFluxoCorrecao.tecnico,
+              movimento: 'CORREÇÃO DOCUMENTAL', acao: form.correcao_obs,
+              num_paginas_analise: form.correcao_paginas ?? null, data_evento: now,
+            });
+          } else {
+            await Promise.all(analistas.map(analista => GpcService.saveFluxoTecnico({
+              registro_id: saved.codigo, tecnico: analista,
+              movimento: 'CORREÇÃO DOCUMENTAL', acao: form.correcao_obs,
+              num_paginas_analise: form.correcao_paginas ?? null, data_evento: now,
+            })));
+          }
+
+          if (currentUser) {
+            await GpcService.saveGpcLog(
+              isFixInPlace
+                ? `Correção documental do processo #${saved.codigo} atualizada (preenchimento corrigido)`
+                : `Correção documental registrada no processo #${saved.codigo}`,
+              currentUser.name, currentUser.id
+            );
+          }
+        } else if (isFixInPlace) {
+          // Campo foi limpo no mesmo dia em que foi preenchido — era um preenchimento indevido;
+          // remove o crédito de produtividade em vez de deixá-lo incorreto no histórico.
+          if (lastProdCorrecao) await GpcService.deleteProdutividade(lastProdCorrecao.id);
+          if (lastFluxoCorrecao) await GpcService.deleteFluxoTecnico(lastFluxoCorrecao.id);
+          if (currentUser) {
+            await GpcService.saveGpcLog(
+              `Correção documental removida do processo #${saved.codigo} (preenchimento corrigido)`,
+              currentUser.name, currentUser.id
+            );
+          }
         }
       }
 
@@ -8052,7 +8250,7 @@ export const GpcProcessos = () => {
 
                     <tr className="bg-slate-50/80 border-b border-slate-100">
 
-                      <SortTh label="Processo"    col="processo"    sort={sort} onSort={toggleSort} cls="w-40" />
+                      <SortTh label="Processo"    col="processo"    sort={sort} onSort={toggleSort} cls="w-52" />
 
                       <SortTh label="Convênio"    col="convenio"    sort={sort} onSort={toggleSort} cls="w-24" />
 
@@ -8074,7 +8272,7 @@ export const GpcProcessos = () => {
 
                       <SortTh label="Situação"    col="situacao"    sort={sort} onSort={toggleSort} cls="w-28" />
 
-                      <FThX cls="w-32" />
+                      <FThX cls="w-12" />
 
                     </tr>
 
@@ -8118,7 +8316,7 @@ export const GpcProcessos = () => {
 
                               <div className="flex items-center gap-1.5">
 
-                                <span className="font-bold text-blue-700 text-xs font-mono tracking-tight break-words">
+                                <span className="font-bold text-blue-700 text-xs font-mono tracking-tight whitespace-nowrap" title={r.processo ?? undefined}>
 
                                   {r.processo ?? '-'}
 
@@ -8306,57 +8504,13 @@ export const GpcProcessos = () => {
 
                           </td>
 
-                          <td className="px-3 py-4">
+                          <td className="px-1 py-4 text-center">
 
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150" onClick={e => e.stopPropagation()}>
-
-                              <button
-
-                                className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-500 hover:text-blue-700 transition-colors shadow-sm"
-
-                                title="Ver detalhes"
-
-                                onClick={() => setViewRow(r)}
-
-                              >
-
-                                <Eye size={13} />
-
-                              </button>
-
-                              {!isViewOnly && (<>
-
-                              <button
-
-                                className="p-2 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors shadow-sm"
-
-                                title="Editar"
-
-                                onClick={() => setModal({ data: r })}
-
-                              >
-
-                                <Edit size={13} />
-
-                              </button>
-
-                              <button
-
-                                className="p-2 rounded-xl bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors shadow-sm"
-
-                                title="Excluir"
-
-                                onClick={() => handleDelete(r.codigo)}
-
-                              >
-
-                                <Trash2 size={13} />
-
-                              </button>
-
-                              </>)}
-
-                            </div>
+                            <RowMenu
+                              onView={() => setViewRow(r)}
+                              onEdit={!isViewOnly ? () => setModal({ data: r }) : undefined}
+                              onDelete={!isViewOnly ? () => handleDelete(r.codigo) : undefined}
+                            />
 
                           </td>
 
