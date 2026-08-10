@@ -90,7 +90,11 @@ export const GgconService = {
       dataInicio = '', dataFim = '', sortBy = 'codigo', sortOrder = 'desc',
     } = f;
     let query = supabase
-      .from('cgof_ggcon_processos')
+      // A listagem mostra só a movimentação mais recente de cada processo_sei (evita
+      // repetir o mesmo processo uma vez por movimentação) — ver parte_42_ggcon_view_atual.sql.
+      // O histórico completo continua acessível via getHistoricoPorProcesso, que consulta
+      // a tabela cgof_ggcon_processos diretamente.
+      .from('cgof_ggcon_processos_atual')
       .select('*', { count: 'exact' })
       // Urgentes sempre no topo, independente da ordenação escolhida pelo usuário.
       .order('urgente', { ascending: false })

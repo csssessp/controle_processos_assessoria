@@ -814,7 +814,7 @@ export const GgconProcessos = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Processos GGCON</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{count.toLocaleString('pt-BR')} movimentações registradas</p>
+            <p className="text-sm text-slate-500 mt-0.5">{count.toLocaleString('pt-BR')} processo{count !== 1 ? 's' : ''} registrado{count !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex items-center gap-1">
             <button
