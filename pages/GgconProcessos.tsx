@@ -532,6 +532,10 @@ const HistoricoTimelineModal = ({ processoSei, rows, loading, isViewOnly, onClos
   onNovaMovimentacao: () => void;
 }) => {
   const maxCodigo = rows.length ? Math.max(...rows.map(r => r.codigo)) : -1;
+  // "rows" chega em ordem cronológica ascendente (mais antiga primeiro — usado por
+  // abrirNovaMovimentacao para achar a movimentação mais recente); a exibição na
+  // timeline é do mais novo para o mais velho, então invertemos só para renderizar.
+  const displayRows = [...rows].reverse();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-slate-50/95 rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-3xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -555,7 +559,7 @@ const HistoricoTimelineModal = ({ processoSei, rows, loading, isViewOnly, onClos
             <div className="flex items-center justify-center py-16"><Loader2 size={28} className="animate-spin text-blue-500"/></div>
           ) : (
             <div className="relative border-l-2 border-blue-100 ml-4 space-y-6">
-              {rows.map(item => {
+              {displayRows.map(item => {
                 const atual = item.codigo === maxCodigo;
                 return (
                   <div key={item.codigo} className="relative pl-8">
