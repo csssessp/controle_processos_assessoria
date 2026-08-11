@@ -1477,7 +1477,7 @@ const MOVIMENTOS = [
 
 
 
-// ---- Atividades Avulsas (trabalho de técnico não ligado a um processo) ----
+// ---- Atividades Avulsas (trabalho de técnico sem vínculo a um registro de processo do GPC — pode envolver processo de outro setor/departamento) ----
 
 const ATIVIDADE_AVULSA_TIPOS = [
 
@@ -5340,9 +5340,10 @@ const ObjetoForm = ({ processoId, initial, onSave, onClose }: {
 
 };
 
-// Trabalho de um técnico que não está ligado a um processo específico do GPC (auxílio a
-// outro setor, elaboração de documento, reunião técnica, treinamento...) — ver comentário
-// em cgof_gpc_atividade_avulsa (parte_43_gpc_atividade_avulsa.sql).
+// Trabalho de um técnico sem vínculo a um registro de processo do GPC — pode muito bem
+// envolver um processo, só que de outro setor/departamento (auxílio a outro setor,
+// elaboração de documento, reunião técnica, treinamento...) — ver comentário em
+// cgof_gpc_atividade_avulsa (parte_43_gpc_atividade_avulsa.sql).
 const AtividadeAvulsaForm = ({ initial, gpcUsers, currentUserName, onSave, onClose }: {
   initial?: Partial<GpcAtividadeAvulsa>;
   gpcUsers: { id: string; name: string }[];
@@ -6009,7 +6010,7 @@ interface TechStats {
 
   exercicios: number;     // CADASTRO_EXERCICIO events
 
-  outras: number;         // atividades avulsas (trabalho não ligado a processo)
+  outras: number;         // atividades avulsas (trabalho sem vínculo a processo do GPC)
 
   total: number;          // analises + posicoes + movimentos + correcoes + exercicios + outras (excludes cadastros)
 
@@ -6509,7 +6510,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     XLSX.utils.book_append_sheet(wb, ws2, 'Detalhamento de Eventos');
 
-    // Sheet 3: Atividades avulsas (trabalho não ligado a processo)
+    // Sheet 3: Atividades avulsas (trabalho sem vínculo a processo do GPC)
 
     const h3 = ['Técnico', 'Tipo', 'Data', 'Descrição', 'Contexto', 'Páginas', 'Horas'];
 
@@ -6756,7 +6757,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
           <div className="text-xs font-bold text-slate-600 mt-1">Outras Atividades</div>
 
-          <div className="text-xs text-slate-400 mt-0.5">trabalho não ligado a processo</div>
+          <div className="text-xs text-slate-400 mt-0.5">sem processo GPC vinculado</div>
 
           <Delta cur={totals.outras} prev={prevTotals.outras} />
 
@@ -6832,7 +6833,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-teal-500 uppercase tracking-wider" title="Exercícios registrados nos processos">Exercícios</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-indigo-500 uppercase tracking-wider" title="Trabalho registrado que não está ligado a um processo (auxílio a outro setor, elaboração de documento, etc.)">Outras</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-indigo-500 uppercase tracking-wider" title="Trabalho registrado sem vínculo a um processo do GPC — pode envolver processo de outro setor/departamento (auxílio a outro setor, elaboração de documento, etc.)">Outras</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider" title="Analisados + Posições + Movimentos + Correções + Exercícios + Outras Atividades (Cadastros não entram no total)">Total</th>
 
@@ -7417,7 +7418,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 )}
 
-                {/* Outras atividades (trabalho não ligado a processo) */}
+                {/* Outras atividades (trabalho sem vínculo a processo do GPC) */}
 
                 {techAtividades.length > 0 && (
 
@@ -8282,7 +8283,7 @@ export const GpcProcessos = () => {
             <button
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-700 text-sm font-semibold rounded-xl border border-indigo-200 hover:bg-indigo-50 active:scale-95 transition-all shadow-sm"
               onClick={() => setAtividadeModal({})}
-              title="Registrar trabalho que não está ligado a um processo (auxílio a outro setor, elaboração de documento, etc.)"
+              title="Registrar trabalho sem vínculo a um processo do GPC — pode envolver processo de outro setor/departamento (auxílio a outro setor, elaboração de documento, etc.)"
             >
 
               <ClipboardList size={16} />Registrar Outras Atividades
@@ -9141,7 +9142,7 @@ export const GpcProcessos = () => {
 
       )}
 
-      {/* Registrar Atividade Avulsa (trabalho não ligado a um processo) */}
+      {/* Registrar Atividade Avulsa (trabalho sem vínculo a um processo do GPC) */}
 
       {atividadeModal && (
 

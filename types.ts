@@ -342,7 +342,8 @@ export interface GpcProdutividade {
   created_at?: string;
 }
 
-// Trabalho de um técnico GPC que NÃO está ligado a um processo (ex.: auxílio a outro
+// Trabalho de um técnico GPC sem vínculo a um registro de processo do GPC — pode muito
+// bem envolver um processo, só que de outro setor/departamento (ex.: auxílio a outro
 // setor, elaboração de documento, reunião técnica) — por isso não tem registro_id,
 // diferente de GpcProdutividade/GpcFluxoTecnico. Conta como produtividade própria
 // ("Outras Atividades") na tela de Produtividade.

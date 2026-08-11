@@ -1,9 +1,12 @@
 -- =============================================================================
--- PARTE 43: "Atividades Avulsas" — trabalho de técnico não ligado a um processo
--- (ex.: auxiliar outro setor numa análise, ajudar a elaborar um documento).
+-- PARTE 43: "Atividades Avulsas" — trabalho de técnico sem vínculo a um registro
+-- de processo do GPC (ex.: auxiliar outro setor numa análise, ajudar a elaborar
+-- um documento). Isso NÃO significa que não há processo nenhum envolvido — pode
+-- muito bem ser um processo de outro setor/departamento, só não é um registro_id
+-- do GPC.
 --
 -- Diferente de cgof_gpc_produtividade / cgof_gpc_fluxo_tecnico, essa tabela NÃO
--- tem registro_id — o trabalho que ela registra não está amarrado a um processo
+-- tem registro_id — o trabalho que ela registra não está amarrado a um registro
 -- específico do GPC. Por isso é uma tabela própria, não uma extensão das
 -- existentes (que exigem registro_id NOT NULL).
 --
@@ -32,4 +35,4 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.cgof_gpc_atividade_avulsa TO anon
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 
 COMMENT ON TABLE public.cgof_gpc_atividade_avulsa IS
-  'Registro de trabalho de um técnico GPC que não está ligado a um processo específico (ex.: auxílio a outro setor, elaboração de documento, reunião técnica, treinamento). Conta como produtividade na tela "Produtividade" (coluna/card "Outras Atividades").';
+  'Registro de trabalho de um técnico GPC sem vínculo a um registro de processo do GPC (ex.: auxílio a outro setor, elaboração de documento, reunião técnica, treinamento). Conta como produtividade na tela "Produtividade" (coluna/card "Outras Atividades").';

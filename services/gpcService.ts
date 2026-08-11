@@ -861,9 +861,10 @@ export const GpcService = {
   },
 
   // ── ATIVIDADES AVULSAS ──────────────────────────────────────────────────
-  // Trabalho de um técnico que não está ligado a um processo (auxílio a outro setor,
-  // elaboração de documento, etc.) — ver comentário em cgof_gpc_atividade_avulsa
-  // (parte_43_gpc_atividade_avulsa.sql) sobre por que isso não é registro_id-based.
+  // Trabalho de um técnico sem vínculo a um registro de processo do GPC — pode envolver
+  // processo de outro setor/departamento (auxílio a outro setor, elaboração de documento,
+  // etc.) — ver comentário em cgof_gpc_atividade_avulsa (parte_43_gpc_atividade_avulsa.sql)
+  // sobre por que isso não é registro_id-based.
 
   getAtividadesAvulsas: async (): Promise<GpcAtividadeAvulsa[]> => {
     return fetchAllRows<GpcAtividadeAvulsa>(
@@ -1110,7 +1111,7 @@ export const GpcService = {
       movimentos: number; // pure movement/status changes only — NOT correções
       correcoes: number;  // CORRECAO events — correção documental é trabalho analítico, contado à parte
       exercicios: number; // CADASTRO_EXERCICIO events
-      outras: number;      // atividades avulsas (trabalho não ligado a processo)
+      outras: number;      // atividades avulsas (trabalho sem vínculo a processo do GPC)
       total: number;       // = analises + posicoes + movimentos + correcoes + exercicios + outras (Cadastros excluded, same as screen)
       paginas: number;
       horas: number;        // soma de horas registradas nas atividades avulsas
@@ -1150,7 +1151,7 @@ export const GpcService = {
     const target = mes ? `${ano}-${mes}` : ano;
     const filtered = all.filter(e => localPeriodKey(e.data_evento, mes ? 'mes' : 'ano') === target);
 
-    // Atividades avulsas (trabalho não ligado a processo) — mesma filtragem por período.
+    // Atividades avulsas (trabalho sem vínculo a processo do GPC) — mesma filtragem por período.
     const allAtividades = await GpcServiceSelf.getAtividadesAvulsas() as GpcAtividadeAvulsa[];
     const atividadesFiltradas = allAtividades.filter(a => localPeriodKey(a.data_atividade, mes ? 'mes' : 'ano') === target);
 
