@@ -18,7 +18,7 @@ import {
 
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
-  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap, MoreVertical,
+  ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap, MoreVertical, RefreshCw,
 
 } from 'lucide-react';
 
@@ -5947,13 +5947,28 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
   const [selectedTech, setSelectedTech] = useState<string | null>(null);
 
+  const [refreshing, setRefreshing] = useState(false);
 
 
-  useEffect(() => {
 
-    GpcService.getProdutividadeDetalhado().then(d => { setEvents(d); setLoading(false); });
+  // Busca os eventos só quando a tela abre (não há atualização automática) — se um
+  // técnico registrar trabalho enquanto esta tela já está aberta em outra sessão/aba,
+  // os números ficam desatualizados até "Atualizar" ser clicado ou a tela reaberta.
+  const loadEvents = useCallback(async (isRefresh?: boolean) => {
+
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+
+    const d = await GpcService.getProdutividadeDetalhado();
+
+    setEvents(d);
+
+    if (isRefresh) setRefreshing(false); else setLoading(false);
 
   }, []);
+
+
+
+  useEffect(() => { loadEvents(); }, [loadEvents]);
 
   // Refaz a busca do resumo de fluxo sempre que o período muda — antes ele era buscado
   // uma única vez (sempre "geral"), o que misturava um denominador de todo o histórico
@@ -6349,6 +6364,15 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           </div>
 
         )}
+
+        <button
+          onClick={() => loadEvents(true)}
+          disabled={refreshing}
+          title="Buscar os eventos mais recentes (a tela não se atualiza sozinha)"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-slate-200 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />Atualizar
+        </button>
 
         <span className="ml-auto text-sm text-slate-400">
 
