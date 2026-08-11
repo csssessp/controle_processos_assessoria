@@ -342,6 +342,23 @@ export interface GpcProdutividade {
   created_at?: string;
 }
 
+// Trabalho de um técnico GPC que NÃO está ligado a um processo (ex.: auxílio a outro
+// setor, elaboração de documento, reunião técnica) — por isso não tem registro_id,
+// diferente de GpcProdutividade/GpcFluxoTecnico. Conta como produtividade própria
+// ("Outras Atividades") na tela de Produtividade.
+export interface GpcAtividadeAvulsa {
+  codigo: number;
+  tecnico: string;
+  tipo: string;
+  descricao: string;
+  contexto?: string | null;
+  horas?: number | null;
+  paginas?: number | null;
+  data_atividade: string;
+  registrado_por?: string | null;
+  created_at?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GGCON — Controle de Entrada de Processos SEI
 // Cada registro é uma movimentação de um processo SEI (mesmo processo_sei pode

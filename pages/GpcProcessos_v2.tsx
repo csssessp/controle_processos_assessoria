@@ -38,7 +38,7 @@ import {
 
   GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
 
-  GpcFluxoTecnico, ParcAutorizacaoEntry
+  GpcFluxoTecnico, ParcAutorizacaoEntry, GpcAtividadeAvulsa
 
 } from '../types';
 
@@ -1474,6 +1474,24 @@ const MOVIMENTOS = [
 
 
 // ---- Fluxo Técnico Panel ----
+
+
+
+// ---- Atividades Avulsas (trabalho de técnico não ligado a um processo) ----
+
+const ATIVIDADE_AVULSA_TIPOS = [
+
+  'Auxílio a Outro Setor/Departamento',
+
+  'Elaboração de Documento',
+
+  'Reunião/Atendimento Técnico',
+
+  'Treinamento/Capacitação',
+
+  'Outro',
+
+];
 
 
 
@@ -5322,6 +5340,161 @@ const ObjetoForm = ({ processoId, initial, onSave, onClose }: {
 
 };
 
+// Trabalho de um técnico que não está ligado a um processo específico do GPC (auxílio a
+// outro setor, elaboração de documento, reunião técnica, treinamento...) — ver comentário
+// em cgof_gpc_atividade_avulsa (parte_43_gpc_atividade_avulsa.sql).
+const AtividadeAvulsaForm = ({ initial, gpcUsers, currentUserName, onSave, onClose }: {
+  initial?: Partial<GpcAtividadeAvulsa>;
+  gpcUsers: { id: string; name: string }[];
+  currentUserName?: string;
+  onSave: (a: Partial<GpcAtividadeAvulsa>) => Promise<void>;
+  onClose: () => void;
+}) => {
+
+  const [f, setF] = useState<Partial<GpcAtividadeAvulsa>>(initial ?? {
+    tecnico: currentUserName && gpcUsers.some(u => u.name === currentUserName) ? currentUserName : undefined,
+    tipo: ATIVIDADE_AVULSA_TIPOS[0],
+    data_atividade: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const [err, setErr] = useState('');
+
+  const set = (k: keyof GpcAtividadeAvulsa, v: any) => setF(p => ({ ...p, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+
+    e.preventDefault(); setErr('');
+
+    if (!f.tecnico) { setErr('Selecione o técnico responsável.'); return; }
+
+    if (!f.descricao?.trim()) { setErr('Descreva o que foi feito.'); return; }
+
+    setSaving(true);
+
+    try { await onSave(f); }
+
+    catch (ex: any) { setErr(ex.message); setSaving(false); }
+
+  };
+
+  return (
+
+    <form onSubmit={submit} className="space-y-4">
+
+      {err && <div className="text-red-600 text-sm flex items-center gap-2"><AlertCircle size={14} />{err}</div>}
+
+      <div className="grid grid-cols-2 gap-3">
+
+        <div>
+
+          <label className={LABEL}>Técnico Responsável *</label>
+
+          <select className={INPUT} value={f.tecnico ?? ''} onChange={e => set('tecnico', e.target.value || undefined)} required>
+
+            <option value="">— selecione —</option>
+
+            {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+
+          </select>
+
+        </div>
+
+        <div>
+
+          <label className={LABEL}>Tipo de Atividade *</label>
+
+          <select className={INPUT} value={f.tipo ?? ''} onChange={e => set('tipo', e.target.value)} required>
+
+            {ATIVIDADE_AVULSA_TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+
+          </select>
+
+        </div>
+
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+
+        <div>
+
+          <label className={LABEL}>Data da Atividade *</label>
+
+          <input
+            type="datetime-local"
+            className={INPUT}
+            value={f.data_atividade ? f.data_atividade.slice(0, 16) : ''}
+            onChange={e => set('data_atividade', e.target.value)}
+            required
+          />
+
+        </div>
+
+        <div>
+
+          <label className={LABEL}>Quantidade de Páginas</label>
+
+          <input
+            className={INPUT} type="number" min={0}
+            value={f.paginas ?? ''} onChange={e => set('paginas', e.target.value ? Number(e.target.value) : null)}
+            placeholder="ex: 40"
+          />
+
+        </div>
+
+        <div>
+
+          <label className={LABEL}>Horas Dedicadas</label>
+
+          <input
+            className={INPUT} type="number" min={0} step={0.5}
+            value={f.horas ?? ''} onChange={e => set('horas', e.target.value ? Number(e.target.value) : null)}
+            placeholder="ex: 2.5"
+          />
+
+        </div>
+
+      </div>
+
+      <div>
+
+        <label className={LABEL}>Descrição *</label>
+
+        <textarea
+          className={INPUT} rows={3} value={f.descricao ?? ''}
+          onChange={e => set('descricao', e.target.value)}
+          placeholder="O que foi feito, para quem/qual setor, e qualquer detalhe relevante..."
+          required
+        />
+
+      </div>
+
+      <div>
+
+        <label className={LABEL}>Contexto / Processo Relacionado</label>
+
+        <input
+          className={INPUT} value={f.contexto ?? ''} onChange={e => set('contexto', e.target.value || null)}
+          placeholder="ex: nº do processo, setor, DRS, GGCON — Convênio 123/2025..."
+        />
+
+      </div>
+
+      <div className="flex justify-end gap-3">
+
+        <button type="button" className={BTN_SEC} onClick={onClose}>Cancelar</button>
+
+        <button type="submit" className={BTN_PRI} disabled={saving}>{saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}Salvar</button>
+
+      </div>
+
+    </form>
+
+  );
+
+};
+
 // Passos fixos do fluxo de autorização de parcelamento
 const PARC_FLUXO_STEPS: { tipo: 'AUTORIZO_SECRETARIO' | 'AUTORIZO_CASA_CIVIL' | 'ASSINATURA' | 'AUTORIZO_GOVERNADOR'; label: string; desc: string; onlyGov?: boolean }[] = [
   { tipo: 'AUTORIZO_SECRETARIO', label: 'Autorizo do Secretário',  desc: 'Despacho autorizador do Secretário de Estado' },
@@ -5836,7 +6009,9 @@ interface TechStats {
 
   exercicios: number;     // CADASTRO_EXERCICIO events
 
-  total: number;          // analises + posicoes + movimentos + correcoes + exercicios (excludes cadastros)
+  outras: number;         // atividades avulsas (trabalho não ligado a processo)
+
+  total: number;          // analises + posicoes + movimentos + correcoes + exercicios + outras (excludes cadastros)
 
 }
 
@@ -5877,29 +6052,42 @@ function fmtPeriodo(key: string, gran: Granularity): string {
 
 
 
-function computeStats(events: ProdEvento[], gran: Granularity, period: string): TechStats[] {
+function computeStats(events: ProdEvento[], atividades: GpcAtividadeAvulsa[], gran: Granularity, period: string): TechStats[] {
 
   const inPeriod = gran === 'geral' ? events : events.filter(e => periodoKey(e.data_evento, gran) === period);
 
-  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number; correcoes: number; exercicios: number }> = {};
+  const atividadesInPeriod = gran === 'geral' ? atividades : atividades.filter(a => periodoKey(a.data_atividade, gran) === period);
+
+  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number; correcoes: number; exercicios: number; outras: number }> = {};
+
+  const bucket = (responsavel: string) => {
+    if (!map[responsavel]) map[responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0 };
+    return map[responsavel];
+  };
 
   for (const e of inPeriod) {
 
-    if (!map[e.responsavel]) map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0 };
+    const s = bucket(e.responsavel);
 
-    if (e.evento === 'CADASTRO')       map[e.responsavel].cadastros++;
+    if (e.evento === 'CADASTRO')       s.cadastros++;
 
-    if (e.evento === 'INICIO_ANALISE') map[e.responsavel].analises.add(e.registro_id);
+    if (e.evento === 'INICIO_ANALISE') s.analises.add(e.registro_id);
 
-    if (e.evento === 'POSICAO')        map[e.responsavel].posicoes++;
+    if (e.evento === 'POSICAO')        s.posicoes++;
 
-    if (e.evento === 'MOVIMENTO')      map[e.responsavel].movimentos++;
+    if (e.evento === 'MOVIMENTO')      s.movimentos++;
 
     // Correção documental é trabalho analítico (o técnico revisa páginas do processo) —
     // contada em sua própria categoria, não escondida dentro de "Movimentos".
-    if (e.evento === 'CORRECAO')       map[e.responsavel].correcoes++;
+    if (e.evento === 'CORRECAO')       s.correcoes++;
 
-    if (e.evento === 'CADASTRO_EXERCICIO') map[e.responsavel].exercicios++;
+    if (e.evento === 'CADASTRO_EXERCICIO') s.exercicios++;
+
+  }
+
+  for (const a of atividadesInPeriod) {
+
+    bucket(a.tecnico).outras++;
 
   }
 
@@ -5919,7 +6107,9 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
 
     exercicios: s.exercicios,
 
-    total:      s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios, // cadastros NOT counted in total
+    outras:     s.outras,
+
+    total:      s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios + s.outras, // cadastros NOT counted in total
 
   })).sort((a, b) => b.total - a.total);
 
@@ -5929,7 +6119,15 @@ function computeStats(events: ProdEvento[], gran: Granularity, period: string): 
 
 const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
+  const { currentUser } = useApp();
+
+  const { confirmAction } = useConfirm();
+
   const [events, setEvents] = useState<ProdEvento[]>([]);
+
+  const [atividades, setAtividades] = useState<GpcAtividadeAvulsa[]>([]);
+
+  const [gpcUsers, setGpcUsers] = useState<{ id: string; name: string }[]>([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -5949,22 +6147,34 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
   const [refreshing, setRefreshing] = useState(false);
 
+  const [atividadeModal, setAtividadeModal] = useState<{ data?: Partial<GpcAtividadeAvulsa> } | null>(null);
 
 
-  // Busca os eventos só quando a tela abre (não há atualização automática) — se um
-  // técnico registrar trabalho enquanto esta tela já está aberta em outra sessão/aba,
-  // os números ficam desatualizados até "Atualizar" ser clicado ou a tela reaberta.
+
+  // Busca os eventos e atividades avulsas só quando a tela abre (não há atualização
+  // automática) — se um técnico registrar trabalho enquanto esta tela já está aberta em
+  // outra sessão/aba, os números ficam desatualizados até "Atualizar" ser clicado ou a
+  // tela reaberta.
   const loadEvents = useCallback(async (isRefresh?: boolean) => {
 
     if (isRefresh) setRefreshing(true); else setLoading(true);
 
-    const d = await GpcService.getProdutividadeDetalhado();
+    const [d, a] = await Promise.all([
+      GpcService.getProdutividadeDetalhado(),
+      GpcService.getAtividadesAvulsas(),
+    ]);
 
     setEvents(d);
+
+    setAtividades(a);
 
     if (isRefresh) setRefreshing(false); else setLoading(false);
 
   }, []);
+
+
+
+  useEffect(() => { GpcService.getGpcUsers().then(setGpcUsers); }, []);
 
 
 
@@ -6009,7 +6219,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
 
 
-  const stats = useMemo(() => computeStats(events, gran, period), [events, gran, period]);
+  const stats = useMemo(() => computeStats(events, atividades, gran, period), [events, atividades, gran, period]);
 
 
 
@@ -6045,7 +6255,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
   const prevStats = useMemo(() =>
 
-    prevPeriodStr ? computeStats(events, gran, prevPeriodStr) : [], [events, gran, prevPeriodStr]);
+    prevPeriodStr ? computeStats(events, atividades, gran, prevPeriodStr) : [], [events, atividades, gran, prevPeriodStr]);
 
 
 
@@ -6061,9 +6271,11 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     exercicios: acc.exercicios + s.exercicios,
 
+    outras: acc.outras + s.outras,
+
     total: acc.total + s.total,
 
-  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, total: 0 }), [stats]);
+  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0, total: 0 }), [stats]);
 
 
 
@@ -6079,9 +6291,11 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     exercicios: acc.exercicios + s.exercicios,
 
+    outras: acc.outras + s.outras,
+
     total: acc.total + s.total,
 
-  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, total: 0 }), [prevStats]);
+  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0, total: 0 }), [prevStats]);
 
 
 
@@ -6115,11 +6329,24 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
     return map;
   }, [allRows]);
 
+  // Atividades avulsas filtradas ao período atual (mesma lógica de inPeriodEvents)
+  const atividadesInPeriod = useMemo(() =>
+
+    gran === 'geral' ? atividades : atividades.filter(a => periodoKey(a.data_atividade, gran) === period),
+
+    [atividades, gran, period]);
+
+
+
   const technicians = useMemo(() => stats.map(s => {
 
     const fluxo = fluxoResumo.find(f => f.tecnico === s.responsavel);
 
     const techInPeriod = inPeriodEvents.filter(e => e.responsavel === s.responsavel);
+
+    const techAtividadesForStats = atividadesInPeriod.filter(a => a.tecnico === s.responsavel);
+
+    const horasOutras = techAtividadesForStats.reduce((sum, a) => sum + (a.horas ?? 0), 0);
 
     // Pages are sourced from allRows[registro_id].num_paginas (official page count).
     // This ensures consistent values regardless of whether num_paginas_analise was
@@ -6155,11 +6382,17 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     }
 
+    // Atividade avulsa: cada uma soma suas próprias páginas (trabalho adicional, não
+    // deduplicado por processo — igual à Correção, cada atividade é esforço separado).
+    for (const a of techAtividadesForStats) paginas += a.paginas ?? 0;
+
     return {
 
       ...s,
 
       paginas,
+
+      horasOutras,
 
       tempMedio: fluxo?.tempo_medio_dias ?? 0,
 
@@ -6169,7 +6402,22 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     };
 
-  }), [stats, fluxoResumo, inPeriodEvents, pagesByProcesso, ultimoEventoByTech]);
+  }), [stats, fluxoResumo, inPeriodEvents, pagesByProcesso, ultimoEventoByTech, atividadesInPeriod]);
+
+
+
+  // Atividades avulsas do técnico selecionado no período
+  const techAtividades = useMemo(() => {
+
+    if (!selectedTech) return [];
+
+    return atividadesInPeriod
+
+      .filter(a => a.tecnico === selectedTech)
+
+      .sort((a, b) => b.data_atividade.localeCompare(a.data_atividade));
+
+  }, [selectedTech, atividadesInPeriod]);
 
 
 
@@ -6215,15 +6463,15 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     // Sheet 1: Resumo por técnico
 
-    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento', 'Correções Documentais', 'Exercícios Cadastrados',
+    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento', 'Correções Documentais', 'Exercícios Cadastrados', 'Outras Atividades',
 
-      'Total de Ações', 'Ações no Fluxo', 'Páginas Trabalhadas', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
+      'Total de Ações', 'Ações no Fluxo', 'Páginas Trabalhadas', 'Horas em Outras Atividades', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
 
     const b1 = technicians.map(t => [
 
-      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.correcoes, t.exercicios, t.total,
+      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.correcoes, t.exercicios, t.outras, t.total,
 
-      t.fluxoRegistros, t.paginas,
+      t.fluxoRegistros, t.paginas, t.horasOutras,
 
       t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0,
 
@@ -6235,7 +6483,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...b1]);
 
-    ws1['!cols'] = [25, 20, 20, 24, 14, 20, 20, 14, 18, 16, 17, 20].map(w => ({ wch: w }));
+    ws1['!cols'] = [25, 20, 20, 24, 14, 20, 20, 16, 14, 18, 16, 16, 17, 17, 20].map(w => ({ wch: w }));
 
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por Técnico');
 
@@ -6260,6 +6508,22 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
     ws2['!cols'] = [25, 18, 22, 40, 32, 35, 18, 10, 25].map(w => ({ wch: w }));
 
     XLSX.utils.book_append_sheet(wb, ws2, 'Detalhamento de Eventos');
+
+    // Sheet 3: Atividades avulsas (trabalho não ligado a processo)
+
+    const h3 = ['Técnico', 'Tipo', 'Data', 'Descrição', 'Contexto', 'Páginas', 'Horas'];
+
+    const b3 = atividadesInPeriod.map(a => [
+
+      a.tecnico, a.tipo, fmtTs(a.data_atividade), a.descricao, a.contexto ?? '', a.paginas ?? '', a.horas ?? '',
+
+    ]);
+
+    const ws3 = XLSX.utils.aoa_to_sheet([h3, ...b3]);
+
+    ws3['!cols'] = [25, 28, 18, 45, 30, 10, 10].map(w => ({ wch: w }));
+
+    XLSX.utils.book_append_sheet(wb, ws3, 'Atividades Avulsas');
 
     XLSX.writeFile(wb, `produtividade_gpc_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
@@ -6388,7 +6652,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
       {/* KPI totals */}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
 
         <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4">
 
@@ -6480,6 +6744,24 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
         </div>
 
+        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm px-5 py-4">
+
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center mb-3">
+
+            <ClipboardList size={18} className="text-indigo-600" />
+
+          </div>
+
+          <div className="text-3xl font-black text-indigo-700">{totals.outras.toLocaleString('pt-BR')}</div>
+
+          <div className="text-xs font-bold text-slate-600 mt-1">Outras Atividades</div>
+
+          <div className="text-xs text-slate-400 mt-0.5">trabalho não ligado a processo</div>
+
+          <Delta cur={totals.outras} prev={prevTotals.outras} />
+
+        </div>
+
         <div className="bg-white rounded-2xl border border-blue-100 shadow-sm px-5 py-4">
 
           <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3">
@@ -6550,9 +6832,11 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-teal-500 uppercase tracking-wider" title="Exercícios registrados nos processos">Exercícios</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider" title="Analisados + Posições + Movimentos + Correções + Exercícios (Cadastros não entram no total)">Total</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-indigo-500 uppercase tracking-wider" title="Trabalho registrado que não está ligado a um processo (auxílio a outro setor, elaboração de documento, etc.)">Outras</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Soma das páginas dos processos analisados (uma vez por processo) + páginas de cada correção documental registrada">Páginas Trabalhadas</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider" title="Analisados + Posições + Movimentos + Correções + Exercícios + Outras Atividades (Cadastros não entram no total)">Total</th>
+
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Soma das páginas dos processos analisados (uma vez por processo) + páginas de cada correção documental + páginas de cada atividade avulsa registrada">Páginas Trabalhadas</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Tempo médio em dias entre os eventos registrados pelo técnico">Tempo Médio</th>
 
@@ -6566,7 +6850,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
               {technicians.map(t => {
 
-                const totalComposition = t.analises + t.posicoes + t.movimentos + t.correcoes + t.exercicios;
+                const totalComposition = t.analises + t.posicoes + t.movimentos + t.correcoes + t.exercicios + t.outras;
 
                 const pct = totals.total > 0 ? Math.round((t.total / totals.total) * 100) : 0;
 
@@ -6683,6 +6967,18 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                     </td>
 
+                    {/* Outras Atividades */}
+
+                    <td className="px-4 py-3 text-center">
+
+                      {t.outras > 0
+
+                        ? <span className="inline-block min-w-[32px] px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold">{t.outras}</span>
+
+                        : <span className="text-slate-300">—</span>}
+
+                    </td>
+
                     {/* Total */}
 
                     <td className="px-4 py-3 text-center">
@@ -6743,6 +7039,8 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                             {t.exercicios > 0 && <div style={{ width: `${(t.exercicios / totalComposition) * 100}%` }} className="bg-teal-400" />}
 
+                            {t.outras     > 0 && <div style={{ width: `${(t.outras     / totalComposition) * 100}%` }} className="bg-indigo-400" />}
+
                           </div>
 
                           <div className="flex h-1.5 rounded-full bg-slate-100 overflow-hidden">
@@ -6789,6 +7087,9 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                 {/* Exercícios */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-700 rounded-lg text-xs font-bold">{totals.exercicios}</span></td>
 
+                {/* Outras Atividades */}
+                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold">{totals.outras}</span></td>
+
                 {/* Total */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold">{totals.total}</span></td>
 
@@ -6819,6 +7120,8 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-rose-400 inline-block" />Correções documentais</span>
 
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-teal-400 inline-block" />Exercícios cadastrados</span>
+
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-indigo-400 inline-block" />Outras atividades</span>
 
             <span className="ml-auto flex items-center gap-1">Tempo: <span className="text-green-600 font-semibold">=5d rápido</span> · <span className="text-amber-600 font-semibold">=15d regular</span> · <span className="text-red-600 font-semibold">&gt;15d lento</span></span>
 
@@ -6878,7 +7181,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100 flex-shrink-0">
+                  <div className="grid grid-cols-3 sm:grid-cols-7 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100 flex-shrink-0">
 
                     {[
 
@@ -6891,6 +7194,8 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                       { label: 'Correções', value: st.correcoes, color: 'text-rose-700', bg: 'bg-rose-50' },
 
                       { label: 'Exercícios', value: st.exercicios, color: 'text-teal-700', bg: 'bg-teal-50' },
+
+                      { label: 'Outras', value: st.outras, color: 'text-indigo-700', bg: 'bg-indigo-50' },
 
                       { label: 'Total', value: st.total, color: 'text-blue-700', bg: 'bg-blue-50' },
 
@@ -6916,7 +7221,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                         <div className="text-lg font-black text-slate-700">{st.paginas.toLocaleString('pt-BR')}</div>
 
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide" title="Análises + correções documentais">Páginas Trabalhadas</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide" title="Análises + correções documentais + atividades avulsas">Páginas Trabalhadas</div>
 
                       </div>
 
@@ -7112,6 +7417,69 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 )}
 
+                {/* Outras atividades (trabalho não ligado a processo) */}
+
+                {techAtividades.length > 0 && (
+
+                  <div className="space-y-3 mt-6">
+
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+
+                      {techAtividades.length} outra{techAtividades.length !== 1 ? 's' : ''} atividade{techAtividades.length !== 1 ? 's' : ''} no período
+
+                      {st.horasOutras > 0 && <span className="text-indigo-500"> · {st.horasOutras.toLocaleString('pt-BR')}h dedicadas</span>}
+
+                    </div>
+
+                    {techAtividades.map(a => (
+
+                      <div key={a.codigo} className="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4">
+
+                        <div className="flex items-start justify-between gap-3">
+
+                          <div className="flex items-start gap-2 min-w-0">
+
+                            <ClipboardList size={14} className="text-indigo-500 mt-0.5 flex-shrink-0" />
+
+                            <div className="min-w-0">
+
+                              <div className="text-sm font-semibold text-slate-800">{a.tipo}</div>
+
+                              <div className="text-[11px] text-slate-400">{fmtTs(a.data_atividade)}{a.paginas ? ` · ${a.paginas.toLocaleString('pt-BR')} pág.` : ''}{a.horas ? ` · ${a.horas}h` : ''}</div>
+
+                            </div>
+
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-shrink-0">
+
+                            <button onClick={() => setAtividadeModal({ data: a })} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar"><Edit size={13} /></button>
+
+                            <button
+                              onClick={async () => {
+                                if (!(await confirmAction('Excluir esta atividade avulsa?', { danger: true }))) return;
+                                await GpcService.deleteAtividadeAvulsa(a.codigo);
+                                await loadEvents(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Excluir"
+                            ><Trash2 size={13} /></button>
+
+                          </div>
+
+                        </div>
+
+                        <p className="text-sm text-slate-600 mt-2">{a.descricao}</p>
+
+                        {a.contexto && <p className="text-[11px] text-slate-400 mt-1">Contexto: {a.contexto}</p>}
+
+                      </div>
+
+                    ))}
+
+                  </div>
+
+                )}
+
               </div>
 
             </div>
@@ -7121,6 +7489,32 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
         );
 
       })()}
+
+      {atividadeModal && (
+
+        <Modal title="Editar Atividade" onClose={() => setAtividadeModal(null)} size="md">
+
+          <AtividadeAvulsaForm
+            initial={atividadeModal.data}
+            gpcUsers={gpcUsers}
+            currentUserName={currentUser?.name}
+            onSave={async a => {
+              await GpcService.saveAtividadeAvulsa(a);
+              if (currentUser) {
+                await GpcService.saveGpcLog(
+                  `Atividade avulsa ${a.codigo ? 'atualizada' : 'registrada'}: ${a.tipo} — ${a.tecnico}`,
+                  currentUser.name, currentUser.id
+                );
+              }
+              setAtividadeModal(null);
+              await loadEvents(true);
+            }}
+            onClose={() => setAtividadeModal(null)}
+          />
+
+        </Modal>
+
+      )}
 
     </div>
 
@@ -7315,6 +7709,12 @@ export const GpcProcessos = () => {
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ codigo: number; processo: string | null } | null>(null);
 
+  const [atividadeModal, setAtividadeModal] = useState<{ data?: Partial<GpcAtividadeAvulsa> } | null>(null);
+
+  const [gpcUsersAtividade, setGpcUsersAtividade] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => { GpcService.getGpcUsers().then(setGpcUsersAtividade); }, []);
+
   const PAGE = 25;
 
 
@@ -7424,6 +7824,24 @@ export const GpcProcessos = () => {
 
 
   const handleSave = async (form: Partial<GpcRecebido>, prev?: GpcRecebido): Promise<GpcRecebido> => {
+
+    // Se um técnico novo está sendo atribuído como analista (responsaveis_analise ganhou
+    // alguém que não estava lá antes) e a Posição ainda não avançou (nula ou "Aguardando
+    // Análise"), avança automaticamente para "Em Análise". Sem isso, o campo "Técnicos
+    // Analistas" (produtividade) e a Posição exibida do processo ficam desconectados —
+    // o processo mostra "Aguardando Análise" para sempre mesmo com gente analisando.
+    // Não mexe se a posição já avançou para outro estágio (ex.: Exercício Concluído,
+    // Devolvido a DRS) — só preenche a lacuna de quem esquece de trocar os dois campos.
+    const novosAnalistas = (form.responsaveis_analise ?? []).filter(
+      a => !(prev?.responsaveis_analise ?? []).includes(a)
+    );
+    if (novosAnalistas.length > 0) {
+      const aguardandoId = posicoes.find(p => p.posicao === 'Aguardando Análise')?.codigo;
+      const emAnaliseId = posicoes.find(p => p.posicao === 'Em Análise')?.codigo;
+      if (emAnaliseId != null && (form.posicao_id == null || form.posicao_id === aguardandoId)) {
+        form = { ...form, posicao_id: emAnaliseId };
+      }
+    }
 
     let saved = await GpcService.saveRecebido(form);
 
@@ -7851,17 +8269,25 @@ export const GpcProcessos = () => {
 
         </div>
 
-        {mainTab === 'registros' && (
+        {mainTab === 'registros' && !isViewOnly && (
 
           <div className="flex items-center gap-2.5">
 
-            {!isViewOnly && (
             <button className={BTN_PRI} onClick={() => setModal({})}>
 
-              <Plus size={16} />Novo Registro
+              <Plus size={16} />Novo Registro Processo
 
             </button>
-            )}
+
+            <button
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-700 text-sm font-semibold rounded-xl border border-indigo-200 hover:bg-indigo-50 active:scale-95 transition-all shadow-sm"
+              onClick={() => setAtividadeModal({})}
+              title="Registrar trabalho que não está ligado a um processo (auxílio a outro setor, elaboração de documento, etc.)"
+            >
+
+              <ClipboardList size={16} />Registrar Outras Atividades
+
+            </button>
 
           </div>
 
@@ -8712,6 +9138,32 @@ export const GpcProcessos = () => {
           onConfirm={confirmDeleteWithPassword}
 
         />
+
+      )}
+
+      {/* Registrar Atividade Avulsa (trabalho não ligado a um processo) */}
+
+      {atividadeModal && (
+
+        <Modal title="Registrar Outras Atividades" onClose={() => setAtividadeModal(null)} size="md">
+
+          <AtividadeAvulsaForm
+            gpcUsers={gpcUsersAtividade}
+            currentUserName={currentUser?.name}
+            onSave={async a => {
+              await GpcService.saveAtividadeAvulsa(a);
+              if (currentUser) {
+                await GpcService.saveGpcLog(
+                  `Atividade avulsa registrada: ${a.tipo} — ${a.tecnico}`,
+                  currentUser.name, currentUser.id
+                );
+              }
+              setAtividadeModal(null);
+            }}
+            onClose={() => setAtividadeModal(null)}
+          />
+
+        </Modal>
 
       )}
 

@@ -425,7 +425,7 @@ export const GpcRelatorios = () => {
     setProdLoading(true);
     setProdDone(false);
     try {
-      const { resumo, eventos } = await GpcService.getProdutividadeParaRelatorio(prodAno, prodMes || undefined);
+      const { resumo, eventos, atividades } = await GpcService.getProdutividadeParaRelatorio(prodAno, prodMes || undefined);
       const periodoLabel = prodMes
         ? `${MESES.find(m => m.v === prodMes)?.l ?? prodMes}/${prodAno}`
         : `Ano ${prodAno}`;
@@ -450,8 +450,10 @@ export const GpcRelatorios = () => {
             'Atualizações de Movimento': t.movimentos,
             'Correções Documentais': t.correcoes,       // trabalho analítico de revisão, contado à parte
             'Exercícios Cadastrados': t.exercicios,
-            'Total de Ações': t.total,                  // = Analisados + Posições + Movimentos + Correções + Exercícios (sem Cadastros)
+            'Outras Atividades': t.outras,               // trabalho não ligado a processo (auxílio a setor, documento, etc.)
+            'Total de Ações': t.total,                  // = Analisados + Posições + Movimentos + Correções + Exercícios + Outras (sem Cadastros)
             'Páginas Trabalhadas': t.paginas,            // páginas de análises + páginas de correções documentais
+            'Horas em Outras Atividades': t.horas,
           })),
         },
         {
@@ -463,6 +465,18 @@ export const GpcRelatorios = () => {
             'Descrição': e.obs ?? '',
             'Processo (ID)': e.registro_id,
             'Páginas': e.num_paginas_analise ?? '',
+          })),
+        },
+        {
+          name: 'Atividades Avulsas',
+          rows: atividades.map(a => ({
+            'Técnico': a.tecnico,
+            'Tipo': a.tipo,
+            'Data': a.data_atividade.slice(0, 16).replace('T', ' '),
+            'Descrição': a.descricao,
+            'Contexto': a.contexto ?? '',
+            'Páginas': a.paginas ?? '',
+            'Horas': a.horas ?? '',
           })),
         },
       ], `produtividade_gpc_${periodoLabel.replace('/', '-')}_${todayStr()}.xlsx`);

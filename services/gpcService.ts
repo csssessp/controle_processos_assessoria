@@ -2,7 +2,8 @@ import { supabase } from './supabaseClient';
 import { emitError } from './errorBus';
 import {
   GpcProcesso, GpcExercicio, GpcHistorico, GpcObjeto,
-  GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico
+  GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico,
+  GpcAtividadeAvulsa,
 } from '../types';
 
 export interface GpcReportData {
@@ -859,6 +860,44 @@ export const GpcService = {
     if (error) throw new Error(error.message);
   },
 
+  // ── ATIVIDADES AVULSAS ──────────────────────────────────────────────────
+  // Trabalho de um técnico que não está ligado a um processo (auxílio a outro setor,
+  // elaboração de documento, etc.) — ver comentário em cgof_gpc_atividade_avulsa
+  // (parte_43_gpc_atividade_avulsa.sql) sobre por que isso não é registro_id-based.
+
+  getAtividadesAvulsas: async (): Promise<GpcAtividadeAvulsa[]> => {
+    return fetchAllRows<GpcAtividadeAvulsa>(
+      'cgof_gpc_atividade_avulsa', '*',
+      q => q.order('data_atividade', { ascending: false }),
+    );
+  },
+
+  saveAtividadeAvulsa: async (a: Partial<GpcAtividadeAvulsa>): Promise<GpcAtividadeAvulsa> => {
+    const payload = {
+      tecnico: a.tecnico,
+      tipo: a.tipo,
+      descricao: a.descricao,
+      contexto: a.contexto ?? null,
+      horas: a.horas ?? null,
+      paginas: a.paginas ?? null,
+      data_atividade: a.data_atividade ?? new Date().toISOString(),
+      registrado_por: a.registrado_por ?? null,
+    };
+    if (a.codigo) {
+      const { data, error } = await supabase.from('cgof_gpc_atividade_avulsa').update(payload).eq('codigo', a.codigo).select().single();
+      if (error) throw new Error(error.message);
+      return data as GpcAtividadeAvulsa;
+    }
+    const { data, error } = await supabase.from('cgof_gpc_atividade_avulsa').insert(payload).select().single();
+    if (error) throw new Error(error.message);
+    return data as GpcAtividadeAvulsa;
+  },
+
+  deleteAtividadeAvulsa: async (codigo: number): Promise<void> => {
+    const { error } = await supabase.from('cgof_gpc_atividade_avulsa').delete().eq('codigo', codigo);
+    if (error) throw new Error(error.message);
+  },
+
   // ── DASHBOARD GPC ────────────────────────────────────────────────────────
 
   getRecebidosDashboard: async (): Promise<{
@@ -1071,8 +1110,10 @@ export const GpcService = {
       movimentos: number; // pure movement/status changes only — NOT correções
       correcoes: number;  // CORRECAO events — correção documental é trabalho analítico, contado à parte
       exercicios: number; // CADASTRO_EXERCICIO events
-      total: number;       // = analises + posicoes + movimentos + correcoes + exercicios (Cadastros excluded, same as screen)
+      outras: number;      // atividades avulsas (trabalho não ligado a processo)
+      total: number;       // = analises + posicoes + movimentos + correcoes + exercicios + outras (Cadastros excluded, same as screen)
       paginas: number;
+      horas: number;        // soma de horas registradas nas atividades avulsas
     }[];
     eventos: {
       registro_id: number;
@@ -1082,6 +1123,7 @@ export const GpcService = {
       obs?: string | null;
       num_paginas_analise?: number | null;
     }[];
+    atividades: GpcAtividadeAvulsa[];
   }> => {
     // Reuse existing aggregated source (both prod table + fluxo_tecnico)
     const GpcServiceSelf = (GpcService as any);
@@ -1108,9 +1150,13 @@ export const GpcService = {
     const target = mes ? `${ano}-${mes}` : ano;
     const filtered = all.filter(e => localPeriodKey(e.data_evento, mes ? 'mes' : 'ano') === target);
 
+    // Atividades avulsas (trabalho não ligado a processo) — mesma filtragem por período.
+    const allAtividades = await GpcServiceSelf.getAtividadesAvulsas() as GpcAtividadeAvulsa[];
+    const atividadesFiltradas = allAtividades.filter(a => localPeriodKey(a.data_atividade, mes ? 'mes' : 'ano') === target);
+
     // Aggregate per technician — mirrors computeStats() in GpcProcessos_v2.tsx exactly:
     //   - CORRECAO is trabalho analítico próprio, contado em sua própria categoria (não em movimentos)
-    //   - Total = analises + posicoes + movimentos + correcoes + exercicios (Cadastros NOT counted)
+    //   - Total = analises + posicoes + movimentos + correcoes + exercicios + outras (Cadastros NOT counted)
     //   - Pages: official num_paginas for INICIO_ANALISE (deduped); num_paginas_analise for CORRECAO
     type Stats = {
       cadastros: number;
@@ -1119,15 +1165,20 @@ export const GpcService = {
       movimentos: number;
       correcoes: number;
       exercicios: number;
+      outras: number;
       seenAnalise: Set<number>;
       paginas: number;
+      horas: number;
     };
     const map: Record<string, Stats> = {};
-    for (const e of filtered) {
-      if (!map[e.responsavel]) {
-        map[e.responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, seenAnalise: new Set(), paginas: 0 };
+    const getBucket = (responsavel: string) => {
+      if (!map[responsavel]) {
+        map[responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0, seenAnalise: new Set(), paginas: 0, horas: 0 };
       }
-      const s = map[e.responsavel];
+      return map[responsavel];
+    };
+    for (const e of filtered) {
+      const s = getBucket(e.responsavel);
       if (e.evento === 'CADASTRO')       s.cadastros++;
       if (e.evento === 'INICIO_ANALISE') {
         s.analises.add(e.registro_id);
@@ -1145,6 +1196,12 @@ export const GpcService = {
       }
       if (e.evento === 'CADASTRO_EXERCICIO') s.exercicios++;
     }
+    for (const a of atividadesFiltradas) {
+      const s = getBucket(a.tecnico);
+      s.outras++;
+      s.horas += a.horas ?? 0;
+      s.paginas += a.paginas ?? 0;
+    }
 
     const resumo = Object.entries(map).map(([responsavel, s]) => ({
       responsavel,
@@ -1154,11 +1211,13 @@ export const GpcService = {
       movimentos: s.movimentos,
       correcoes: s.correcoes,
       exercicios: s.exercicios,
-      total: s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios, // mirrors screen (no cadastros)
+      outras: s.outras,
+      total: s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios + s.outras, // mirrors screen (no cadastros)
       paginas: s.paginas,
+      horas: s.horas,
     })).sort((a, b) => b.total - a.total);
 
-    return { resumo, eventos: filtered };
+    return { resumo, eventos: filtered, atividades: atividadesFiltradas };
   },
 };
 
