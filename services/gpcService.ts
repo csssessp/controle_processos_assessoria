@@ -741,21 +741,27 @@ export const GpcService = {
   getProdutividadeDetalhado: async (): Promise<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs?: string | null; num_paginas_analise?: number | null }[]> => {
     // Source 1: cgof_gpc_produtividade — CADASTRO + INICIO_ANALISE (fired by DB triggers, dates are always correct)
     // + CADASTRO_EXERCICIO (logged directly by ExercicioForm when a técnico registers a new exercício/ano)
-    const { data: prodData, error: prodError } = await supabase
-      .from('cgof_gpc_produtividade')
-      .select('registro_id, responsavel, evento, data_evento, obs')
-      .not('responsavel', 'is', null)
-      .in('evento', ['INICIO_ANALISE', 'CADASTRO', 'CADASTRO_EXERCICIO'])
-      .order('data_evento', { ascending: true });
-    if (prodError) console.error(prodError);
+    // Usa fetchAllRows (paginado em blocos de 1000) — essa consulta já passou de 1000 linhas
+    // e o PostgREST descartava silenciosamente os eventos mais recentes (a query ordena por
+    // data_evento ascendente, então o corte sempre cai justamente nos mais novos).
+    const prodData = await fetchAllRows<{ registro_id: number; responsavel: string; evento: string; data_evento: string; obs: string | null }>(
+      'cgof_gpc_produtividade',
+      'registro_id, responsavel, evento, data_evento, obs',
+      q => q
+        .not('responsavel', 'is', null)
+        .in('evento', ['INICIO_ANALISE', 'CADASTRO', 'CADASTRO_EXERCICIO'])
+        .order('data_evento', { ascending: true }),
+    );
 
     // Source 2: cgof_gpc_fluxo_tecnico — POSICAO + MOVIMENTO events (real retroactive dates from user input)
-    const { data: fluxoData, error: fluxoError } = await supabase
-      .from('cgof_gpc_fluxo_tecnico')
-      .select('registro_id, tecnico, data_evento, posicao_id, movimento, acao, num_paginas_analise')
-      .not('tecnico', 'is', null)
-      .order('data_evento', { ascending: true });
-    if (fluxoError) console.error(fluxoError);
+    const fluxoData = await fetchAllRows<{
+      registro_id: number; tecnico: string; data_evento: string; posicao_id: number | null;
+      movimento: string | null; acao: string | null; num_paginas_analise: number | null;
+    }>(
+      'cgof_gpc_fluxo_tecnico',
+      'registro_id, tecnico, data_evento, posicao_id, movimento, acao, num_paginas_analise',
+      q => q.not('tecnico', 'is', null).order('data_evento', { ascending: true }),
+    );
 
     const fluxoEvents = ((fluxoData ?? []) as {
       registro_id: number; tecnico: string; data_evento: string; posicao_id: number | null;
@@ -866,10 +872,12 @@ export const GpcService = {
     topEntidades: { entidade: string; count: number }[];
     byMes: { mes: string; count: number }[];
   } | null> => {
-    const { data, error } = await supabase
-      .from('cgof_gpc_recebidos')
-      .select('posicao_id, remessa, responsavel, is_parcelamento, num_paginas, entidade, created_at, cgof_gpc_posicao(posicao)');
-    if (error) { console.error(error); notifyFetchError(); return null; }
+    // fetchAllRows: cgof_gpc_recebidos já passou de 1000 linhas — sem paginação o
+    // PostgREST descartava as mais recentes e o dashboard subestimava os totais.
+    const data = await fetchAllRows(
+      'cgof_gpc_recebidos',
+      'posicao_id, remessa, responsavel, is_parcelamento, num_paginas, entidade, created_at, cgof_gpc_posicao(posicao)',
+    );
 
     const rows = ((data ?? []) as unknown as {
       posicao_id: number | null; remessa: 'ACIMA' | 'ABAIXO' | null; responsavel: string | null;
@@ -945,12 +953,14 @@ export const GpcService = {
     tempo_medio_dias: number;
     ultimo_evento: string;
   }[]> => {
-    const { data, error } = await supabase
-      .from('cgof_gpc_fluxo_tecnico')
-      .select('tecnico, registro_id, data_evento, tempo_dias, num_paginas_analise')
-      .not('tecnico', 'is', null)
-      .order('data_evento', { ascending: true }); // ascending so first event comes first
-    if (error) { console.error(error); notifyFetchError(); return []; }
+    // fetchAllRows: mesma proteção contra o limite de 1000 linhas do PostgREST usada em
+    // getProdutividadeDetalhado — cgof_gpc_fluxo_tecnico está perto desse limite hoje e vai
+    // ultrapassá-lo com o uso normal do sistema.
+    const data = await fetchAllRows<{ tecnico: string; registro_id: number; data_evento: string; tempo_dias: number | null; num_paginas_analise: number | null }>(
+      'cgof_gpc_fluxo_tecnico',
+      'tecnico, registro_id, data_evento, tempo_dias, num_paginas_analise',
+      q => q.not('tecnico', 'is', null).order('data_evento', { ascending: true }), // ascending so first event comes first
+    );
 
     // Filtra pelo mesmo período selecionado na tela (client-side, mesma lógica de
     // localPeriodKey/periodoKey) — sem isso, esta função sempre agregava TODO o
@@ -1024,21 +1034,21 @@ export const GpcService = {
   // ── EXPORTAÇÃO COMPLETA ──────────────────────────────────────────────────
 
   getAllProcessosExport: async (): Promise<GpcProcesso[]> => {
-    const { data, error } = await supabase
-      .from('cgof_gpc_processos')
-      .select('*')
-      .order('codigo', { ascending: true });
-    if (error) { console.error(error); notifyFetchError(); return []; }
-    return (data ?? []) as GpcProcesso[];
+    // fetchAllRows: cgof_gpc_processos já passou de 1000 linhas — sem paginação a
+    // exportação completa descartava silenciosamente os processos mais recentes.
+    return fetchAllRows<GpcProcesso>(
+      'cgof_gpc_processos', '*',
+      q => q.order('codigo', { ascending: true }),
+    );
   },
 
   getAllTasExport: async (): Promise<(GpcTa & { processo: string | null; convenio: string | null; entidade: string | null })[]> => {
-    const { data, error } = await supabase
-      .from('cgof_gpc_ta')
-      .select('*, cgof_gpc_processos(processo, convenio, entidade)')
-      .order('processo_id', { ascending: true })
-      .order('data', { ascending: true });
-    if (error) { console.error(error); notifyFetchError(); return []; }
+    // fetchAllRows: mesma proteção contra o limite de 1000 linhas usada nas demais exportações.
+    const data = await fetchAllRows(
+      'cgof_gpc_ta',
+      '*, cgof_gpc_processos(processo, convenio, entidade)',
+      q => q.order('processo_id', { ascending: true }).order('data', { ascending: true }),
+    );
     return ((data ?? []) as (GpcTa & {
       cgof_gpc_processos?: { processo: string | null; convenio: string | null; entidade: string | null } | null;
     })[]).map(t => ({
