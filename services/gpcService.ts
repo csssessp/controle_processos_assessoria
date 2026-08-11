@@ -1091,11 +1091,12 @@ export const GpcService = {
     // Build pagesByProcesso from cgof_gpc_recebidos.num_paginas — registro_id references
     // cgof_gpc_recebidos.codigo (same source the screen uses via allRows), NOT cgof_gpc_processos
     // (a different table with its own independent codigo sequence).
-    const { data: recebidosData, error: recebidosError } = await supabase
-      .from('cgof_gpc_recebidos')
-      .select('codigo, num_paginas')
-      .not('num_paginas', 'is', null);
-    if (recebidosError) console.error(recebidosError);
+    // fetchAllRows: mesma proteção contra o limite de 1000 linhas usada nas outras consultas
+    // desta tela — hoje essa consulta filtrada tem menos de 1000 linhas, mas cresce com o tempo.
+    const recebidosData = await fetchAllRows<{ codigo: number; num_paginas: number | null }>(
+      'cgof_gpc_recebidos', 'codigo, num_paginas',
+      q => q.not('num_paginas', 'is', null),
+    );
     const pagesByProcesso = new Map<number, number>();
     for (const p of (recebidosData ?? [])) {
       if (p.codigo != null && p.num_paginas) pagesByProcesso.set(p.codigo as number, p.num_paginas as number);

@@ -243,43 +243,58 @@ export const DbService = {
 
   // --- PROCESSES ---
   getProcesses: async (params?: ProcessQueryParams): Promise<{ data: Process[], count: number }> => {
-    let query = supabase.from('processes').select('*', { count: 'exact' });
+    // "processes" já passou de 17.000 linhas — o Supabase/PostgREST limita qualquer
+    // consulta a 1000 linhas por página por padrão. O comentário original aqui dizia
+    // "trazer todos os dados", mas sem paginação explícita a consulta só trazia a
+    // primeira página (1000 de 17000+), então a tela via menos de 6% dos processos.
+    // Pagina em blocos de 1000 (mesmo padrão de getAllProcessesForDashboard) para
+    // trazer o total real, mantendo o "frontend ordena tudo" que o código já fazia.
+    const buildQuery = (from: number, to: number) => {
+      let query = supabase.from('processes').select('*', { count: from === 0 ? 'exact' : undefined }).range(from, to);
 
-    if (params) {
-      if (params.searchTerm) {
-        const term = `%${params.searchTerm}%`;
-        query = query.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
-      }
-      if (params.filters?.CGOF) query = query.eq('CGOF', params.filters.CGOF);
-      if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
-      if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
-      if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
-      // NOTE: overdue filter removed - show all processes (vencidos, futuros, sem deadline)
-      // Frontend orderinglogic handles grouping by status
-      if (params.filters?.emptySector) {
-        query = query.or('sector.is.null,sector.eq.""');
-      }
-      if (params.filters?.emptyExitDate) {
-        // Garantindo que buscamos apenas NULL para evitar erro de sintaxe em colunas de data
-        query = query.is('processDate', null);
+      if (params) {
+        if (params.searchTerm) {
+          const term = `%${params.searchTerm}%`;
+          query = query.or(`number.ilike.${term},interested.ilike.${term},subject.ilike.${term}`);
+        }
+        if (params.filters?.CGOF) query = query.eq('CGOF', params.filters.CGOF);
+        if (params.filters?.sector) query = query.ilike('sector', `%${params.filters.sector}%`);
+        if (params.filters?.entryDateStart) query = query.gte('entryDate', params.filters.entryDateStart);
+        if (params.filters?.entryDateEnd) query = query.lte('entryDate', params.filters.entryDateEnd);
+        // NOTE: overdue filter removed - show all processes (vencidos, futuros, sem deadline)
+        // Frontend orderinglogic handles grouping by status
+        if (params.filters?.emptySector) {
+          query = query.or('sector.is.null,sector.eq.""');
+        }
+        if (params.filters?.emptyExitDate) {
+          // Garantindo que buscamos apenas NULL para evitar erro de sintaxe em colunas de data
+          query = query.is('processDate', null);
+        }
       }
 
       // Ordenação SIMPLES: apenas por entryDate (o frontend fará a ordenação inteligente)
-      query = query.order('entryDate', { ascending: false });
+      return query.order('entryDate', { ascending: false });
+    };
 
-      // SEM PAGINAÇÃO aqui - trazer todos os dados para o frontend ordenar corretamente
-    } else {
-      // Padrão sem params: apenas por data de entrada
-      query = query.order('entryDate', { ascending: false });
+    const PAGE_SIZE = 1000;
+    let allData: any[] = [];
+    let totalCount = 0;
+    let from = 0;
+    while (true) {
+      const { data, count, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+      if (error) {
+        console.error('Error fetching processes:', error.message);
+        return { data: allData.map(mapProcessFromDB) as Process[], count: totalCount };
+      }
+      if (from === 0 && count != null) totalCount = count;
+      const rows = data || [];
+      allData = allData.concat(rows);
+      from += PAGE_SIZE;
+      if (rows.length < PAGE_SIZE) break;
     }
 
-    const { data, count, error } = await query;
-    if (error) {
-      console.error('Error fetching processes:', error.message);
-      return { data: [], count: 0 };
-    }
-    const mappedData = (data || []).map(mapProcessFromDB);
-    return { data: mappedData as Process[], count: count || 0 };
+    const mappedData = allData.map(mapProcessFromDB);
+    return { data: mappedData as Process[], count: totalCount || allData.length };
   },
 
   saveProcess: async (process: Process, performedBy: User): Promise<void> => {
@@ -411,20 +426,32 @@ export const DbService = {
 
   getUniqueValues: async (column: 'sector' | 'interested' | 'subject'): Promise<string[]> => {
     try {
-      const { data, error } = await supabase
-        .from('processes')
-        .select(column)
-        .not(column, 'is', null);
-      
-      if (error) {
-        console.error(`Error fetching unique ${column}:`, error.message);
-        return [];
+      // Paginado (mesmo motivo de getProcesses): "processes" tem 17.000+ linhas, e sem
+      // range() explícito o PostgREST só devolvia os valores únicos da primeira página
+      // (1000 linhas), fazendo opções de filtro sumirem dos dropdowns.
+      const PAGE_SIZE = 1000;
+      const values: string[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('processes')
+          .select(column)
+          .not(column, 'is', null)
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) {
+          console.error(`Error fetching unique ${column}:`, error.message);
+          break;
+        }
+        const rows = (data as any[]) ?? [];
+        for (const item of rows) values.push(item[column]);
+        from += PAGE_SIZE;
+        if (rows.length < PAGE_SIZE) break;
       }
 
       // Remover duplicatas e valores vazios, ordenar alfabeticamente
       const unique = Array.from(new Set(
-        (data as any[])
-          .map(item => item[column])
+        values
           .filter((val: string) => val && val.trim() !== '')
           .map((val: string) => val.trim())
       )).sort();
