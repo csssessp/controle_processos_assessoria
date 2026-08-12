@@ -6140,7 +6140,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     tecnico: string; total_registros: number; total_paginas: number;
 
-    tempo_medio_dias: number; ultimo_evento: string;
+    tempo_medio_dias: number | null; ultimo_evento: string;
 
   }[]>([]);
 
@@ -6395,7 +6395,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
       horasOutras,
 
-      tempMedio: fluxo?.tempo_medio_dias ?? 0,
+      tempMedio: fluxo?.tempo_medio_dias ?? null,
 
       ultimoEvento: ultimoEventoByTech.get(s.responsavel) ?? fluxo?.ultimo_evento ?? null,
 
@@ -6476,7 +6476,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
       t.fluxoRegistros > 0 ? Math.round(t.paginas / t.fluxoRegistros) : 0,
 
-      t.tempMedio,
+      t.tempMedio ?? '',
 
       t.ultimoEvento ? fmtTs(t.ultimoEvento) : '',
 
@@ -7008,15 +7008,15 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                     <td className="px-4 py-3 text-center">
 
-                      {t.tempMedio > 0 ? (
+                      {t.tempMedio != null ? (
 
-                        <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-bold ${t.tempMedio <= 5 ? 'bg-green-50 text-green-700' : t.tempMedio <= 15 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
+                        <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-bold ${t.tempMedio <= 5 ? 'bg-green-50 text-green-700' : t.tempMedio <= 15 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`} title={t.tempMedio === 0 ? 'Menos de 1 dia entre ações' : undefined}>
 
-                          {t.tempMedio}d
+                          {t.tempMedio === 0 ? '<1d' : `${t.tempMedio}d`}
 
                         </span>
 
-                      ) : <span className="text-slate-300 text-sm">—</span>}
+                      ) : <span className="text-slate-300 text-sm" title="Menos de 2 ações no fluxo no período — sem intervalo pra calcular">—</span>}
 
                     </td>
 
@@ -7214,7 +7214,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                   </div>
 
-                  {(st.paginas > 0 || st.tempMedio > 0) && (
+                  {(st.paginas > 0 || st.tempMedio != null) && (
 
                     <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 flex-shrink-0">
 
@@ -7236,19 +7236,21 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                       <div className="py-3 text-center">
 
-                        <div className={`text-lg font-black ${st.tempMedio === 0 ? 'text-slate-400' : st.tempMedio <= 5 ? 'text-green-600' : st.tempMedio <= 15 ? 'text-amber-600' : 'text-red-600'}`}>
+                        <div className={`text-lg font-black ${st.tempMedio == null ? 'text-slate-400' : st.tempMedio <= 5 ? 'text-green-600' : st.tempMedio <= 15 ? 'text-amber-600' : 'text-red-600'}`}>
 
-                          {st.tempMedio === 0 ? '< 1 dia' : `${st.tempMedio} dia${st.tempMedio !== 1 ? 's' : ''}`}
+                          {st.tempMedio == null ? '—' : st.tempMedio === 0 ? '< 1 dia' : `${st.tempMedio} dia${st.tempMedio !== 1 ? 's' : ''}`}
 
                         </div>
 
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1" title={st.tempMedio == null ? 'Menos de 2 ações no fluxo no período — sem intervalo pra calcular' : undefined}>
 
-                          {st.tempMedio <= 5
-                            ? <><Zap size={10} />Tempo Rápido</>
-                            : st.tempMedio <= 15
-                              ? <><Clock size={10} />Tempo Regular</>
-                              : <><AlertTriangle size={10} />Tempo Lento</>}
+                          {st.tempMedio == null
+                            ? 'Sem Dados'
+                            : st.tempMedio <= 5
+                              ? <><Zap size={10} />Tempo Rápido</>
+                              : st.tempMedio <= 15
+                                ? <><Clock size={10} />Tempo Regular</>
+                                : <><AlertTriangle size={10} />Tempo Lento</>}
 
                         </div>
 

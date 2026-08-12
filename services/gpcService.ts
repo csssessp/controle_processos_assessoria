@@ -990,15 +990,15 @@ export const GpcService = {
     tecnico: string;
     total_registros: number;
     total_paginas: number;
-    tempo_medio_dias: number;
+    tempo_medio_dias: number | null; // null = menos de 2 ações no período, sem intervalo pra calcular
     ultimo_evento: string;
   }[]> => {
     // fetchAllRows: mesma proteção contra o limite de 1000 linhas do PostgREST usada em
     // getProdutividadeDetalhado — cgof_gpc_fluxo_tecnico está perto desse limite hoje e vai
     // ultrapassá-lo com o uso normal do sistema.
-    const data = await fetchAllRows<{ tecnico: string; registro_id: number; data_evento: string; tempo_dias: number | null; num_paginas_analise: number | null }>(
+    const data = await fetchAllRows<{ tecnico: string; registro_id: number; data_evento: string; num_paginas_analise: number | null }>(
       'cgof_gpc_fluxo_tecnico',
-      'tecnico, registro_id, data_evento, tempo_dias, num_paginas_analise',
+      'tecnico, registro_id, data_evento, num_paginas_analise',
       q => q.not('tecnico', 'is', null).order('data_evento', { ascending: true }), // ascending so first event comes first
     );
 
@@ -1012,7 +1012,7 @@ export const GpcService = {
 
     // To avoid page duplication: track which (tecnico, registro_id) pairs we already counted pages for
     const paginasContadas = new Set<string>();
-    const map: Record<string, { count: number; paginas: number; tempos: number[]; ultimo: string }> = {};
+    const map: Record<string, { count: number; paginas: number; tempos: number[]; ultimo: string; ultimaDataTecnico?: string }> = {};
     for (const r of rows) {
       const t = normalizeNomeTecnico(r.tecnico as string);
       if (!map[t]) map[t] = { count: 0, paginas: 0, tempos: [], ultimo: '' };
@@ -1023,14 +1023,22 @@ export const GpcService = {
         map[t].paginas += r.num_paginas_analise;
         paginasContadas.add(paginasKey);
       }
-      if (r.tempo_dias != null) map[t].tempos.push(r.tempo_dias);
+      // Tempo médio: intervalo (em dias) entre ações consecutivas do mesmo técnico.
+      // A coluna `tempo_dias` da tabela nunca é preenchida por nenhum formulário do app
+      // (fica sempre null), então o valor é calculado aqui a partir das datas dos eventos,
+      // que já chegam ordenadas ascendentemente (query ordena por data_evento).
+      if (map[t].ultimaDataTecnico) {
+        const diffDias = (new Date(r.data_evento).getTime() - new Date(map[t].ultimaDataTecnico!).getTime()) / 86400000;
+        if (diffDias >= 0) map[t].tempos.push(diffDias);
+      }
+      map[t].ultimaDataTecnico = r.data_evento;
       if (r.data_evento > map[t].ultimo) map[t].ultimo = r.data_evento;
     }
     return Object.entries(map).map(([tecnico, s]) => ({
       tecnico,
       total_registros: s.count,
       total_paginas: s.paginas,
-      tempo_medio_dias: s.tempos.length > 0 ? Math.round(s.tempos.reduce((a, b) => a + b, 0) / s.tempos.length) : 0,
+      tempo_medio_dias: s.tempos.length > 0 ? Math.round(s.tempos.reduce((a, b) => a + b, 0) / s.tempos.length) : null,
       ultimo_evento: s.ultimo,
     })).sort((a, b) => b.total_registros - a.total_registros);
   },
