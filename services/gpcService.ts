@@ -867,8 +867,9 @@ export const GpcService = {
       if (error) throw new Error(error.message);
       saved = data as GpcFluxoTecnico;
     }
-    // Sync posição/movimento para a análise deste (registro, exercício) específico —
-    // trilha independente da posição/movimento do registro (aba Identificação, inalterada)
+    // Um evento de fluxo é a ÚNICA forma de avançar Posição/Movimento de um exercício —
+    // propaga automaticamente para a "foto atual" (cgof_gpc_registro_exercicio) e para o
+    // cache em cgof_gpc_recebidos (lista principal/filtros/relatórios leem de lá)
     if (f.registro_id && f.exercicio_id && (f.posicao_id || f.movimento)) {
       const update: Record<string, any> = {
         registro_id: f.registro_id,
@@ -878,6 +879,11 @@ export const GpcService = {
       if (f.posicao_id) update.posicao_id = f.posicao_id;
       if (f.movimento) update.movimento = f.movimento;
       await supabase.from('cgof_gpc_registro_exercicio').upsert(update, { onConflict: 'registro_id,exercicio_id' });
+
+      const cacheUpdate: Record<string, any> = {};
+      if (f.posicao_id) cacheUpdate.posicao_id = f.posicao_id;
+      if (f.movimento) cacheUpdate.movimento = f.movimento;
+      await supabase.from('cgof_gpc_recebidos').update(cacheUpdate).eq('codigo', f.registro_id);
     }
     return saved;
   },

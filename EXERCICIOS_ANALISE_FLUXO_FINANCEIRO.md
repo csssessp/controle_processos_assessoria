@@ -90,6 +90,27 @@ Identificação não ficar desatualizado dentro da mesma sessão do modal.
   função removida por decisão do usuário, sem uso identificado). O bloco "Outros Ciclos deste
   Processo" (visualização de registros-irmãos já existentes) continua intacto.
 
+## Unificação de Posição/Movimento (Análise x Fluxo)
+
+A seção "Análise" tinha `Posição Atual`/`Movimento` como campos soltos e diretamente editáveis
+— e a seção "Fluxo Técnico" logo abaixo tinha os *mesmos* dois campos dentro do formulário de
+"Registrar Novo Evento". Redundante e ambíguo: dava pra mudar a posição por dois caminhos
+diferentes, um dos quais (Análise) não deixava rastro na linha do tempo.
+
+**Removido**: os selects de Posição/Movimento saíram do formulário de Análise (que agora só
+tem Técnicos Responsáveis + Nº de Páginas). O card foi renomeado para "Fluxo Técnico —
+Posição, Movimento e Linha do Tempo": registrar um evento ali (análise, reanálise,
+diligência, etc.) é agora a **única** forma de mudar a posição/movimento de um exercício, e
+sempre gera uma entrada na linha do tempo. `GpcService.saveFluxoTecnico` foi centralizado
+para propagar a mudança para `cgof_gpc_registro_exercicio` (foto atual) e para o cache em
+`cgof_gpc_recebidos` (lista principal/filtros/relatórios) num único lugar. O auto-avanço para
+"Em Análise" quando um novo analista é atribuído continua existindo, mas agora também gera um
+evento de fluxo (antes era uma mudança silenciosa).
+
+Testado ao vivo: registrei um evento real de fluxo no processo 024.00127847/2025-10 (exercício
+2019) para confirmar que salva sem erro e aparece na linha do tempo; removi o registro de
+teste depois via REST direto no Supabase para não deixar dado de teste em produção.
+
 ## Exclusão de exercício cadastrado errado
 
 O card "Dados Financeiros" da aba Exercícios ganhou um botão **Excluir** ao lado de "Editar".

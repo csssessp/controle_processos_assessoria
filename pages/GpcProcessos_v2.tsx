@@ -3660,26 +3660,20 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
         correcao_obs: saved.correcao_obs,
       });
 
-      // Credita a produtividade essencial (posição/movimento/correção) gravando um evento no
-      // Fluxo Técnico deste exercício — é isso (não cgof_gpc_produtividade) que o relatório de
-      // Produtividade e a Linha do Tempo do processo realmente leem para esses três eventos
-      // (GpcService.getProdutividadeDetalhado deriva POSICAO/MOVIMENTO/CORRECAO só a partir de
-      // cgof_gpc_fluxo_tecnico; INICIO_ANALISE continua automático via trigger do banco, disparado
-      // pela mudança de responsaveis_analise já sincronizada acima em syncRecebidoCache).
+      // Posição/Movimento não são mais editados por este formulário — a única forma de
+      // avançá-los é registrar um evento no Fluxo Técnico (abaixo), que já credita a
+      // produtividade certa (GpcService.getProdutividadeDetalhado lê POSICAO/MOVIMENTO/
+      // CORRECAO de cgof_gpc_fluxo_tecnico, não de cgof_gpc_produtividade) e aparece na
+      // linha do tempo. A única exceção é o auto-avanço abaixo, que também vira um evento.
       const anoLabel = exercicios.find(x => x.codigo === selectedId)?.exercicio ?? '';
       const now = new Date().toISOString();
       const tecnico = saved.responsaveis_analise?.[0] ?? currentUserName ?? 'GPC';
 
-      const posicaoMudou = saved.posicao_id != null && saved.posicao_id !== (current?.posicao_id ?? null);
-      const movimentoMudou = !!saved.movimento && saved.movimento !== (current?.movimento ?? null);
-      if (posicaoMudou || movimentoMudou) {
-        // Só inclui o campo que de fato mudou — um evento com os dois preenchidos é sempre
-        // classificado como MOVIMENTO pelo relatório, mesmo quando só a posição avançou
+      if (saved.posicao_id != null && saved.posicao_id !== (current?.posicao_id ?? null)) {
         await GpcService.saveFluxoTecnico({
           registro_id: registroId, exercicio_id: selectedId, tecnico,
-          posicao_id: posicaoMudou ? saved.posicao_id : null,
-          movimento: movimentoMudou ? saved.movimento : null,
-          acao: `Exercício ${anoLabel}`, data_evento: now,
+          posicao_id: saved.posicao_id,
+          acao: `Exercício ${anoLabel} — avanço automático (analista atribuído)`, data_evento: now,
         });
       }
 
@@ -3856,23 +3850,6 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
             <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
               <Sec icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`} />
               <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className={LABEL}>Posição Atual</label>
-                    <select className={INPUT} value={f.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
-                      <option value="">— selecione —</option>
-                      {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={LABEL}>Movimento</label>
-                    <select className={INPUT} value={f.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
-                      <option value="">— selecione —</option>
-                      {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                </div>
-
                 <div>
                   <label className={LABEL + ' flex items-center gap-1.5'}>
                     <User size={11} />Técnicos Responsáveis pela Análise
@@ -3883,6 +3860,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                     selected={f.responsaveis_analise ?? []}
                     onChange={v => set('responsaveis_analise', v.length > 0 ? v : null)}
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">Posição e Movimento são definidos registrando um evento no Fluxo Técnico, mais abaixo — cada mudança fica na linha do tempo</p>
                 </div>
 
                 <div>
@@ -4134,7 +4112,8 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
           </form>
 
           <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<Activity size={13} />} title="Fluxo Técnico deste Exercício" />
+            <Sec icon={<Activity size={13} />} title="Fluxo Técnico — Posição, Movimento e Linha do Tempo" />
+            <p className="text-xs text-slate-400 -mt-2 mb-3">Registre aqui cada avanço (análise, reanálise, diligência, etc.) — a posição/movimento atuais do exercício e o histórico completo vêm deste fluxo.</p>
             <FluxoTecnicoPanel
               registroId={registroId}
               exercicioId={selectedId}
