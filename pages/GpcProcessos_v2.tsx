@@ -3651,14 +3651,21 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   const secTitle = (base: string) => `${base} — Exercício ${anoLabel}`;
 
   const [f, setF] = useState<Partial<GpcRegistroExercicio>>({});
+  // Qtd. de páginas cadastrada no exercício (aba financeira) — usada como valor de
+  // partida do "Nº de Páginas Analisadas" enquanto a Análise deste exercício não tiver
+  // o seu próprio valor salvo. Sem isso, um exercício com páginas cadastradas mas cuja
+  // Análise nunca foi tocada manualmente sincronizava num_paginas=null para o registro,
+  // zerando as páginas creditadas na produtividade.
+  const exQtdPaginas = exercicios.find(e => e.codigo === selectedId)?.qtd_paginas ?? null;
   useEffect(() => {
     const base: Partial<GpcRegistroExercicio> = current ?? { registro_id: registroId, exercicio_id: selectedId ?? undefined };
     setF({
       ...base,
+      num_paginas: base.num_paginas ?? exQtdPaginas,
       responsavel_assinatura: base.responsavel_assinatura ?? fallbackResponsavelAssinatura ?? null,
       responsavel_assinatura_2: base.responsavel_assinatura_2 ?? fallbackResponsavelAssinatura2 ?? null,
     });
-  }, [current, selectedId, registroId, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2]);
+  }, [current, selectedId, registroId, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2, exQtdPaginas]);
 
   const set = (k: keyof GpcRegistroExercicio, v: any) => setF(p => ({ ...p, [k]: v }));
 
@@ -3895,7 +3902,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
 
                 <div>
                   <label className={LABEL}>
-                    <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
+                    <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas Analisadas</span>
                   </label>
                   <input
                     className={INPUT}
@@ -3905,6 +3912,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                     value={f.num_paginas ?? ''}
                     onChange={e => set('num_paginas', e.target.value ? Number(e.target.value) : null)}
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">Vem da "Qtd. Páginas a Analisar" cadastrada no exercício — pode ser ajustado aqui e é o valor usado na produtividade</p>
                 </div>
               </div>
             </CollapsibleSection>
