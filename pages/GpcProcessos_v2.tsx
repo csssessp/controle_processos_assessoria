@@ -3126,13 +3126,13 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
                 <div className="divide-y divide-slate-50">
 
-                  {full.exercicios!.map(ex => (
+                  {full.exercicios!.map((ex, i) => (
 
                     <div key={ex.codigo} className="grid grid-cols-6 gap-3 px-5 py-3 text-xs hover:bg-slate-50/50 transition-colors">
 
                       <span className="font-bold text-slate-700">{ex.exercicio}</span>
 
-                      <span className="text-slate-500">Recebido em: <span className="font-medium text-slate-600">{fmtDate(ex.data_recebimento)}</span></span>
+                      <span className="text-slate-500">Recebido em: <span className="font-medium text-slate-600">{fmtDate(ex.data_recebimento ?? (i === 0 ? row.data : null))}</span></span>
 
                       <span className="text-slate-500">Rep: <span className="text-green-700 font-semibold">{fmt(ex.repasse)}</span></span>
 
@@ -4732,7 +4732,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                       { label: 'Ano',       render: (r: GpcExercicio) => <span className="font-bold text-slate-700">{r.exercicio}</span> },
 
-                      { label: 'Recebido em', render: (r: GpcExercicio) => <span className="text-slate-500">{fmtDate(r.data_recebimento)}</span> },
+                      { label: 'Recebido em', render: (r: GpcExercicio) => {
+                        const isFirst = (full.exercicios ?? [])[0]?.codigo === r.codigo;
+                        const d = r.data_recebimento ?? (isFirst ? liveRecord?.data : null);
+                        return <span className="text-slate-500">{fmtDate(d)}</span>;
+                      } },
 
                       { label: 'Ex. Ant.',  render: (r: GpcExercicio) => fmt(r.exercicio_anterior) },
 
@@ -4963,6 +4967,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                   lastSaldo={lastSaldo}
 
+                  defaultDataRecebimento={(full.exercicios?.length ?? 0) === 0 ? liveRecord?.data : undefined}
+
                   onSave={async e => {
                     const saved = await GpcService.saveExercicio(e);
                     const isNew = !subModal.data?.codigo;
@@ -5085,9 +5091,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
 
 
-const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
+const ExercicioForm = ({ processoId, initial, lastSaldo, defaultDataRecebimento, onSave, onClose }: {
 
-  processoId: number; initial?: Partial<GpcExercicio>; lastSaldo?: number;
+  processoId: number; initial?: Partial<GpcExercicio>; lastSaldo?: number; defaultDataRecebimento?: string | null;
 
   onSave: (e: Partial<GpcExercicio>) => Promise<void>; onClose: () => void;
 
@@ -5103,6 +5109,9 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
     processo_id: processoId,
 
     exercicio_anterior: lastSaldo ?? undefined,
+
+    // primeiro exercicio do processo: pre-preenche com a data de recebimento do processo
+    data_recebimento: defaultDataRecebimento ?? undefined,
 
   });
 
@@ -8875,8 +8884,8 @@ export const GpcProcessos = () => {
                           <td className="px-3 py-4 whitespace-nowrap text-slate-400 text-xs">
                             {exs.length > 0 ? (
                               <div className="flex flex-col gap-1">
-                                {exs.map(ex => (
-                                  <span key={ex.codigo} title="Recebido em">{fmtDate(ex.data_recebimento)}</span>
+                                {exs.map((ex, i) => (
+                                  <span key={ex.codigo} title="Recebido em">{fmtDate(ex.data_recebimento ?? (i === 0 ? r.data : null))}</span>
                                 ))}
                               </div>
                             ) : fmtDate(r.data)}
