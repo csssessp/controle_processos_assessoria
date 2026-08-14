@@ -7702,6 +7702,8 @@ export const GpcProcessos = () => {
 
   const [rows, setRows] = useState<GpcRecebido[]>([]);
 
+  const [exerciciosByProcesso, setExerciciosByProcesso] = useState<Record<number, GpcExercicio[]>>({});
+
   const [posicoes, setPosicoes] = useState<GpcPosicao[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -7732,9 +7734,16 @@ export const GpcProcessos = () => {
 
     setLoading(true);
 
-    const data = await GpcService.getAllRecebidos();
+    const [data, exercicios] = await Promise.all([GpcService.getAllRecebidos(), GpcService.getAllExercicios()]);
 
     setRows(data);
+
+    const byProcesso: Record<number, GpcExercicio[]> = {};
+    for (const ex of exercicios) {
+      if (ex.processo_id == null) continue;
+      (byProcesso[ex.processo_id] ??= []).push(ex);
+    }
+    setExerciciosByProcesso(byProcesso);
 
     setLoading(false);
 
@@ -8749,6 +8758,8 @@ export const GpcProcessos = () => {
 
                       const prevPositions = getPrevPositions(r);
 
+                      const exs = r.processo_codigo != null ? (exerciciosByProcesso[r.processo_codigo] ?? []) : [];
+
 
 
                       return (
@@ -8847,13 +8858,29 @@ export const GpcProcessos = () => {
 
                           <td className="px-3 py-4 text-center">
 
-                            <span className="inline-block bg-slate-100 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold">{r.exercicio ?? '—'}</span>
+                            {exs.length > 0 ? (
+                              <div className="flex flex-col items-center gap-1">
+                                {exs.map(ex => (
+                                  <span key={ex.codigo} className="inline-block bg-slate-100 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold">{ex.exercicio ?? '—'}</span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="inline-block bg-slate-100 text-slate-700 rounded-lg px-2 py-0.5 text-xs font-bold">{r.exercicio ?? '—'}</span>
+                            )}
 
                           </td>
 
                           <td className="px-3 py-4 text-center text-slate-500 text-xs font-medium">{r.drs ?? '—'}</td>
 
-                          <td className="px-3 py-4 whitespace-nowrap text-slate-400 text-xs">{fmtDate(r.data)}</td>
+                          <td className="px-3 py-4 whitespace-nowrap text-slate-400 text-xs">
+                            {exs.length > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                {exs.map(ex => (
+                                  <span key={ex.codigo} title="Recebido em">{fmtDate(ex.data_recebimento)}</span>
+                                ))}
+                              </div>
+                            ) : fmtDate(r.data)}
+                          </td>
 
                           <td className="px-3 py-4">
 

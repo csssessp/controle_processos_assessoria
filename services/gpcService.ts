@@ -327,6 +327,14 @@ export const GpcService = {
 
   // ── EXERCÍCIO ────────────────────────────────────────────────────────────
 
+  getAllExercicios: async (): Promise<GpcExercicio[]> => {
+    return fetchAllRows<GpcExercicio>(
+      'cgof_gpc_exercicio',
+      '*',
+      q => q.order('exercicio'),
+    );
+  },
+
   saveExercicio: async (e: Partial<GpcExercicio>): Promise<GpcExercicio> => {
     const payload = {
       processo_id: e.processo_id,
