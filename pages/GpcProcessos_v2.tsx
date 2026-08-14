@@ -4418,6 +4418,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
     if (!liveRecord?.codigo) return;
     const updated = await GpcService.getRecebidoByCode(liveRecord.codigo);
     if (updated) { setLiveRecord(updated); setForm(updated); }
+    // Também atualiza a lista/cache do componente pai (lista principal, filtros e
+    // Produtividade), que senão só refletiria este exercício após um F5 — nº de páginas,
+    // posição etc. sincronizados aqui ficariam invisíveis na Produtividade até então.
+    await onRecordUpdated?.();
   };
 
 
@@ -4463,6 +4467,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
         // Parcelamento/Reparcelamento já é sobre um exercício específico — não faz
         // sentido mandar para a aba Exercícios, que é para prestação de contas.
         setActiveTab(tipoParc !== '' ? 'parcelamento' : 'exercicios');
+
+        // Atualiza a lista/cache do componente pai — sem isso o processo recém-criado
+        // só aparece na lista principal e na Produtividade depois de um F5.
+        onRecordUpdated?.();
 
       } else {
 
