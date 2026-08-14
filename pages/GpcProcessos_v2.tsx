@@ -3566,7 +3566,7 @@ const AssinaturaResponsavelSection = ({ registroId, signatoryUsers, responsavelA
 // nada do registro nem de outro exercício. É o único lugar de trabalho para um exercício: dados
 // financeiros, análise, situação/julgamento, correção documental e fluxo, tudo nesta aba.
 
-const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced }: {
+const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted }: {
   registroId: number;
   exercicios: GpcExercicio[];
   posicoes: GpcPosicao[];
@@ -3576,12 +3576,15 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   onOpenExercicioForm?: (exercicio?: GpcExercicio) => void;
   focusExercicioId?: number | null;
   onSynced?: () => void | Promise<void>;
+  onDeleted?: () => void | Promise<void>;
 }) => {
   const { toast } = useToast();
+  const { confirmAction } = useConfirm();
   const [regExs, setRegExs] = useState<GpcRegistroExercicio[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3702,6 +3705,26 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
     }
   };
 
+  const handleDeleteExercicio = async (ex: GpcExercicio) => {
+    const temAnalise = regExs.some(r => r.exercicio_id === ex.codigo);
+    const aviso = temAnalise
+      ? `Excluir o exercício ${ex.exercicio ?? ''}? Isso também apaga a Análise, Situação e o Fluxo já registrados nele. Essa ação não pode ser desfeita.`
+      : `Excluir o exercício ${ex.exercicio ?? ''}? Essa ação não pode ser desfeita.`;
+    if (!(await confirmAction(aviso, { danger: true }))) return;
+    setDeleting(true);
+    try {
+      await GpcService.deleteExercicio(ex.codigo);
+      if (selectedId === ex.codigo) setSelectedId(null);
+      await load();
+      await onDeleted?.();
+      toast('success', 'Exercício excluído.');
+    } catch (ex2: any) {
+      toast('error', 'Erro ao excluir: ' + ex2.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (exercicios.length === 0) {
     return (
       <div className="bg-white border border-slate-100 rounded-2xl p-8 text-center space-y-3">
@@ -3781,9 +3804,20 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               icon={<DollarSign size={13} />}
               title="Dados Financeiros"
               action={
-                <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
-                  <Edit size={12} />Editar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
+                    <Edit size={12} />Editar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    onClick={() => handleDeleteExercicio(exObj)}
+                    title="Excluir este exercício (se foi cadastrado errado)"
+                  >
+                    <Trash2 size={12} />Excluir
+                  </button>
+                </div>
               }
             />
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-1 text-sm">
@@ -5006,6 +5040,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 onOpenExercicioForm={ex => setSubModal({ type: 'exercicio', data: ex })}
                 focusExercicioId={focusExercicioId}
                 onSynced={refreshLiveRecord}
+                onDeleted={refreshFull}
               />
 
               {full && (

@@ -90,6 +90,18 @@ Identificação não ficar desatualizado dentro da mesma sessão do modal.
   função removida por decisão do usuário, sem uso identificado). O bloco "Outros Ciclos deste
   Processo" (visualização de registros-irmãos já existentes) continua intacto.
 
+## Exclusão de exercício cadastrado errado
+
+O card "Dados Financeiros" da aba Exercícios ganhou um botão **Excluir** ao lado de "Editar".
+Como um exercício pode já ter Análise/Situação/Fluxo salvos nele, a exclusão só funcionava
+antes se o exercício estivesse "vazio" — com dados vinculados, `GpcService.deleteExercicio`
+falhava com erro de chave estrangeira. `sql_parts/parte_48_exercicio_delete_cascade.sql`
+adiciona `ON DELETE CASCADE` nas FKs de `cgof_gpc_registro_exercicio.exercicio_id` e
+`cgof_gpc_fluxo_tecnico.exercicio_id` (não mexe na FK de `cgof_gpc_historico`, tabela legada
+só-leitura — se um exercício antigo tiver histórico migrado do Access vinculado, a exclusão
+continua bloqueada de propósito). O aviso de confirmação avisa quando há Análise/Fluxo que
+também serão apagados junto.
+
 ## Principais arquivos modificados
 
 - `pages/GpcProcessos_v2.tsx` — `ExercicioAnaliseTab` (componente novo), `RegistroModal`
