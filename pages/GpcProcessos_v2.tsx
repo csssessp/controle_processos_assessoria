@@ -19,6 +19,7 @@ import {
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
   ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap, MoreVertical, RefreshCw,
+  ChevronDown, ChevronUp,
 
 } from 'lucide-react';
 
@@ -802,6 +803,31 @@ const Sec = ({ icon, title, action }: { icon: React.ReactNode; title: string; ac
     {action}
   </div>
 );
+
+// ---- CollapsibleSection: card com cabeçalho clicável para abrir/fechar o conteúdo ----
+// Usado em telas com muitas seções empilhadas (ex.: aba Exercícios) para reduzir o scroll —
+// só o que o usuário está preenchendo no momento fica expandido.
+const CollapsibleSection = ({ icon, title, action, defaultOpen = false, children }: {
+  icon: React.ReactNode; title: React.ReactNode; action?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
+}) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center gap-2.5">
+        <button type="button" onClick={() => setOpen(o => !o)} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
+          <span className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+            {icon}
+          </span>
+          <span className="text-sm font-bold text-slate-700 truncate">{title}</span>
+          {open ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
+        </button>
+        <div className="flex-1 h-px bg-slate-100" />
+        {action}
+      </div>
+      {open && <div className="mt-4">{children}</div>}
+    </section>
+  );
+};
 
 
 
@@ -3487,8 +3513,8 @@ const ParcFluxoCard = ({ parc, currentUserName, onSaveLog }: {
 };
 
 // ---- AssinaturaResponsavelSection: quem assina o parecer/relatório final do registro ----
-// Extraído do FluxoTecnicoPanel (que hoje só é usado com hideAssinatura, por exercício) para
-// ter um lugar próprio na aba Identificação — é um dado do registro, não de um exercício.
+// Extraído do FluxoTecnicoPanel (que hoje só é usado com hideAssinatura, por exercício) —
+// vive na aba Exercícios, dentro de um CollapsibleSection (por isso não tem cabeçalho próprio).
 const AssinaturaResponsavelSection = ({ registroId, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onChange }: {
   registroId: number;
   signatoryUsers: { id: string; name: string }[];
@@ -3520,10 +3546,6 @@ const AssinaturaResponsavelSection = ({ registroId, signatoryUsers, responsavelA
 
   return (
     <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <PenLine size={15} className="text-indigo-500" />
-        <span className="text-sm font-bold text-indigo-800">Responsável pela Assinatura</span>
-      </div>
       <div>
         <label className={LABEL}>Adicionar responsável</label>
         <select
@@ -3793,28 +3815,28 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
         const exObj = exercicios.find(x => x.codigo === selectedId);
         if (!exObj) return null;
         return (
-          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec
-              icon={<DollarSign size={13} />}
-              title="Dados Financeiros"
-              action={
-                <div className="flex items-center gap-2">
-                  <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
-                    <Edit size={12} />Editar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={deleting}
-                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                    onClick={() => handleDeleteExercicio(exObj)}
-                    title="Excluir este exercício (se foi cadastrado errado)"
-                  >
-                    <Trash2 size={12} />Excluir
-                  </button>
-                </div>
-              }
-            />
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-1 text-sm">
+          <CollapsibleSection
+            icon={<DollarSign size={13} />}
+            title="Dados Financeiros"
+            defaultOpen
+            action={
+              <div className="flex items-center gap-2">
+                <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
+                  <Edit size={12} />Editar
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  onClick={() => handleDeleteExercicio(exObj)}
+                  title="Excluir este exercício (se foi cadastrado errado)"
+                >
+                  <Trash2 size={12} />Excluir
+                </button>
+              </div>
+            }
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Recebido em</div>
                 <div className="font-medium text-slate-700">{fmtDate(exObj.data_recebimento)}</div>
@@ -3836,7 +3858,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                 <div className="font-medium text-slate-700">{fmt(exObj.devolvido)}</div>
               </div>
             </div>
-          </section>
+          </CollapsibleSection>
         );
       })()}
 
@@ -3847,8 +3869,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
       ) : selectedId != null && (
         <>
           <form onSubmit={submit} className="space-y-4">
-            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-              <Sec icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`} />
+            <CollapsibleSection icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`} defaultOpen>
               <div className="space-y-3">
                 <div>
                   <label className={LABEL + ' flex items-center gap-1.5'}>
@@ -3877,10 +3898,9 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                   />
                 </div>
               </div>
-            </section>
+            </CollapsibleSection>
 
-            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-              <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
+            <CollapsibleSection icon={<ShieldCheck size={13} />} title="Situação do Processo">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
@@ -4070,10 +4090,9 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                   </div>
                 </div>
               </div>
-            </section>
+            </CollapsibleSection>
 
-            <section className="bg-white border border-rose-100 rounded-2xl p-5 shadow-sm">
-              <Sec icon={<PenLine size={13} />} title="Correção Documental" />
+            <CollapsibleSection icon={<PenLine size={13} />} title="Correção Documental">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={LABEL}>
@@ -4101,7 +4120,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                   />
                 </div>
               </div>
-            </section>
+            </CollapsibleSection>
 
             <div className="flex justify-end">
               <button type="submit" className={BTN_PRI} disabled={saving}>
@@ -4111,9 +4130,8 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
             </div>
           </form>
 
-          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<Activity size={13} />} title="Fluxo Técnico — Posição, Movimento e Linha do Tempo" />
-            <p className="text-xs text-slate-400 -mt-2 mb-3">Registre aqui cada avanço (análise, reanálise, diligência, etc.) — a posição/movimento atuais do exercício e o histórico completo vêm deste fluxo.</p>
+          <CollapsibleSection icon={<Activity size={13} />} title="Fluxo Técnico — Posição, Movimento e Linha do Tempo">
+            <p className="text-xs text-slate-400 -mt-1 mb-3">Registre aqui cada avanço (análise, reanálise, diligência, etc.) — a posição/movimento atuais do exercício e o histórico completo vêm deste fluxo.</p>
             <FluxoTecnicoPanel
               registroId={registroId}
               exercicioId={selectedId}
@@ -4124,7 +4142,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               hideAssinatura
               currentUserName={currentUserName}
             />
-          </section>
+          </CollapsibleSection>
         </>
       )}
     </div>
@@ -4444,19 +4462,24 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   // Tabela de Parcelamento/Reparcelamento — usada tanto na visão resumida da aba
   // Análise quanto na aba dedicada (que também mostra Valor Corrigido/Vl-Parcela).
-  const ParcelamentoSection = ({ detailed }: { detailed?: boolean }) => {
+  const ParcelamentoSection = ({ detailed, collapsible }: { detailed?: boolean; collapsible?: boolean }) => {
     if (!full) return null;
+    const header = {
+      icon: <DollarSign size={13} />,
+      title: `Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`,
+      action: (
+        <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
+          <Plus size={12} />Adicionar
+        </button>
+      ),
+    };
+    const Wrapper = collapsible ? CollapsibleSection : 'section';
+    const wrapperProps = collapsible
+      ? { ...header, defaultOpen: (full.parcelamentos?.length ?? 0) > 0 }
+      : { className: 'bg-white border border-slate-100 rounded-2xl p-5 shadow-sm' };
     return (
-      <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-        <Sec
-          icon={<DollarSign size={13} />}
-          title={`Parcelamento / Reparcelamento (${full.parcelamentos?.length ?? 0})`}
-          action={
-            <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'parcelamento', data: tipoParc ? { tipo_parcelamento: tipoParc } : undefined })}>
-              <Plus size={12} />Adicionar
-            </button>
-          }
-        />
+      <Wrapper {...(wrapperProps as any)}>
+        {!collapsible && <Sec {...header} />}
         <InlineTable
           cols={[
             { label: 'Tipo', render: (r: GpcParcelamento) => (
@@ -4492,7 +4515,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
           onDelete={r => confirmDeleteSub(() => GpcService.deleteParcelamento(r.codigo))}
           emptyMsg={detailed ? 'Nenhum registro de parcelamento/reparcelamento cadastrado' : 'Nenhum parcelamento cadastrado'}
         />
-      </section>
+      </Wrapper>
     );
   };
 
@@ -4952,16 +4975,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
           </section>
 
-          {isEditing && (
-            <AssinaturaResponsavelSection
-              registroId={liveRecord!.codigo}
-              signatoryUsers={signatoryUsers}
-              responsavelAssinatura={form.responsavel_assinatura}
-              responsavelAssinatura2={form.responsavel_assinatura_2}
-              onChange={(a1) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: null }))}
-            />
-          )}
-
           </>)}
 
 
@@ -5022,30 +5035,42 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 onDeleted={refreshFull}
               />
 
+              {isEditing && (
+                <CollapsibleSection icon={<PenLine size={13} />} title="Responsável pela Assinatura">
+                  <AssinaturaResponsavelSection
+                    registroId={liveRecord!.codigo}
+                    signatoryUsers={signatoryUsers}
+                    responsavelAssinatura={form.responsavel_assinatura}
+                    responsavelAssinatura2={form.responsavel_assinatura_2}
+                    onChange={(a1) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: null }))}
+                  />
+                </CollapsibleSection>
+              )}
+
               {full && (
                 <>
 
                   {/* Objetos */}
 
-                  <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                  <CollapsibleSection
 
-                    <Sec
+                    icon={<ClipboardList size={13} />}
 
-                      icon={<ClipboardList size={13} />}
+                    title={`Objetos (${full.objetos?.length ?? 0})`}
 
-                      title={`Objetos (${full.objetos?.length ?? 0})`}
+                    defaultOpen={(full.objetos?.length ?? 0) > 0}
 
-                      action={
+                    action={
 
-                        <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
 
-                          <Plus size={12} />Adicionar
+                        <Plus size={12} />Adicionar
 
-                        </button>
+                      </button>
 
-                      }
+                    }
 
-                    />
+                  >
 
                     <InlineTable
 
@@ -5067,32 +5092,32 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                     />
 
-                  </section>
+                  </CollapsibleSection>
 
                   {/* Parcelamentos — only for non-parcelamento-type processes */}
-                  {!tipoParc && <ParcelamentoSection />}
+                  {!tipoParc && <ParcelamentoSection collapsible />}
 
                   {/* TAs */}
 
-                  <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                  <CollapsibleSection
 
-                    <Sec
+                    icon={<GitBranch size={13} />}
 
-                      icon={<GitBranch size={13} />}
+                    title={`Termos Aditivos (${full.tas?.length ?? 0})`}
 
-                      title={`Termos Aditivos (${full.tas?.length ?? 0})`}
+                    defaultOpen={(full.tas?.length ?? 0) > 0}
 
-                      action={
+                    action={
 
-                        <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
+                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
 
-                          <Plus size={12} />Adicionar
+                        <Plus size={12} />Adicionar
 
-                        </button>
+                      </button>
 
-                      }
+                    }
 
-                    />
+                  >
 
                     <InlineTable
 
@@ -5116,7 +5141,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                     />
 
-                  </section>
+                  </CollapsibleSection>
 
                 </>
               )}

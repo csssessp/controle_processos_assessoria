@@ -111,6 +111,20 @@ Testado ao vivo: registrei um evento real de fluxo no processo 024.00127847/2025
 2019) para confirmar que salva sem erro e aparece na linha do tempo; removi o registro de
 teste depois via REST direto no Supabase para não deixar dado de teste em produção.
 
+## Seções recolhíveis + Assinatura movida para dentro de Exercícios
+
+Com Dados Financeiros + Análise + Situação + Correção + Fluxo + Assinatura + Objetos +
+Parcelamento + Termos Aditivos todos empilhados, a aba Exercícios ficou com scroll grande
+demais. Criado `CollapsibleSection` (variante de `Sec` com cabeçalho clicável que
+abre/fecha o conteúdo) e todas essas seções passaram a usá-lo. Abertas por padrão: Dados
+Financeiros e Análise (uso mais frequente) e Objetos/Parcelamento/Termos Aditivos quando já
+têm dados cadastrados; fechadas por padrão: Situação, Correção, Fluxo Técnico e Assinatura.
+É só um wrapper visual — não muda nenhuma lógica de salvamento.
+
+"Responsável pela Assinatura" também saiu da aba Identificação e passou a viver dentro de
+Exercícios (como uma dessas seções recolhíveis) — continua sendo um dado do registro (não
+por exercício), só mudou de aba.
+
 ## Exclusão de exercício cadastrado errado
 
 O card "Dados Financeiros" da aba Exercícios ganhou um botão **Excluir** ao lado de "Editar".
