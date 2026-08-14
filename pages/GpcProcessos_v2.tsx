@@ -3128,9 +3128,11 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
                   {full.exercicios!.map(ex => (
 
-                    <div key={ex.codigo} className="grid grid-cols-5 gap-3 px-5 py-3 text-xs hover:bg-slate-50/50 transition-colors">
+                    <div key={ex.codigo} className="grid grid-cols-6 gap-3 px-5 py-3 text-xs hover:bg-slate-50/50 transition-colors">
 
                       <span className="font-bold text-slate-700">{ex.exercicio}</span>
+
+                      <span className="text-slate-500">Recebido em: <span className="font-medium text-slate-600">{fmtDate(ex.data_recebimento)}</span></span>
 
                       <span className="text-slate-500">Rep: <span className="text-green-700 font-semibold">{fmt(ex.repasse)}</span></span>
 
@@ -4730,6 +4732,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                       { label: 'Ano',       render: (r: GpcExercicio) => <span className="font-bold text-slate-700">{r.exercicio}</span> },
 
+                      { label: 'Recebido em', render: (r: GpcExercicio) => <span className="text-slate-500">{fmtDate(r.data_recebimento)}</span> },
+
                       { label: 'Ex. Ant.',  render: (r: GpcExercicio) => fmt(r.exercicio_anterior) },
 
                       { label: 'Repasse',   render: (r: GpcExercicio) => <span className="text-green-700 font-medium">{fmt(r.repasse)}</span> },
@@ -5129,6 +5133,8 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, onSave, onClose }: {
       <div className="grid grid-cols-2 gap-3">
 
         <div><label className={LABEL}>Exercício *</label><input className={INPUT} value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
+
+        <div><label className={LABEL}>Data de Recebimento</label><input type="date" className={INPUT} value={f.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)} /></div>
 
         <div><label className={LABEL}>Qtd. Páginas a Analisar</label><input type="number" min="0" className={INPUT} value={f.qtd_paginas ?? ''} onChange={e => set('qtd_paginas', e.target.value === '' ? null : Number(e.target.value))} placeholder="0" /></div>
 

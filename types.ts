@@ -196,6 +196,7 @@ export interface GpcExercicio {
   gastos: number | null;
   devolvido: number | null;
   qtd_paginas?: number | null;
+  data_recebimento?: string | null;
 }
 
 export interface GpcHistorico {

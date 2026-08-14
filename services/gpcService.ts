@@ -337,6 +337,7 @@ export const GpcService = {
       gastos: e.gastos ?? null,
       devolvido: e.devolvido ?? null,
       qtd_paginas: e.qtd_paginas ?? null,
+      data_recebimento: e.data_recebimento ?? null,
     };
     if (e.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_exercicio').update(payload).eq('codigo', e.codigo).select().single();
