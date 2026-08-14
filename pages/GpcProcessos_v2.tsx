@@ -2733,17 +2733,22 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 relative">
 
-            {[
-
-              { label: 'Exercício',    value: row.exercicio ?? '—' },
-
-              { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : '—' },
-
-              { label: 'Recebimento',  value: fmtDate(row.data) },
-
-              { label: 'Entidade',     value: row.entidade ?? '—' },
-
-            ].map(({ label, value }) => (
+            {(() => {
+              const exList = full?.exercicios ?? [];
+              const exercicioValue = row.exercicio
+                ?? (exList.length ? exList.map(e => e.exercicio).filter(Boolean).join(', ') : null)
+                ?? '—';
+              const recDates = exList.map(e => e.data_recebimento).filter((d): d is string => !!d);
+              const recebimentoValue = recDates.length
+                ? (recDates.length === 1 ? fmtDate(recDates[0]) : `${fmtDate(recDates[0])} – ${fmtDate(recDates[recDates.length - 1])}`)
+                : fmtDate(row.data);
+              return [
+                { label: 'Exercício',    value: exercicioValue },
+                { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : '—' },
+                { label: 'Recebimento',  value: recebimentoValue },
+                { label: 'Entidade',     value: row.entidade ?? '—' },
+              ];
+            })().map(({ label, value }) => (
 
               <div key={label} className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/10">
 
@@ -4154,28 +4159,22 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
             />
           </CollapsibleSection>
 
-          {(() => {
-            const exObj = exercicios.find(x => x.codigo === selectedId);
-            if (!exObj) return null;
-            return (
-              <div className="flex items-center justify-between gap-3 bg-red-50/60 border border-red-100 rounded-2xl px-5 py-4">
-                <div>
-                  <div className="text-sm font-bold text-red-700">Excluir Exercício {exObj.exercicio ?? ''}</div>
-                  <div className="text-xs text-red-500 mt-0.5">Remove os dados financeiros, análise, situação e fluxo deste exercício. Ação irreversível, exige sua senha.</div>
-                </div>
+          <div className="flex items-center justify-between gap-3">
+            {(() => {
+              const exObj = exercicios.find(x => x.codigo === selectedId);
+              if (!exObj) return <span />;
+              return (
                 <button
                   type="button"
                   disabled={deleting}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-red-300 text-red-700 bg-white hover:bg-red-100 transition-colors disabled:opacity-50 flex-shrink-0"
+                  title={`Remove os dados financeiros, análise, situação e fluxo do exercício ${exObj.exercicio ?? ''}. Ação irreversível, exige senha.`}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
                   onClick={() => setDeleteTarget(exObj)}
                 >
-                  <Trash2 size={13} />Excluir Exercício
+                  <Trash2 size={11} />Excluir exercício {exObj.exercicio ?? ''}
                 </button>
-              </div>
-            );
-          })()}
-
-          <div className="flex justify-end">
+              );
+            })()}
             <button type="submit" form="exercicio-analise-form" className={BTN_PRI} disabled={saving}>
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Salvar Análise deste Exercício

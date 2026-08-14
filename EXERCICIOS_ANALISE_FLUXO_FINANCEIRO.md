@@ -193,6 +193,24 @@ de propósito, para não apagar dado histórico por engano.
   padrão, ações só aparecem ao abrir, botão de salvar no final, zona de exclusão com senha
   abrindo o modal correto, zero erros no console em todas as rodadas.
 
+## Ajustes finos adicionais (14/08/2026)
+
+- **Exclusão de exercício menos chamativa**: a zona de perigo virou um link de texto discreto
+  ("Excluir exercício {ano}", cinza, só fica vermelho no hover) ao lado do botão Salvar, em vez
+  de um card vermelho sempre visível ocupando espaço. O fluxo (clique → modal com senha) não
+  mudou, só a apresentação.
+- **Cabeçalho de Detalhes (ViewModal) mostrando "—"/"-" mesmo com exercícios cadastrados**: os
+  campos "Exercício" e "Recebimento" do card de topo liam `row.exercicio`/`row.data`, campos
+  legados no registro que só eram preenchidos pelo fluxo antigo (um exercício por registro).
+  Registros cujos exercícios foram cadastrados só pela aba Exercícios (modelo novo) nunca
+  preenchiam esses campos, então o topo ficava em branco mesmo com exercícios reais na tabela
+  `cgof_gpc_exercicio` (confirmado com o processo 024.00173610/2023-49, registro #1346: 2
+  exercícios cadastrados — 2023 e 2024 — e o topo mostrava "—"). Corrigido lendo
+  `full.exercicios` (já carregado via `GpcService.getProcessoFull`): "Exercício" agora lista
+  todos os anos (ex.: "2023, 2024") e "Recebimento" mostra a data (ou intervalo, se houver mais
+  de uma data registrada), com fallback para os campos antigos do registro quando não há
+  exercícios cadastrados.
+
 ## Status
 
 **Concluído.** 14/08/2026.
