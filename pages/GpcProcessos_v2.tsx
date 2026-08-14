@@ -3590,7 +3590,7 @@ const AssinaturaResponsavelSection = ({ registroId, exercicioId, signatoryUsers,
 // nada do registro nem de outro exercício. É o único lugar de trabalho para um exercício: dados
 // financeiros, análise, situação/julgamento, correção documental e fluxo, tudo nesta aba.
 
-const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted }: {
+const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2 }: {
   registroId: number;
   exercicios: GpcExercicio[];
   posicoes: GpcPosicao[];
@@ -3601,6 +3601,11 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   focusExercicioId?: number | null;
   onSynced?: () => void | Promise<void>;
   onDeleted?: () => void | Promise<void>;
+  // Assinatura já cadastrada no registro antes de existir por exercício — usada como ponto de
+  // partida quando o exercício selecionado ainda não tem a sua própria (não perder o que já
+  // estava preenchido na migração para o modelo por exercício)
+  fallbackResponsavelAssinatura?: string | null;
+  fallbackResponsavelAssinatura2?: string | null;
 }) => {
   const { toast } = useToast();
   const { currentUser } = useApp();
@@ -3637,10 +3642,18 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
     [regExs, selectedId]
   );
 
+  const anoLabel = exercicios.find(e => e.codigo === selectedId)?.exercicio ?? '';
+  const secTitle = (base: string) => `${base} — Exercício ${anoLabel}`;
+
   const [f, setF] = useState<Partial<GpcRegistroExercicio>>({});
   useEffect(() => {
-    setF(current ?? { registro_id: registroId, exercicio_id: selectedId ?? undefined });
-  }, [current, selectedId, registroId]);
+    const base: Partial<GpcRegistroExercicio> = current ?? { registro_id: registroId, exercicio_id: selectedId ?? undefined };
+    setF({
+      ...base,
+      responsavel_assinatura: base.responsavel_assinatura ?? fallbackResponsavelAssinatura ?? null,
+      responsavel_assinatura_2: base.responsavel_assinatura_2 ?? fallbackResponsavelAssinatura2 ?? null,
+    });
+  }, [current, selectedId, registroId, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2]);
 
   const set = (k: keyof GpcRegistroExercicio, v: any) => setF(p => ({ ...p, [k]: v }));
 
@@ -3690,7 +3703,6 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
       // produtividade certa (GpcService.getProdutividadeDetalhado lê POSICAO/MOVIMENTO/
       // CORRECAO de cgof_gpc_fluxo_tecnico, não de cgof_gpc_produtividade) e aparece na
       // linha do tempo. A única exceção é o auto-avanço abaixo, que também vira um evento.
-      const anoLabel = exercicios.find(x => x.codigo === selectedId)?.exercicio ?? '';
       const now = new Date().toISOString();
       const tecnico = saved.responsaveis_analise?.[0] ?? currentUserName ?? 'GPC';
 
@@ -3821,7 +3833,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
         return (
           <CollapsibleSection
             icon={<DollarSign size={13} />}
-            title="Dados Financeiros"
+            title={secTitle('Dados Financeiros')}
             action={
               <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
                 <Edit size={12} />Editar
@@ -3861,7 +3873,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
       ) : selectedId != null && (
         <>
           <form id="exercicio-analise-form" onSubmit={submit} className="space-y-4">
-            <CollapsibleSection icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`}>
+            <CollapsibleSection icon={<BookOpen size={13} />} title={secTitle('Análise')}>
               <div className="space-y-3">
                 <div>
                   <label className={LABEL + ' flex items-center gap-1.5'}>
@@ -3892,7 +3904,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection icon={<ShieldCheck size={13} />} title="Situação do Processo">
+            <CollapsibleSection icon={<ShieldCheck size={13} />} title={secTitle('Situação do Processo')}>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
@@ -4084,7 +4096,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection icon={<PenLine size={13} />} title="Correção Documental">
+            <CollapsibleSection icon={<PenLine size={13} />} title={secTitle('Correção Documental')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={LABEL}>
@@ -4116,8 +4128,8 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
 
           </form>
 
-          <CollapsibleSection icon={<Activity size={13} />} title="Fluxo Técnico — Posição, Movimento e Linha do Tempo">
-            <p className="text-xs text-slate-400 -mt-1 mb-3">Registre aqui cada avanço (análise, reanálise, diligência, etc.) — a posição/movimento atuais do exercício e o histórico completo vêm deste fluxo.</p>
+          <CollapsibleSection icon={<Activity size={13} />} title={secTitle('Fluxo Técnico')}>
+            <p className="text-xs text-slate-400 -mt-1 mb-3">Posição, Movimento e Linha do Tempo — registre aqui cada avanço (análise, reanálise, diligência, etc.); a posição/movimento atuais do exercício e o histórico completo vêm deste fluxo.</p>
             <FluxoTecnicoPanel
               registroId={registroId}
               exercicioId={selectedId}
@@ -4130,7 +4142,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
             />
           </CollapsibleSection>
 
-          <CollapsibleSection icon={<PenLine size={13} />} title="Responsável pela Assinatura">
+          <CollapsibleSection icon={<PenLine size={13} />} title={secTitle('Responsável pela Assinatura')}>
             <AssinaturaResponsavelSection
               key={selectedId}
               registroId={registroId}
@@ -5069,6 +5081,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 focusExercicioId={focusExercicioId}
                 onSynced={refreshLiveRecord}
                 onDeleted={refreshFull}
+                fallbackResponsavelAssinatura={liveRecord?.responsavel_assinatura}
+                fallbackResponsavelAssinatura2={liveRecord?.responsavel_assinatura_2}
               />
 
               {full && (

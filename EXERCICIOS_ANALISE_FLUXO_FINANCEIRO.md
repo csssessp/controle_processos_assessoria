@@ -156,6 +156,21 @@ vinculado). Não mexe na FK de `cgof_gpc_historico` (tabela legada só-leitura) 
 exercício antigo tiver histórico migrado do Access vinculado, a exclusão continua bloqueada
 de propósito, para não apagar dado histórico por engano.
 
+## Ajustes finos na aba Exercícios
+
+- Todos os cabeçalhos das seções por exercício passaram a se identificar (`secTitle()`):
+  "Dados Financeiros — Exercício 2019", "Situação do Processo — Exercício 2019", etc. — antes
+  só "Análise" mostrava o ano, e com tudo recolhido por padrão não dava pra saber de qual
+  exercício era cada seção sem abrir. Objetos/Parcelamento/Termos Aditivos não ganharam o
+  sufixo — são do processo inteiro, não de um exercício específico.
+- **Assinatura não puxava o responsável já cadastrado**: a assinatura existia antes só no
+  registro (`cgof_gpc_recebidos.responsavel_assinatura`); ao virar um dado por exercício, os
+  exercícios que ainda não tinham a própria assinatura salva ficavam em branco, mesmo que já
+  houvesse alguém definido no registro. Corrigido com um fallback: `ExercicioAnaliseTab`
+  recebe `fallbackResponsavelAssinatura(2)` do registro e usa como valor de partida sempre que
+  o exercício selecionado ainda não tem o seu próprio. Assim que o usuário mexer (adicionar/
+  remover), passa a salvar só no exercício, como já era o design.
+
 ## Principais arquivos modificados
 
 - `pages/GpcProcessos_v2.tsx` — `ExercicioAnaliseTab` (componente novo), `CollapsibleSection`
