@@ -4452,6 +4452,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
         setSavedOk(true);
 
+        setActiveTab('exercicios');
+
       } else {
 
         setLiveRecord(saved);
