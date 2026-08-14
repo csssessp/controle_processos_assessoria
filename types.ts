@@ -306,7 +306,12 @@ export interface GpcRecebido {
   valor_convenio?: number | null;
   // Situação do processo
   situacao?: 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR' | null;
-  irregular_tipos?: ('DIVIDA_ATIVA' | 'CONTENCIOSO' | 'CADIN')[] | null; // sub-type when situacao = IRREGULAR
+  irregular_tipos?: ('CONTENCIOSO' | 'CADIN')[] | null; // sub-type when situacao = IRREGULAR
+  // Desfecho do julgamento quando situacao = IRREGULAR
+  irregular_debito?: 'SEM_DEBITO' | 'COM_DEBITO' | null;
+  valor_multa?: number | null;                                       // quando irregular_debito = SEM_DEBITO
+  ressarcimento_status?: 'RECOLHIDO' | 'NAO_RECOLHIDO' | null;        // quando irregular_debito = COM_DEBITO
+  cobranca_estagio?: 'COBRANCA' | 'DIVIDA_ATIVA' | 'EXECUCAO_FISCAL' | null; // quando ressarcimento_status = NAO_RECOLHIDO
   valor_a_devolver?: number | null;
   valor_devolvido?: number | null;
   situacao_obs?: string | null;
@@ -319,6 +324,7 @@ export interface GpcRecebido {
 export interface GpcFluxoTecnico {
   id: number;
   registro_id: number;
+  exercicio_id?: number | null;
   tecnico: string | null;
   data_evento: string;
   posicao_id: number | null;
@@ -329,6 +335,33 @@ export interface GpcFluxoTecnico {
   num_paginas_analise?: number | null;
   obs: string | null;
   created_at?: string;
+}
+
+// Estado de análise (posição, movimento, situação/julgamento, correção documental) de um
+// registro para um exercício específico — cada exercício tem sua própria trilha.
+export interface GpcRegistroExercicio {
+  codigo: number;
+  registro_id: number;
+  exercicio_id: number;
+  exercicio?: string | null; // ano do exercício (join com cgof_gpc_exercicio, não persistido aqui)
+  posicao_id: number | null;
+  posicao?: string | null;
+  movimento: string | null;
+  responsaveis_analise: string[] | null;
+  num_paginas: number | null;
+  situacao: 'REGULAR' | 'IRREGULAR' | 'PARCIALMENTE_REGULAR' | null;
+  irregular_tipos: ('CONTENCIOSO' | 'CADIN')[] | null;
+  irregular_debito: 'SEM_DEBITO' | 'COM_DEBITO' | null;
+  valor_multa: number | null;
+  ressarcimento_status: 'RECOLHIDO' | 'NAO_RECOLHIDO' | null;
+  cobranca_estagio: 'COBRANCA' | 'DIVIDA_ATIVA' | 'EXECUCAO_FISCAL' | null;
+  situacao_obs: string | null;
+  valor_a_devolver: number | null;
+  valor_devolvido: number | null;
+  correcao_paginas: number | null;
+  correcao_obs: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface GpcProdutividade {

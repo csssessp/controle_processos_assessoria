@@ -6,6 +6,7 @@ import {
   RefreshCw, CheckCircle2, Users2, ChevronDown, ChevronUp, ShieldAlert,
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
+import { GpcRecebido } from '../types';
 
 // ─── XLSX utility ────────────────────────────────────────────────────────────
 
@@ -41,14 +42,39 @@ const SITUACAO_LABELS: Record<string, string> = {
 };
 
 const IRREGULAR_TIPO_LABELS: Record<string, string> = {
-  DIVIDA_ATIVA: 'Dívida Ativa',
   CONTENCIOSO: 'Contencioso',
   CADIN: 'Cadin',
+};
+
+const IRREGULAR_DEBITO_LABELS: Record<string, string> = {
+  SEM_DEBITO: 'Sem Débito',
+  COM_DEBITO: 'Com Débito',
+};
+
+const RESSARCIMENTO_STATUS_LABELS: Record<string, string> = {
+  RECOLHIDO: 'Recolhido',
+  NAO_RECOLHIDO: 'Não Recolhido',
+};
+
+const COBRANCA_ESTAGIO_LABELS: Record<string, string> = {
+  COBRANCA: 'Cobrança',
+  DIVIDA_ATIVA: 'Dívida Ativa',
+  EXECUCAO_FISCAL: 'Execução Fiscal',
 };
 
 const situacaoLabel = (s?: string | null) => (s ? (SITUACAO_LABELS[s] ?? s) : 'Não Avaliado');
 const irregularTiposLabel = (tipos?: string[] | null) =>
   (tipos ?? []).map(t => IRREGULAR_TIPO_LABELS[t] ?? t).join(', ');
+
+// Desfecho do julgamento IRREGULAR: Multa (sem débito) ou o estágio mais avançado do ressarcimento (com débito)
+const desfechoJulgamentoLabel = (r: Pick<GpcRecebido, 'situacao' | 'irregular_debito' | 'ressarcimento_status' | 'cobranca_estagio'>) => {
+  if (r.situacao !== 'IRREGULAR' || !r.irregular_debito) return '';
+  if (r.irregular_debito === 'SEM_DEBITO') return 'Multa';
+  const parts = ['Ressarcimento'];
+  if (r.ressarcimento_status) parts.push(RESSARCIMENTO_STATUS_LABELS[r.ressarcimento_status] ?? r.ressarcimento_status);
+  if (r.cobranca_estagio) parts.push(COBRANCA_ESTAGIO_LABELS[r.cobranca_estagio] ?? r.cobranca_estagio);
+  return parts.join(' › ');
+};
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
 
@@ -242,6 +268,9 @@ export const GpcRelatorios = () => {
         'Data': r.data ?? '',
         'Situação': situacaoLabel(r.situacao),
         'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+        'Débito': r.irregular_debito ? (IRREGULAR_DEBITO_LABELS[r.irregular_debito] ?? r.irregular_debito) : '',
+        'Desfecho do Julgamento': desfechoJulgamentoLabel(r),
+        'Valor da Multa (R$)': r.valor_multa ?? 0,
         'Valor a Devolver (R$)': r.valor_a_devolver ?? 0,
         'Valor Devolvido (R$)': r.valor_devolvido ?? 0,
         'Obs. Situação': r.situacao_obs ?? '',
@@ -343,6 +372,9 @@ export const GpcRelatorios = () => {
           'Data': r.data ?? '',
           'Situação': situacaoLabel(r.situacao),
           'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+          'Débito': r.irregular_debito ? (IRREGULAR_DEBITO_LABELS[r.irregular_debito] ?? r.irregular_debito) : '',
+          'Desfecho do Julgamento': desfechoJulgamentoLabel(r),
+          'Valor da Multa (R$)': raw(r.valor_multa),
           'Valor a Devolver (R$)': raw(r.valor_a_devolver),
           'Valor Devolvido (R$)': raw(r.valor_devolvido),
           'Obs. Situação': r.situacao_obs ?? '',

@@ -3,7 +3,7 @@ import { emitError } from './errorBus';
 import {
   GpcProcesso, GpcExercicio, GpcHistorico, GpcObjeto,
   GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico,
-  GpcAtividadeAvulsa,
+  GpcAtividadeAvulsa, GpcRegistroExercicio,
 } from '../types';
 
 export interface GpcReportData {
@@ -646,7 +646,7 @@ export const GpcService = {
   },
 
   saveRecebido: async (r: Partial<GpcRecebido>): Promise<GpcRecebido> => {
-    const payload = {
+    const payload: Record<string, any> = {
       processo_codigo: r.processo_codigo ?? null,
       processo: r.processo ?? null,
       entidade: r.entidade ?? null,
@@ -654,26 +654,37 @@ export const GpcService = {
       exercicio: r.exercicio ?? null,
       drs: r.drs ?? null,
       data: r.data ?? null,
-      responsavel: r.responsaveis_analise?.[0] ?? r.responsavel ?? null, // primary analyst for backward compat
       responsavel_cadastro: r.responsavel_cadastro ?? null,
-      responsaveis_analise: r.responsaveis_analise ?? null,
-      posicao_id: r.posicao_id ?? null,
-      movimento: r.movimento ?? null,
       link_processo: r.link_processo ?? null,
       is_parcelamento: r.is_parcelamento ?? false,
       remessa: r.remessa ?? null,
-      num_paginas: r.num_paginas ?? null,
       responsavel_assinatura: r.responsavel_assinatura ?? null,
       responsavel_assinatura_2: r.responsavel_assinatura_2 ?? null,
-      situacao: r.situacao ?? null,
-      irregular_tipos: r.irregular_tipos ?? null,
-      valor_a_devolver: r.valor_a_devolver ?? null,
-      valor_devolvido: r.valor_devolvido ?? null,
-      situacao_obs: r.situacao_obs ?? null,
       valor_convenio: r.valor_convenio ?? null,
-      correcao_paginas: r.correcao_paginas ?? null,
-      correcao_obs: r.correcao_obs ?? null,
     };
+    // Posição/Movimento/Responsáveis/Nº Páginas/Situação/Correção são "donos" da aba Exercícios
+    // (por exercício, cgof_gpc_registro_exercicio) — só entram aqui no cadastro inicial do
+    // registro (estado de partida, antes de existir qualquer exercício). Num UPDATE eles NÃO
+    // são reenviados: o formulário de Identificação não os edita mais, e reenviá-los aqui
+    // sobrescreveria com o snapshot desatualizado do form o que a aba Exercícios já salvou.
+    if (!r.codigo) {
+      payload.responsavel = r.responsaveis_analise?.[0] ?? r.responsavel ?? null; // primary analyst for backward compat
+      payload.responsaveis_analise = r.responsaveis_analise ?? null;
+      payload.posicao_id = r.posicao_id ?? null;
+      payload.movimento = r.movimento ?? null;
+      payload.num_paginas = r.num_paginas ?? null;
+      payload.situacao = r.situacao ?? null;
+      payload.irregular_tipos = r.irregular_tipos ?? null;
+      payload.irregular_debito = r.irregular_debito ?? null;
+      payload.valor_multa = r.valor_multa ?? null;
+      payload.ressarcimento_status = r.ressarcimento_status ?? null;
+      payload.cobranca_estagio = r.cobranca_estagio ?? null;
+      payload.valor_a_devolver = r.valor_a_devolver ?? null;
+      payload.valor_devolvido = r.valor_devolvido ?? null;
+      payload.situacao_obs = r.situacao_obs ?? null;
+      payload.correcao_paginas = r.correcao_paginas ?? null;
+      payload.correcao_obs = r.correcao_obs ?? null;
+    }
     if (r.codigo) {
       const { data, error } = await supabase.from('cgof_gpc_recebidos').update(payload).eq('codigo', r.codigo).select().single();
       if (error) throw new Error(error.message);
@@ -817,14 +828,15 @@ export const GpcService = {
       .sort((a, b) => a.data_evento.localeCompare(b.data_evento));
   },
 
-  // ── FLUXO TÉCNICO ───────────────────────────────────────────────────────
+  // ── FLUXO TÉCNICO (por registro x exercício) ────────────────────────────
 
-  getFluxoTecnico: async (registroId: number): Promise<GpcFluxoTecnico[]> => {
-    const { data, error } = await supabase
+  getFluxoTecnico: async (registroId: number, exercicioId?: number | null): Promise<GpcFluxoTecnico[]> => {
+    let q = supabase
       .from('cgof_gpc_fluxo_tecnico')
       .select('*, cgof_gpc_posicao(posicao)')
-      .eq('registro_id', registroId)
-      .order('data_evento', { ascending: true });
+      .eq('registro_id', registroId);
+    if (exercicioId != null) q = q.eq('exercicio_id', exercicioId);
+    const { data, error } = await q.order('data_evento', { ascending: true });
     if (error) { console.error(error); notifyFetchError(); return []; }
     return ((data ?? []) as (GpcFluxoTecnico & { cgof_gpc_posicao?: { posicao: string } | null })[]).map(r => ({
       ...r,
@@ -835,6 +847,7 @@ export const GpcService = {
   saveFluxoTecnico: async (f: Partial<GpcFluxoTecnico>): Promise<GpcFluxoTecnico> => {
     const payload = {
       registro_id: f.registro_id,
+      exercicio_id: f.exercicio_id ?? null,
       tecnico: f.tecnico ?? null,
       data_evento: f.data_evento ?? new Date().toISOString(),
       posicao_id: f.posicao_id ?? null,
@@ -854,18 +867,80 @@ export const GpcService = {
       if (error) throw new Error(error.message);
       saved = data as GpcFluxoTecnico;
     }
-    // Sync position/movement back to main record
-    if (f.registro_id && (f.posicao_id || f.movimento)) {
-      const update: Record<string, any> = {};
+    // Sync posição/movimento para a análise deste (registro, exercício) específico —
+    // trilha independente da posição/movimento do registro (aba Identificação, inalterada)
+    if (f.registro_id && f.exercicio_id && (f.posicao_id || f.movimento)) {
+      const update: Record<string, any> = {
+        registro_id: f.registro_id,
+        exercicio_id: f.exercicio_id,
+        updated_at: new Date().toISOString(),
+      };
       if (f.posicao_id) update.posicao_id = f.posicao_id;
       if (f.movimento) update.movimento = f.movimento;
-      await supabase.from('cgof_gpc_recebidos').update(update).eq('codigo', f.registro_id);
+      await supabase.from('cgof_gpc_registro_exercicio').upsert(update, { onConflict: 'registro_id,exercicio_id' });
     }
     return saved;
   },
 
   deleteFluxoTecnico: async (id: number): Promise<void> => {
     const { error } = await supabase.from('cgof_gpc_fluxo_tecnico').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  // ── ANÁLISE POR EXERCÍCIO (registro x exercício) ────────────────────────
+  // Cada exercício financeiro tem sua própria Posição/Movimento/Análise/Situação/
+  // Correção Documental, independente dos demais exercícios do mesmo registro.
+
+  getRegistroExercicios: async (registroId: number): Promise<GpcRegistroExercicio[]> => {
+    const { data, error } = await supabase
+      .from('cgof_gpc_registro_exercicio')
+      .select('*, cgof_gpc_exercicio(exercicio), cgof_gpc_posicao(posicao)')
+      .eq('registro_id', registroId)
+      .order('codigo');
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return ((data ?? []) as any[]).map(r => ({
+      ...r,
+      exercicio: r.cgof_gpc_exercicio?.exercicio ?? null,
+      posicao: r.cgof_gpc_posicao?.posicao ?? null,
+    })) as GpcRegistroExercicio[];
+  },
+
+  saveRegistroExercicio: async (r: Partial<GpcRegistroExercicio>): Promise<GpcRegistroExercicio> => {
+    const payload = {
+      registro_id: r.registro_id,
+      exercicio_id: r.exercicio_id,
+      posicao_id: r.posicao_id ?? null,
+      movimento: r.movimento ?? null,
+      responsaveis_analise: r.responsaveis_analise ?? null,
+      num_paginas: r.num_paginas ?? null,
+      situacao: r.situacao ?? null,
+      irregular_tipos: r.irregular_tipos ?? null,
+      irregular_debito: r.irregular_debito ?? null,
+      valor_multa: r.valor_multa ?? null,
+      ressarcimento_status: r.ressarcimento_status ?? null,
+      cobranca_estagio: r.cobranca_estagio ?? null,
+      situacao_obs: r.situacao_obs ?? null,
+      valor_a_devolver: r.valor_a_devolver ?? null,
+      valor_devolvido: r.valor_devolvido ?? null,
+      correcao_paginas: r.correcao_paginas ?? null,
+      correcao_obs: r.correcao_obs ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('cgof_gpc_registro_exercicio')
+      .upsert(payload, { onConflict: 'registro_id,exercicio_id' })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as GpcRegistroExercicio;
+  },
+
+  // Atualiza APENAS os campos informados em cgof_gpc_recebidos (update parcial de verdade —
+  // ao contrário de saveRecebido, que sempre reescreve o registro inteiro). Usado para manter
+  // a lista principal/filtros/relatórios (que leem posicao_id/movimento/situação direto do
+  // registro) sincronizados com o exercício mais recentemente salvo na aba Exercícios.
+  syncRecebidoCache: async (registroId: number, fields: Partial<GpcRecebido>): Promise<void> => {
+    const { error } = await supabase.from('cgof_gpc_recebidos').update(fields).eq('codigo', registroId);
     if (error) throw new Error(error.message);
   },
 

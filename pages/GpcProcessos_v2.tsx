@@ -38,7 +38,7 @@ import {
 
   GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcRecebido, GpcProdutividade,
 
-  GpcFluxoTecnico, ParcAutorizacaoEntry, GpcAtividadeAvulsa
+  GpcFluxoTecnico, ParcAutorizacaoEntry, GpcAtividadeAvulsa, GpcRegistroExercicio
 
 } from '../types';
 
@@ -1569,8 +1569,8 @@ const decodeParcMov = (val: string) => {
   return { parcCodigo: Number(parts[0]), stepTipo: parts[1] };
 };
 
-const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, onSaved, currentUserName, parcelamentos, onSaveParc }: {
-  registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
+const FluxoTecnicoFormInline = ({ registroId, exercicioId, posicoes, numPaginas, gpcUsers, onSaved, currentUserName, parcelamentos, onSaveParc }: {
+  registroId: number; exercicioId?: number | null; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
   gpcUsers: { id: string; name: string }[];
   onSaved: () => Promise<void> | void;
   currentUserName?: string;
@@ -1581,6 +1581,8 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
   const [form, setForm] = useState<Partial<GpcFluxoTecnico>>({
 
     registro_id: registroId,
+
+    exercicio_id: exercicioId ?? undefined,
 
     // num_paginas_analise left blank intentionally — technician fills it only for events that involve page analysis
     // Pre-filling with numPaginas would cause duplication in the productivity totals on every save
@@ -1641,7 +1643,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
         onSaved();
       } else {
         const dataEvento = form.data_evento ?? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, data_evento: dataEvento });
+        await GpcService.saveFluxoTecnico({ ...form, registro_id: registroId, exercicio_id: exercicioId ?? null, data_evento: dataEvento });
         // Produtividade is now computed directly from cgof_gpc_fluxo_tecnico — no need to write to prod table here.
         // Log de auditoria
         if (currentUserName) {
@@ -1652,7 +1654,7 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
           );
         }
 
-        setForm({ registro_id: registroId, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
+        setForm({ registro_id: registroId, exercicio_id: exercicioId ?? undefined, tecnico: currentUserName ?? undefined, data_evento: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) });
         onSaved();
       }
     } catch (ex: any) { setErr(ex.message); }
@@ -1800,9 +1802,9 @@ const FluxoTecnicoFormInline = ({ registroId, posicoes, numPaginas, gpcUsers, on
 
 
 
-const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange, parcelamentos, onSaveParc, isAdmin }: {
+const FluxoTecnicoPanel = ({ registroId, exercicioId, posicoes, numPaginas, gpcUsers, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onRecordUpdated, readOnly, hideAssinatura, currentUserName, onAssinaturaChange, parcelamentos, onSaveParc, isAdmin }: {
 
-  registroId: number; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
+  registroId: number; exercicioId?: number | null; posicoes: GpcPosicao[]; numPaginas: number | null | undefined;
 
   gpcUsers: { id: string; name: string }[];
 
@@ -1884,13 +1886,13 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
     setLoading(true);
 
-    const d = await GpcService.getFluxoTecnico(registroId);
+    const d = await GpcService.getFluxoTecnico(registroId, exercicioId);
 
     setItems(d);
 
     setLoading(false);
 
-  }, [registroId]);
+  }, [registroId, exercicioId]);
 
 
 
@@ -2005,7 +2007,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
         </div>
 
-      ) : !readOnly ? (
+      ) : !readOnly && !hideAssinatura ? (
 
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
 
@@ -2178,6 +2180,8 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
         <FluxoTecnicoFormInline
 
           registroId={registroId}
+
+          exercicioId={exercicioId}
 
           posicoes={posicoes}
 
@@ -2490,7 +2494,7 @@ const FluxoTecnicoPanel = ({ registroId, posicoes, numPaginas, gpcUsers, signato
 
 
 
-const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpdated, onNovoExercicio, onOpenSibling }: {
+const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpdated, onOpenSibling }: {
 
   row: GpcRecebido;
 
@@ -2503,8 +2507,6 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
   prevPositions: string[];
 
   onRecordUpdated?: () => Promise<void> | void;
-
-  onNovoExercicio?: (preset: Partial<GpcRecebido>) => void;
 
   onOpenSibling?: (rec: GpcRecebido) => void;
 
@@ -2606,26 +2608,6 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
         </div>
 
         <div className="flex items-center gap-2">
-
-          {onNovoExercicio && row.processo_codigo != null && (
-
-            <button
-              className={BTN_SEC}
-              onClick={() => onNovoExercicio({
-                processo_codigo: row.processo_codigo,
-                processo: row.processo,
-                convenio: row.convenio,
-                entidade: row.entidade,
-                drs: row.drs,
-              })}
-              title="Cadastrar um novo ciclo/exercício para este mesmo processo"
-            >
-
-              <Plus size={13} />Novo Exercício
-
-            </button>
-
-          )}
 
           <button className={BTN_PRI} onClick={onEdit}>
 
@@ -2935,7 +2917,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
             </div>
 
             {/* KPI cards */}
-            {(row.situacao === 'IRREGULAR' || row.situacao === 'PARCIALMENTE_REGULAR') && (() => {
+            {(row.situacao === 'PARCIALMENTE_REGULAR' || (row.situacao === 'IRREGULAR' && row.irregular_debito === 'COM_DEBITO')) && (() => {
               const saldo = (row.valor_a_devolver ?? 0) - (row.valor_devolvido ?? 0);
               return (
                 <div className={`grid gap-3 mb-4 ${(row.valor_a_devolver ?? 0) > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
@@ -2979,6 +2961,51 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                       {tipo === 'DIVIDA_ATIVA' ? 'Dívida Ativa' : tipo === 'CONTENCIOSO' ? 'Contencioso' : 'Cadin'}
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Desfecho do julgamento */}
+            {row.situacao === 'IRREGULAR' && row.irregular_debito && (
+              <div className="mb-4">
+                <p className="text-[11px] font-medium text-slate-500 mb-2">Desfecho do Julgamento</p>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium bg-[#FEF2F2] border border-red-200 text-[#B91C1C]">
+                    {row.irregular_debito === 'SEM_DEBITO' ? 'Sem Débito' : 'Com Débito'}
+                  </span>
+                  {row.irregular_debito === 'SEM_DEBITO' ? (
+                    <>
+                      <span className="text-slate-300">›</span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium bg-[#FEF2F2] border border-red-200 text-[#B91C1C]">
+                        Multa{row.valor_multa ? ` — ${fmt(row.valor_multa)}` : ''}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-300">›</span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium bg-[#FEF2F2] border border-red-200 text-[#B91C1C]">Ressarcimento</span>
+                      {row.ressarcimento_status && (
+                        <>
+                          <span className="text-slate-300">›</span>
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium ${
+                            row.ressarcimento_status === 'RECOLHIDO'
+                              ? 'bg-[#F0FDF4] border border-green-200 text-[#15803D]'
+                              : 'bg-[#FEF2F2] border border-red-200 text-[#B91C1C]'
+                          }`}>
+                            {row.ressarcimento_status === 'RECOLHIDO' ? 'Recolhido' : 'Não Recolhido'}
+                          </span>
+                        </>
+                      )}
+                      {row.cobranca_estagio && (
+                        <>
+                          <span className="text-slate-300">›</span>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium bg-[#FEF2F2] border border-red-200 text-[#B91C1C]">
+                            {row.cobranca_estagio === 'COBRANCA' ? 'Cobrança' : row.cobranca_estagio === 'DIVIDA_ATIVA' ? 'Dívida Ativa' : 'Execução Fiscal'}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -3459,6 +3486,638 @@ const ParcFluxoCard = ({ parc, currentUserName, onSaveLog }: {
   );
 };
 
+// ---- AssinaturaResponsavelSection: quem assina o parecer/relatório final do registro ----
+// Extraído do FluxoTecnicoPanel (que hoje só é usado com hideAssinatura, por exercício) para
+// ter um lugar próprio na aba Identificação — é um dado do registro, não de um exercício.
+const AssinaturaResponsavelSection = ({ registroId, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onChange }: {
+  registroId: number;
+  signatoryUsers: { id: string; name: string }[];
+  responsavelAssinatura?: string | null;
+  responsavelAssinatura2?: string | null;
+  onChange?: (a1: string, a2: string) => void;
+}) => {
+  const { toast } = useToast();
+  const [assinaturasLocal, setAssinaturasLocal] = useState<string[]>(() => {
+    const r1 = (responsavelAssinatura ?? '').split(' | ').map(s => s.trim()).filter(Boolean);
+    const r2 = responsavelAssinatura2?.trim() ? [responsavelAssinatura2.trim()] : [];
+    return [...new Set([...r1, ...r2])];
+  });
+  const addAssinatura = (name: string) => {
+    if (!name || assinaturasLocal.includes(name)) return;
+    const next = [...assinaturasLocal, name];
+    setAssinaturasLocal(next);
+    onChange?.(next.join(' | '), '');
+    GpcService.updateAssinatura(registroId, next.join(' | '), null)
+      .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
+  };
+  const removeAssinatura = (name: string) => {
+    const next = assinaturasLocal.filter(n => n !== name);
+    setAssinaturasLocal(next);
+    onChange?.(next.join(' | '), '');
+    GpcService.updateAssinatura(registroId, next.join(' | ') || null, null)
+      .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
+  };
+
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <PenLine size={15} className="text-indigo-500" />
+        <span className="text-sm font-bold text-indigo-800">Responsável pela Assinatura</span>
+      </div>
+      <div>
+        <label className={LABEL}>Adicionar responsável</label>
+        <select
+          className={INPUT}
+          value=""
+          onChange={e => { if (e.target.value) addAssinatura(e.target.value); e.target.value = ''; }}
+        >
+          <option value="">— selecione para adicionar —</option>
+          {signatoryUsers.filter(u => !assinaturasLocal.includes(u.name)).map(u => (
+            <option key={u.id} value={u.name}>{u.name}</option>
+          ))}
+        </select>
+      </div>
+      {assinaturasLocal.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {assinaturasLocal.map(name => (
+            <span key={name} className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-xl text-sm font-semibold">
+              <PenLine size={12} className="text-indigo-500" />
+              {name}
+              <button type="button" onClick={() => removeAssinatura(name)} className="ml-0.5 hover:text-red-600 transition-colors">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 italic">Nenhum responsável selecionado ainda</p>
+      )}
+      {signatoryUsers.length === 0 && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          Nenhum usuário habilitado para assinar processos. O administrador deve marcar usuários como "Pode assinar processos" no Gerenciamento de Usuários.
+        </p>
+      )}
+    </div>
+  );
+};
+
+// ---- ExercicioAnaliseTab: Posição/Movimento/Análise/Situação/Fluxo próprios de cada exercício ----
+// Cada exercício financeiro cadastrado tem sua própria trilha, começando em branco, sem herdar
+// nada do registro nem de outro exercício. É o único lugar de trabalho para um exercício: dados
+// financeiros, análise, situação/julgamento, correção documental e fluxo, tudo nesta aba.
+
+const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced }: {
+  registroId: number;
+  exercicios: GpcExercicio[];
+  posicoes: GpcPosicao[];
+  gpcUsers: { id: string; name: string }[];
+  signatoryUsers: { id: string; name: string }[];
+  currentUserName?: string;
+  onOpenExercicioForm?: (exercicio?: GpcExercicio) => void;
+  focusExercicioId?: number | null;
+  onSynced?: () => void | Promise<void>;
+}) => {
+  const { toast } = useToast();
+  const [regExs, setRegExs] = useState<GpcRegistroExercicio[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const data = await GpcService.getRegistroExercicios(registroId);
+    setRegExs(data);
+    setLoading(false);
+  }, [registroId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (selectedId == null && exercicios.length > 0) {
+      setSelectedId(exercicios[exercicios.length - 1].codigo); // exercício mais recente
+    }
+  }, [exercicios, selectedId]);
+
+  // Depois de criar/editar um exercício pelo modal financeiro, pula direto para a
+  // Análise/Fluxo dele — cadastro financeiro e análise viram um fluxo só, sem passo extra
+  useEffect(() => {
+    if (focusExercicioId != null) setSelectedId(focusExercicioId);
+  }, [focusExercicioId]);
+
+  const current = useMemo(
+    () => regExs.find(r => r.exercicio_id === selectedId),
+    [regExs, selectedId]
+  );
+
+  const [f, setF] = useState<Partial<GpcRegistroExercicio>>({});
+  useEffect(() => {
+    setF(current ?? { registro_id: registroId, exercicio_id: selectedId ?? undefined });
+  }, [current, selectedId, registroId]);
+
+  const set = (k: keyof GpcRegistroExercicio, v: any) => setF(p => ({ ...p, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedId == null) return;
+    setSaving(true);
+    try {
+      let next: Partial<GpcRegistroExercicio> = { ...f, registro_id: registroId, exercicio_id: selectedId };
+
+      // Auto-avança para "Em Análise" quando um técnico novo é atribuído e a posição
+      // ainda não avançou (mesma regra usada no cadastro do registro)
+      const prevResponsaveis = current?.responsaveis_analise ?? [];
+      const novosAnalistas = (next.responsaveis_analise ?? []).filter(a => !prevResponsaveis.includes(a));
+      if (novosAnalistas.length > 0) {
+        const aguardandoId = posicoes.find(p => p.posicao === 'Aguardando Análise')?.codigo;
+        const emAnaliseId = posicoes.find(p => p.posicao === 'Em Análise')?.codigo;
+        if (emAnaliseId != null && (next.posicao_id == null || next.posicao_id === aguardandoId)) {
+          next = { ...next, posicao_id: emAnaliseId };
+        }
+      }
+
+      const saved = await GpcService.saveRegistroExercicio(next);
+
+      // Sincroniza o cache em cgof_gpc_recebidos — mantém lista principal/filtros/relatórios
+      // funcionando sem alteração, sempre refletindo o exercício mais recentemente salvo
+      await GpcService.syncRecebidoCache(registroId, {
+        posicao_id: saved.posicao_id,
+        movimento: saved.movimento,
+        responsaveis_analise: saved.responsaveis_analise,
+        num_paginas: saved.num_paginas,
+        situacao: saved.situacao,
+        irregular_tipos: saved.irregular_tipos,
+        irregular_debito: saved.irregular_debito,
+        valor_multa: saved.valor_multa,
+        ressarcimento_status: saved.ressarcimento_status,
+        cobranca_estagio: saved.cobranca_estagio,
+        situacao_obs: saved.situacao_obs,
+        valor_a_devolver: saved.valor_a_devolver,
+        valor_devolvido: saved.valor_devolvido,
+        correcao_paginas: saved.correcao_paginas,
+        correcao_obs: saved.correcao_obs,
+      });
+
+      // Credita a produtividade essencial (posição/movimento/correção) gravando um evento no
+      // Fluxo Técnico deste exercício — é isso (não cgof_gpc_produtividade) que o relatório de
+      // Produtividade e a Linha do Tempo do processo realmente leem para esses três eventos
+      // (GpcService.getProdutividadeDetalhado deriva POSICAO/MOVIMENTO/CORRECAO só a partir de
+      // cgof_gpc_fluxo_tecnico; INICIO_ANALISE continua automático via trigger do banco, disparado
+      // pela mudança de responsaveis_analise já sincronizada acima em syncRecebidoCache).
+      const anoLabel = exercicios.find(x => x.codigo === selectedId)?.exercicio ?? '';
+      const now = new Date().toISOString();
+      const tecnico = saved.responsaveis_analise?.[0] ?? currentUserName ?? 'GPC';
+
+      const posicaoMudou = saved.posicao_id != null && saved.posicao_id !== (current?.posicao_id ?? null);
+      const movimentoMudou = !!saved.movimento && saved.movimento !== (current?.movimento ?? null);
+      if (posicaoMudou || movimentoMudou) {
+        // Só inclui o campo que de fato mudou — um evento com os dois preenchidos é sempre
+        // classificado como MOVIMENTO pelo relatório, mesmo quando só a posição avançou
+        await GpcService.saveFluxoTecnico({
+          registro_id: registroId, exercicio_id: selectedId, tecnico,
+          posicao_id: posicaoMudou ? saved.posicao_id : null,
+          movimento: movimentoMudou ? saved.movimento : null,
+          acao: `Exercício ${anoLabel}`, data_evento: now,
+        });
+      }
+
+      const correcaoAlterada =
+        (saved.correcao_obs ?? '') !== (current?.correcao_obs ?? '') ||
+        (saved.correcao_paginas ?? 0) !== (current?.correcao_paginas ?? 0);
+      if (correcaoAlterada && saved.correcao_obs?.trim()) {
+        const analistas = saved.responsaveis_analise?.length ? saved.responsaveis_analise : [tecnico];
+        await Promise.all(analistas.map(analista => GpcService.saveFluxoTecnico({
+          registro_id: registroId, exercicio_id: selectedId, tecnico: analista,
+          movimento: 'CORREÇÃO DOCUMENTAL', acao: saved.correcao_obs,
+          num_paginas_analise: saved.correcao_paginas ?? null, data_evento: now,
+        })));
+      }
+
+      await load();
+      await onSynced?.();
+      toast('success', 'Análise do exercício salva.');
+    } catch (ex: any) {
+      toast('error', 'Erro ao salvar: ' + ex.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (exercicios.length === 0) {
+    return (
+      <div className="bg-white border border-slate-100 rounded-2xl p-8 text-center space-y-3">
+        <p className="text-sm text-slate-400">Nenhum exercício cadastrado ainda.</p>
+        <button type="button" className={BTN_PRI} onClick={() => onOpenExercicioForm?.()}>
+          <Plus size={14} />Cadastrar Primeiro Exercício
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 pb-4">
+      {/* Seletor de exercício */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+        <Sec
+          icon={<Calendar size={13} />}
+          title="Exercício"
+          action={
+            <button type="button" className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.()}>
+              <Plus size={12} />Novo Exercício
+            </button>
+          }
+        />
+        <div className="flex flex-wrap gap-2 mt-1">
+          {exercicios.map(ex => {
+            const active = selectedId === ex.codigo;
+            const has = regExs.some(r => r.exercicio_id === ex.codigo);
+            return (
+              <button
+                key={ex.codigo}
+                type="button"
+                onClick={() => setSelectedId(ex.codigo)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                  active
+                    ? 'bg-slate-700 border-slate-700 text-white'
+                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
+                }`}
+              >
+                {ex.exercicio ?? '—'}
+                {!has && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white/60' : 'bg-slate-300'}`} title="Ainda sem análise registrada" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {exercicios.length > 1 && (() => {
+          const totalRepasse = exercicios.reduce((s, e) => s + (e.repasse ?? 0), 0);
+          const totalAplicacao = exercicios.reduce((s, e) => s + (e.aplicacao ?? 0), 0);
+          const totalConvenio = totalRepasse + totalAplicacao;
+          return (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-green-500 font-semibold mb-0.5">Total Repasse</div>
+                <div className="text-sm font-bold text-green-700">{fmt(totalRepasse)}</div>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
+                <div className="text-sm font-bold text-slate-700">{fmt(totalAplicacao)}</div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-blue-500 font-semibold mb-0.5">Total do Convênio</div>
+                <div className="text-sm font-bold text-blue-700">{fmt(totalConvenio)}</div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Dados financeiros do exercício selecionado */}
+      {selectedId != null && (() => {
+        const exObj = exercicios.find(x => x.codigo === selectedId);
+        if (!exObj) return null;
+        return (
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <Sec
+              icon={<DollarSign size={13} />}
+              title="Dados Financeiros"
+              action={
+                <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
+                  <Edit size={12} />Editar
+                </button>
+              }
+            />
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-1 text-sm">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Recebido em</div>
+                <div className="font-medium text-slate-700">{fmtDate(exObj.data_recebimento)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Repasse</div>
+                <div className="font-medium text-green-700">{fmt(exObj.repasse)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Aplicação</div>
+                <div className="font-medium text-slate-700">{fmt(exObj.aplicacao)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Gastos</div>
+                <div className="font-medium text-slate-700">{fmt(exObj.gastos)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Devolvido</div>
+                <div className="font-medium text-slate-700">{fmt(exObj.devolvido)}</div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {loading ? (
+        <div className="flex items-center gap-2 py-10 justify-center text-slate-400 text-sm">
+          <Loader2 size={16} className="animate-spin" />Carregando análise do exercício...
+        </div>
+      ) : selectedId != null && (
+        <>
+          <form onSubmit={submit} className="space-y-4">
+            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+              <Sec icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`} />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={LABEL}>Posição Atual</label>
+                    <select className={INPUT} value={f.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+                      <option value="">— selecione —</option>
+                      {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Movimento</label>
+                    <select className={INPUT} value={f.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
+                      <option value="">— selecione —</option>
+                      {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={LABEL + ' flex items-center gap-1.5'}>
+                    <User size={11} />Técnicos Responsáveis pela Análise
+                    <span className="text-slate-300 font-normal normal-case tracking-normal text-[10px]">(múltiplos possíveis)</span>
+                  </label>
+                  <MultiSelectChips
+                    options={gpcUsers}
+                    selected={f.responsaveis_analise ?? []}
+                    onChange={v => set('responsaveis_analise', v.length > 0 ? v : null)}
+                  />
+                </div>
+
+                <div>
+                  <label className={LABEL}>
+                    <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
+                  </label>
+                  <input
+                    className={INPUT}
+                    type="number"
+                    min={0}
+                    placeholder="ex: 150"
+                    value={f.num_paginas ?? ''}
+                    onChange={e => set('num_paginas', e.target.value ? Number(e.target.value) : null)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+              <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className={LABEL}>Situação</label>
+                    <select className={INPUT} value={f.situacao ?? ''} onChange={e => set('situacao', e.target.value || null)}>
+                      <option value="">— não avaliada —</option>
+                      <option value="REGULAR">Regular — sem pendências financeiras</option>
+                      <option value="PARCIALMENTE_REGULAR">Parcialmente Regular — pendências parciais</option>
+                      <option value="IRREGULAR">Irregular — com pendências / valores a devolver</option>
+                    </select>
+                  </div>
+
+                  {f.situacao === 'IRREGULAR' && (
+                    <div className="sm:col-span-2">
+                      <label className={LABEL}>Tipo de Irregularidade</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {([
+                          { key: 'CONTENCIOSO', label: 'Contencioso' },
+                          { key: 'CADIN',       label: 'Cadin'       },
+                        ] as const).map(({ key, label }) => {
+                          const active = (f.irregular_tipos ?? []).includes(key);
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => {
+                                const cur = f.irregular_tipos ?? [];
+                                set('irregular_tipos', active ? cur.filter(t => t !== key) : [...cur, key]);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                active
+                                  ? 'bg-slate-700 border-slate-700 text-white'
+                                  : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
+                              }`}
+                            >
+                              {active && <Check size={12} />}
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {f.situacao === 'IRREGULAR' && (
+                    <div className="sm:col-span-2">
+                      <label className={LABEL}>Débito</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {([
+                          { key: 'SEM_DEBITO', label: 'Sem Débito — Multa' },
+                          { key: 'COM_DEBITO', label: 'Com Débito — Ressarcimento' },
+                        ] as const).map(({ key, label }) => {
+                          const active = f.irregular_debito === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => {
+                                const next = active ? null : key;
+                                set('irregular_debito', next);
+                                if (next === 'SEM_DEBITO') {
+                                  set('valor_a_devolver', null); set('valor_devolvido', null);
+                                  set('ressarcimento_status', null); set('cobranca_estagio', null);
+                                } else if (next === 'COM_DEBITO') {
+                                  set('valor_multa', null);
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                active
+                                  ? 'bg-slate-700 border-slate-700 text-white'
+                                  : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
+                              }`}
+                            >
+                              {active && <Check size={12} />}
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {f.situacao === 'IRREGULAR' && f.irregular_debito === 'SEM_DEBITO' && (
+                    <div className="sm:col-span-2">
+                      <label className={LABEL}>Valor da Multa (R$)</label>
+                      <CurrencyInput value={f.valor_multa} onChange={v => set('valor_multa', v)} />
+                    </div>
+                  )}
+
+                  {(f.situacao === 'PARCIALMENTE_REGULAR' || (f.situacao === 'IRREGULAR' && f.irregular_debito === 'COM_DEBITO')) && (
+                    <>
+                      <div>
+                        <label className={LABEL}>Valor a Devolver (R$)</label>
+                        <CurrencyInput value={f.valor_a_devolver} onChange={v => set('valor_a_devolver', v)} />
+                      </div>
+                      <div>
+                        <label className={LABEL}>Valor já Devolvido (R$)</label>
+                        <CurrencyInput value={f.valor_devolvido} onChange={v => set('valor_devolvido', v)} />
+                      </div>
+                      {(f.valor_a_devolver ?? 0) > 0 && (() => {
+                        const saldo = (f.valor_a_devolver ?? 0) - (f.valor_devolvido ?? 0);
+                        return (
+                          <div className={`sm:col-span-2 rounded-lg p-3 border ${saldo <= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Saldo Pendente</div>
+                            <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                              {fmt(saldo)}
+                              {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal flex items-center gap-1"><Check size={10} />Totalmente quitado</span>}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+
+                  {f.situacao === 'IRREGULAR' && f.irregular_debito === 'COM_DEBITO' && (
+                    <div className="sm:col-span-2">
+                      <label className={LABEL}>Situação do Ressarcimento</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {([
+                          { key: 'RECOLHIDO', label: 'Recolhido' },
+                          { key: 'NAO_RECOLHIDO', label: 'Não Recolhido' },
+                        ] as const).map(({ key, label }) => {
+                          const active = f.ressarcimento_status === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => {
+                                const next = active ? null : key;
+                                set('ressarcimento_status', next);
+                                if (next !== 'NAO_RECOLHIDO') set('cobranca_estagio', null);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                active
+                                  ? 'bg-slate-700 border-slate-700 text-white'
+                                  : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
+                              }`}
+                            >
+                              {active && <Check size={12} />}
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {f.situacao === 'IRREGULAR' && f.ressarcimento_status === 'NAO_RECOLHIDO' && (
+                    <div className="sm:col-span-2">
+                      <label className={LABEL}>Estágio da Cobrança</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {([
+                          { key: 'COBRANCA', label: 'Cobrança' },
+                          { key: 'DIVIDA_ATIVA', label: 'Dívida Ativa' },
+                          { key: 'EXECUCAO_FISCAL', label: 'Execução Fiscal' },
+                        ] as const).map(({ key, label }) => {
+                          const active = f.cobranca_estagio === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => set('cobranca_estagio', active ? null : key)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                                active
+                                  ? 'bg-slate-700 border-slate-700 text-white'
+                                  : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
+                              }`}
+                            >
+                              {active && <Check size={12} />}
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="sm:col-span-2">
+                    <label className={LABEL}>Observações / Fundamentação</label>
+                    <textarea
+                      className={INPUT}
+                      rows={3}
+                      value={f.situacao_obs ?? ''}
+                      onChange={e => set('situacao_obs', e.target.value || null)}
+                      placeholder="Descreva os motivos, irregularidades encontradas, diligências realizadas..."
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-rose-100 rounded-2xl p-5 shadow-sm">
+              <Sec icon={<PenLine size={13} />} title="Correção Documental" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={LABEL}>
+                    <span className="flex items-center gap-1"><BookOpen size={11} />Páginas Analisadas na Correção</span>
+                  </label>
+                  <input
+                    className={INPUT}
+                    type="number"
+                    min={0}
+                    placeholder="ex: 40"
+                    value={f.correcao_paginas ?? ''}
+                    onChange={e => set('correcao_paginas', e.target.value ? Number(e.target.value) : null)}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>
+                    <span className="flex items-center gap-1"><PenLine size={11} />Descrição da Correção</span>
+                  </label>
+                  <textarea
+                    className={INPUT}
+                    rows={3}
+                    value={f.correcao_obs ?? ''}
+                    onChange={e => set('correcao_obs', e.target.value || null)}
+                    placeholder="Descreva o que foi corrigido, o motivo da devolução, documentos revisados..."
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div className="flex justify-end">
+              <button type="submit" className={BTN_PRI} disabled={saving}>
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Salvar Análise deste Exercício
+              </button>
+            </div>
+          </form>
+
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <Sec icon={<Activity size={13} />} title="Fluxo Técnico deste Exercício" />
+            <FluxoTecnicoPanel
+              registroId={registroId}
+              exercicioId={selectedId}
+              posicoes={posicoes}
+              numPaginas={f.num_paginas}
+              gpcUsers={gpcUsers}
+              signatoryUsers={signatoryUsers}
+              hideAssinatura
+              currentUserName={currentUserName}
+            />
+          </section>
+        </>
+      )}
+    </div>
+  );
+};
+
 // ---- RegistroModal (create / edit) ----
 
 interface RegistroModalProps {
@@ -3507,7 +4166,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
     if (dupWarning) scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [dupWarning]);
 
-  const [activeTab, setActiveTab] = useState<'analise' | 'ident' | 'fluxo' | 'financeiro' | 'parcelamento'>('ident');
+  const [activeTab, setActiveTab] = useState<'ident' | 'parcelamento' | 'exercicios'>('ident');
+  // Exercício a focar na aba Exercícios logo após ser criado/editado pelo modal financeiro
+  const [focusExercicioId, setFocusExercicioId] = useState<number | null>(null);
 
   const [full, setFull] = useState<GpcProcessoFull | null>(null);
 
@@ -3662,6 +4323,15 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
     setFull(d);
 
+  };
+
+  // Recarrega liveRecord/form direto do banco — usado depois que a aba Exercícios sincroniza
+  // posição/movimento/situação em cgof_gpc_recebidos, para o resumo da Identificação (e o
+  // próximo "Salvar Alterações" ali) não ficarem com o snapshot desatualizado do mount.
+  const refreshLiveRecord = async () => {
+    if (!liveRecord?.codigo) return;
+    const updated = await GpcService.getRecebidoByCode(liveRecord.codigo);
+    if (updated) { setLiveRecord(updated); setForm(updated); }
   };
 
 
@@ -3835,10 +4505,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
       <div className="flex border-b border-slate-200 mb-4 gap-0 flex-wrap -mx-1">
         {([
           { id: 'ident',         label: 'Identificação',           icon: <FileText size={13} /> },
-          { id: 'analise',       label: 'Análise',                  icon: <Search size={13} /> },
           ...(isEditing ? [
-            { id: 'fluxo',         label: 'Fluxo',                    icon: <Activity size={13} /> },
-            { id: 'financeiro',    label: 'Financeiro',               icon: <BarChart2 size={13} /> },
+            { id: 'exercicios',    label: 'Exercícios',               icon: <Calendar size={13} /> },
             ...(tipoParc !== '' ? [
               { id: 'parcelamento', label: 'Parcelamento / Reparcelamento', icon: <DollarSign size={13} /> },
             ] : []),
@@ -4130,6 +4798,27 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
               </div>
 
+              <div className="sm:col-span-2">
+                <label className={LABEL}>
+                  <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    className={INPUT + ' pr-9'}
+                    type="url"
+                    placeholder="https://..."
+                    value={form.link_processo ?? ''}
+                    onChange={e => set('link_processo', e.target.value || null)}
+                  />
+                  {form.link_processo && (
+                    <a href={form.link_processo} target="_blank" rel="noopener noreferrer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700">
+                      <ExternalLink size={14} />
+                    </a>
+                  )}
+                </div>
+              </div>
+
             </div>
 
           </section>
@@ -4212,48 +4901,20 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
               </div>
 
-              <div>
+              <div className="sm:col-span-2">
 
-                <label className={LABEL}>Posição Atual</label>
+                <label className={LABEL}>Situação Atual</label>
 
-                <select className={INPUT + (!isEditing ? ' bg-slate-50 opacity-75 cursor-not-allowed' : '')} disabled={!isEditing} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+                <div className={INPUT + ' bg-slate-50 flex items-center gap-2'}>
+                  <PosicaoBadge id={form.posicao_id ?? null} label={posicoes.find(p => p.codigo === form.posicao_id)?.posicao ?? null} />
+                  {form.movimento && <span className="text-xs text-slate-500">· {form.movimento}</span>}
+                  {!form.posicao_id && !form.movimento && <span className="text-xs text-slate-300">—</span>}
+                </div>
 
-                  <option value="">— selecione —</option>
-
-                  {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
-
-                </select>
-
-                {!isEditing && (
-                  <p className="mt-1 text-xs text-slate-400">Definido automaticamente no cadastro</p>
-                )}
-
-                {isEditing && initial?.posicao && form.posicao_id !== initial?.posicao_id && (
-
-                  <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
-
-                    <Clock size={11} />Ant: <strong>{initial.posicao}</strong>
-
-                  </p>
-
-                )}
-
-              </div>
-
-              <div>
-
-                <label className={LABEL}>Movimento</label>
-
-                <select className={INPUT + (!isEditing ? ' bg-slate-50 opacity-75 cursor-not-allowed' : '')} disabled={!isEditing} value={form.movimento ?? ''} onChange={e => set('movimento', e.target.value || null)}>
-
-                  <option value="">— selecione —</option>
-
-                  {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
-
-                </select>
-
-                {!isEditing && (
-                  <p className="mt-1 text-xs text-slate-400">Definido automaticamente no cadastro</p>
+                {isEditing ? (
+                  <p className="mt-1 text-[11px] text-slate-400">Editável na aba <strong className="text-slate-500">Exercícios</strong>, por exercício</p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-slate-400">Definido automaticamente no cadastro</p>
                 )}
 
               </div>
@@ -4278,330 +4939,22 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
           </section>
 
-
+          {isEditing && (
+            <AssinaturaResponsavelSection
+              registroId={liveRecord!.codigo}
+              signatoryUsers={signatoryUsers}
+              responsavelAssinatura={form.responsavel_assinatura}
+              responsavelAssinatura2={form.responsavel_assinatura_2}
+              onChange={(a1) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: null }))}
+            />
+          )}
 
           </>)}
 
-          {activeTab === 'analise' && (<>
-
-          {/* -- Análise -- */}
-
-          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-            <Sec icon={<BookOpen size={13} />} title="Análise do Processo" />
-
-            <div className="space-y-3">
-
-              <div>
-
-                <label className={LABEL + ' flex items-center gap-1.5'}>
-
-                  <User size={11} />Técnicos Responsáveis pela Análise
-
-                  <span className="text-slate-300 font-normal normal-case tracking-normal text-[10px]">(múltiplos possíveis)</span>
-
-                </label>
-
-                <MultiSelectChips
-
-                  options={gpcUsers}
-
-                  selected={form.responsaveis_analise ?? []}
-
-                  onChange={v => set('responsaveis_analise', v.length > 0 ? v : null)}
-
-                />
-
-                <p className="mt-1 text-xs text-slate-400">Cada analista é contabilizado individualmente na produtividade</p>
-
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-              <div>
-
-                <label className={LABEL}>
-
-                  <span className="flex items-center gap-1"><BookOpen size={11} />Nº de Páginas do Processo</span>
-
-                </label>
-
-                <input
-
-                  className={INPUT}
-
-                  type="number"
-
-                  min={0}
-
-                  placeholder="ex: 150"
-
-                  value={form.num_paginas ?? ''}
-
-                  onChange={e => set('num_paginas', e.target.value ? Number(e.target.value) : null)}
-
-                />
-
-                {(form.num_paginas ?? 0) > 0 && (
-
-                  <p className="mt-1 text-xs text-slate-400 flex items-center gap-1">
-
-                    <Gauge size={10} />Complexidade:{' '}
-
-                    <span className={`font-semibold ${
-
-                      (form.num_paginas ?? 0) <= 50 ? 'text-green-600' :
-
-                      (form.num_paginas ?? 0) <= 200 ? 'text-amber-600' :
-
-                      (form.num_paginas ?? 0) <= 500 ? 'text-orange-600' : 'text-red-600'
-
-                    }`}>
-
-                      {(form.num_paginas ?? 0) <= 50 ? 'Baixa' :
-
-                       (form.num_paginas ?? 0) <= 200 ? 'Média' :
-
-                       (form.num_paginas ?? 0) <= 500 ? 'Alta' : 'Muito Alta'}
-
-                    </span>
-
-                  </p>
-
-                )}
-
-              </div>
-
-              <div>
-
-                <label className={LABEL}>
-
-                  <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
-
-                </label>
-
-                <div className="relative">
-
-                  <input
-
-                    className={INPUT + ' pr-9'}
-
-                    type="url"
-
-                    placeholder="https://..."
-
-                    value={form.link_processo ?? ''}
-
-                    onChange={e => set('link_processo', e.target.value || null)}
-
-                  />
-
-                  {form.link_processo && (
-
-                    <a href={form.link_processo} target="_blank" rel="noopener noreferrer"
-
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700">
-
-                      <ExternalLink size={14} />
-
-                    </a>
-
-                  )}
-
-                </div>
-
-              </div>
-
-              </div>
-
-            </div>
-
-          </section>
-
-
-
-          {/* -- Situação do Processo -- */}
-
-          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-            <Sec icon={<ShieldCheck size={13} />} title="Situação do Processo" />
-
-            <div className="space-y-3">
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                <div className="sm:col-span-2">
-
-                  <label className={LABEL}>Situação</label>
-
-                  <select className={INPUT} value={form.situacao ?? ''} onChange={e => set('situacao', e.target.value || null)}>
-
-                    <option value="">— não avaliada —</option>
-
-                    <option value="REGULAR">Regular — sem pendências financeiras</option>
-
-                    <option value="PARCIALMENTE_REGULAR">Parcialmente Regular — pendências parciais</option>
-
-                    <option value="IRREGULAR">Irregular — com pendências / valores a devolver</option>
-
-                  </select>
-
-                </div>
-
-                {form.situacao === 'IRREGULAR' && (
-                  <div className="sm:col-span-2">
-                    <label className={LABEL}>Tipo de Irregularidade</label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {([
-                        { key: 'DIVIDA_ATIVA', label: 'Dívida Ativa' },
-                        { key: 'CONTENCIOSO',  label: 'Contencioso'  },
-                        { key: 'CADIN',        label: 'Cadin'        },
-                      ] as const).map(({ key, label }) => {
-                        const active = (form.irregular_tipos ?? []).includes(key);
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => {
-                              const cur = form.irregular_tipos ?? [];
-                              set('irregular_tipos', active ? cur.filter(t => t !== key) : [...cur, key]);
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
-                              active
-                                ? 'bg-slate-700 border-slate-700 text-white'
-                                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400'
-                            }`}
-                          >
-                            {active && <Check size={12} />}
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-slate-400">Selecione todos os tipos que se aplicam — aparecerão na linha do tempo do processo</p>
-                  </div>
-                )}
-
-                {(form.situacao === 'IRREGULAR' || form.situacao === 'PARCIALMENTE_REGULAR') && (
-
-                  <>
-
-                    <div>
-
-                      <label className={LABEL}>Valor a Devolver (R$)</label>
-
-                      <CurrencyInput value={form.valor_a_devolver} onChange={v => set('valor_a_devolver', v)} />
-
-                      <p className="mt-1 text-xs text-slate-400">Total que deve ser restituído ao erário</p>
-
-                    </div>
-
-                    <div>
-
-                      <label className={LABEL}>Valor já Devolvido (R$)</label>
-
-                      <CurrencyInput value={form.valor_devolvido} onChange={v => set('valor_devolvido', v)} />
-
-                      <p className="mt-1 text-xs text-slate-400">Valor efetivamente já restituído</p>
-
-                    </div>
-
-                    {(form.valor_a_devolver ?? 0) > 0 && (() => {
-
-                      const saldo = (form.valor_a_devolver ?? 0) - (form.valor_devolvido ?? 0);
-
-                      return (
-
-                        <div className={`sm:col-span-2 rounded-lg p-3 border ${saldo <= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Saldo Pendente</div>
-
-                          <div className={`text-base font-bold ${saldo <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-
-                            {fmt(saldo)}
-
-                            {saldo <= 0 && <span className="ml-2 text-xs text-green-600 font-normal flex items-center gap-1"><Check size={10} />Totalmente quitado</span>}
-
-                          </div>
-
-                        </div>
-
-                      );
-
-                    })()}
-
-                  </>
-
-                )}
-
-                <div className="sm:col-span-2">
-
-                  <label className={LABEL}>Observações / Fundamentação</label>
-
-                  <textarea
-
-                    className={INPUT}
-
-                    rows={3}
-
-                    value={form.situacao_obs ?? ''}
-
-                    onChange={e => set('situacao_obs', e.target.value || null)}
-
-                    placeholder="Descreva os motivos, irregularidades encontradas, diligências realizadas..."
-
-                  />
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* -- Correção Documental -- */}
-          <section className="bg-white border border-rose-100 rounded-2xl p-5 shadow-sm">
-            <Sec icon={<PenLine size={13} />} title="Correção Documental" />
-            <p className="text-xs text-slate-400 mb-3 -mt-2">
-              Preencha quando o processo foi devolvido para correção documental. O registro contará na produtividade do técnico.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={LABEL}>
-                  <span className="flex items-center gap-1"><BookOpen size={11} />Páginas Analisadas na Correção</span>
-                </label>
-                <input
-                  className={INPUT}
-                  type="number"
-                  min={0}
-                  placeholder="ex: 40"
-                  value={form.correcao_paginas ?? ''}
-                  onChange={e => set('correcao_paginas', e.target.value ? Number(e.target.value) : null)}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className={LABEL}>
-                  <span className="flex items-center gap-1"><PenLine size={11} />Descrição da Correção</span>
-                </label>
-                <textarea
-                  className={INPUT}
-                  rows={3}
-                  value={form.correcao_obs ?? ''}
-                  onChange={e => set('correcao_obs', e.target.value || null)}
-                  placeholder="Descreva o que foi corrigido, o motivo da devolução, documentos revisados..."
-                />
-              </div>
-            </div>
-          </section>
-
-
-
-          </>)}
 
           {/* -- Save bar -- */}
 
-          {(activeTab === 'analise' || activeTab === 'ident' || activeTab === 'fluxo') && (
+          {activeTab === 'ident' && (
           <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white/97 backdrop-blur-sm py-3">
 
             <div className="text-xs text-slate-400">
@@ -4633,281 +4986,129 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
         {/* -- Sections visible only when a record exists -- */}
 
-        {isEditing && activeTab === 'fluxo' && (
 
-          <div className="space-y-4 pb-4">
+        {isEditing && activeTab === 'exercicios' && (
 
+          loadingFull ? (
+            <div className="flex items-center gap-2 py-10 justify-center text-slate-400 text-sm">
+              <Loader2 size={16} className="animate-spin" />Carregando exercícios...
+            </div>
+          ) : (
+            <div className="space-y-4 pb-4">
 
-
-            {/* Fluxo Técnico */}
-
-            <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-              <Sec icon={<Activity size={13} />} title="Fluxo Técnico e Responsáveis pela Assinatura" />
-
-              <FluxoTecnicoPanel
-
+              <ExercicioAnaliseTab
                 registroId={liveRecord!.codigo}
-
+                exercicios={full?.exercicios ?? []}
                 posicoes={posicoes}
-
-                numPaginas={form.num_paginas}
-
                 gpcUsers={gpcUsers}
-
                 signatoryUsers={signatoryUsers}
-
-                responsavelAssinatura={form.responsavel_assinatura}
-
-                responsavelAssinatura2={form.responsavel_assinatura_2}
-
-                onRecordUpdated={onRecordUpdated}
-
                 currentUserName={currentUser?.name ?? undefined}
-
-                parcelamentos={full?.parcelamentos}
-
-                isAdmin={isAdmin}
-
-                onSaveParc={async (updated) => {
-                  await GpcService.saveParcelamento(updated);
-                  await refreshFull();
-                }}
-
-                onAssinaturaChange={(a1, a2) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: null }))}
-
+                onOpenExercicioForm={ex => setSubModal({ type: 'exercicio', data: ex })}
+                focusExercicioId={focusExercicioId}
+                onSynced={refreshLiveRecord}
               />
 
-            </section>
+              {full && (
+                <>
 
-          </div>
+                  {/* Objetos */}
 
-        )}
+                  <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
 
-        {isEditing && activeTab === 'financeiro' && (
+                    <Sec
 
-          <div className="space-y-4 pb-4">
+                      icon={<ClipboardList size={13} />}
 
-            {loadingFull && (
+                      title={`Objetos (${full.objetos?.length ?? 0})`}
 
-              <div className="flex items-center gap-2 py-5 justify-center text-slate-400 text-sm">
+                      action={
 
-                <Loader2 size={16} className="animate-spin" />Carregando dados vinculados...
+                        <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
 
-              </div>
+                          <Plus size={12} />Adicionar
 
-            )}
+                        </button>
 
+                      }
 
+                    />
 
-            {!loadingFull && full && (
+                    <InlineTable
 
-              <>
+                      cols={[
 
-                {/* Exercícios */}
+                        { label: 'Descrição', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
 
-                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                        { label: 'Custo',     render: (r: GpcObjeto) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
 
-                  <Sec
+                      ]}
 
-                    icon={<Calendar size={13} />}
+                      rows={full.objetos ?? []}
 
-                    title={`Exercícios (${full.exercicios?.length ?? 0})`}
+                      onEdit={r => setSubModal({ type: 'objeto', data: r })}
 
-                    action={
+                      onDelete={r => confirmDeleteSub(() => GpcService.deleteObjeto(r.codigo))}
 
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'exercicio' })}>
+                      emptyMsg="Nenhum objeto cadastrado"
 
-                        <Plus size={12} />Adicionar
+                    />
 
-                      </button>
+                  </section>
 
-                    }
+                  {/* Parcelamentos — only for non-parcelamento-type processes */}
+                  {!tipoParc && <ParcelamentoSection />}
 
-                  />
+                  {/* TAs */}
 
-                  <InlineTable
+                  <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
 
-                    cols={[
+                    <Sec
 
-                      { label: 'Ano',       render: (r: GpcExercicio) => <span className="font-bold text-slate-700">{r.exercicio}</span> },
+                      icon={<GitBranch size={13} />}
 
-                      { label: 'Recebido em', render: (r: GpcExercicio) => {
-                        const isFirst = (full.exercicios ?? [])[0]?.codigo === r.codigo;
-                        const d = r.data_recebimento ?? (isFirst ? liveRecord?.data : null);
-                        return <span className="text-slate-500">{fmtDate(d)}</span>;
-                      } },
+                      title={`Termos Aditivos (${full.tas?.length ?? 0})`}
 
-                      { label: 'Ex. Ant.',  render: (r: GpcExercicio) => fmt(r.exercicio_anterior) },
+                      action={
 
-                      { label: 'Repasse',   render: (r: GpcExercicio) => <span className="text-green-700 font-medium">{fmt(r.repasse)}</span> },
+                        <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
 
-                      { label: 'Aplicação', render: (r: GpcExercicio) => fmt(r.aplicacao) },
+                          <Plus size={12} />Adicionar
 
-                      { label: 'Gastos',    render: (r: GpcExercicio) => fmt(r.gastos) },
+                        </button>
 
-                      { label: 'Devolvido', render: (r: GpcExercicio) => fmt(r.devolvido) },
+                      }
 
-                    ]}
+                    />
 
-                    rows={full.exercicios ?? []}
+                    <InlineTable
 
-                    onEdit={r => setSubModal({ type: 'exercicio', data: r })}
+                      cols={[
 
-                    onDelete={r => confirmDeleteSub(() => GpcService.deleteExercicio(r.codigo))}
+                        { label: 'Número', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
 
-                    emptyMsg="Nenhum exercício cadastrado"
+                        { label: 'Data',   render: (r: GpcTa) => fmtDate(r.data) },
 
-                  />
+                        { label: 'Custo',  render: (r: GpcTa) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
 
-                  {(full.exercicios?.length ?? 0) > 0 && (() => {
+                      ]}
 
-                    const totalRepasse   = (full.exercicios ?? []).reduce((s, e) => s + (e.repasse ?? 0), 0);
+                      rows={full.tas ?? []}
 
-                    const totalAplicacao = (full.exercicios ?? []).reduce((s, e) => s + (e.aplicacao ?? 0), 0);
+                      onEdit={r => setSubModal({ type: 'ta', data: r })}
 
-                    const totalExAnt = (full.exercicios ?? []).reduce((s, e) => s + (e.exercicio_anterior ?? 0), 0);
+                      onDelete={r => confirmDeleteSub(() => GpcService.deleteTa(r.codigo))}
 
-                    const totalConvenio = totalRepasse + totalAplicacao;
+                      emptyMsg="Nenhum TA cadastrado"
 
-                    return (
+                    />
 
-                      <div className="mt-3 grid grid-cols-3 gap-3">
+                  </section>
 
-                        <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
+                </>
+              )}
 
-                          <div className="text-[10px] uppercase tracking-wider text-green-500 font-semibold mb-0.5">Total Repasse</div>
-
-                          <div className="text-sm font-bold text-green-700">{fmt(totalRepasse)}</div>
-
-                        </div>
-
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
-
-                          <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Total Aplicação</div>
-
-                          <div className="text-sm font-bold text-slate-700">{fmt(totalAplicacao)}</div>
-
-                        </div>
-
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
-
-                          <div className="text-[10px] uppercase tracking-wider text-blue-500 font-semibold mb-0.5">Total do Convênio</div>
-
-                          <div className="text-sm font-bold text-blue-700">{fmt(totalConvenio)}</div>
-
-                        </div>
-
-                      </div>
-
-                    );
-
-                  })()}
-
-                </section>
-
-
-
-                {/* Objetos */}
-
-                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-                  <Sec
-
-                    icon={<ClipboardList size={13} />}
-
-                    title={`Objetos (${full.objetos?.length ?? 0})`}
-
-                    action={
-
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
-
-                        <Plus size={12} />Adicionar
-
-                      </button>
-
-                    }
-
-                  />
-
-                  <InlineTable
-
-                    cols={[
-
-                      { label: 'Descrição', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
-
-                      { label: 'Custo',     render: (r: GpcObjeto) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
-
-                    ]}
-
-                    rows={full.objetos ?? []}
-
-                    onEdit={r => setSubModal({ type: 'objeto', data: r })}
-
-                    onDelete={r => confirmDeleteSub(() => GpcService.deleteObjeto(r.codigo))}
-
-                    emptyMsg="Nenhum objeto cadastrado"
-
-                  />
-
-                </section>
-
-
-
-                {/* Parcelamentos — only for non-parcelamento-type processes */}
-                {!tipoParc && <ParcelamentoSection />}
-
-                {/* TAs */}
-
-                <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-                  <Sec
-
-                    icon={<GitBranch size={13} />}
-
-                    title={`Termos Aditivos (${full.tas?.length ?? 0})`}
-
-                    action={
-
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
-
-                        <Plus size={12} />Adicionar
-
-                      </button>
-
-                    }
-
-                  />
-
-                  <InlineTable
-
-                    cols={[
-
-                      { label: 'Número', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
-
-                      { label: 'Data',   render: (r: GpcTa) => fmtDate(r.data) },
-
-                      { label: 'Custo',  render: (r: GpcTa) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
-
-                    ]}
-
-                    rows={full.tas ?? []}
-
-                    onEdit={r => setSubModal({ type: 'ta', data: r })}
-
-                    onDelete={r => confirmDeleteSub(() => GpcService.deleteTa(r.codigo))}
-
-                    emptyMsg="Nenhum TA cadastrado"
-
-                  />
-
-                </section>
-
-              </>
-
-            )}
-
-          </div>
+            </div>
+          )
 
         )}
 
@@ -4986,7 +5187,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                       // Log de auditoria
                       await GpcService.saveGpcLog(desc, currentUser.name, currentUser.id);
                     }
-                    await refreshFull(); setSubModal(null);
+                    await refreshFull();
+                    setFocusExercicioId(saved.codigo);
+                    setActiveTab('exercicios');
+                    setSubModal(null);
                   }}
 
                   onClose={() => setSubModal(null)}
@@ -9131,8 +9335,6 @@ export const GpcProcessos = () => {
             if (updated) setViewRow(updated);
 
           }}
-
-          onNovoExercicio={(preset) => { setModal({ preset }); setViewRow(null); }}
 
           onOpenSibling={(rec) => setViewRow(rec)}
 
