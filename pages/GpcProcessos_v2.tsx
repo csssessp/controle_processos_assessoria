@@ -4452,7 +4452,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
         setSavedOk(true);
 
-        setActiveTab('exercicios');
+        // Parcelamento/Reparcelamento já é sobre um exercício específico — não faz
+        // sentido mandar para a aba Exercícios, que é para prestação de contas.
+        setActiveTab(tipoParc !== '' ? 'parcelamento' : 'exercicios');
 
       } else {
 
@@ -4556,6 +4558,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
               </button>
             )},
             ...(detailed ? [{ label: 'Vl/Parcela', render: (r: GpcParcelamento) => r.valor_por_parcela ? fmt(r.valor_por_parcela) : (r.valor_corrigido && r.parcelas ? fmt(r.valor_corrigido / r.parcelas) : '-') }] : []),
+            ...(detailed ? [{ label: 'Assinatura', render: (r: GpcParcelamento) => r.data_assinatura ? fmtDate(r.data_assinatura) : <span className="text-slate-300">-</span> }] : []),
             { label: 'Em Dia', render: (r: GpcParcelamento) => r.em_dia ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
             { label: 'Concluído', render: (r: GpcParcelamento) => r.parcelas_concluidas ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
           ]}
@@ -4727,6 +4730,71 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
             </div>
           </section>
 
+          {/* -- Identificação do Processo -- */}
+
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+
+            <Sec icon={<FileText size={13} />} title="Identificação do Processo" action={isEditing ? <LockBtn locked={identLocked} onUnlock={() => tryUnlock(setIdentLocked)} /> : undefined} />
+
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 transition-opacity ${identLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+
+              <div>
+
+                <label className={LABEL}>Número do Processo *</label>
+
+                <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
+
+              </div>
+
+              <div>
+
+                <label className={LABEL}>Convênio</label>
+
+                <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
+
+              </div>
+
+              <div>
+
+                <label className={LABEL}>Valor do Convênio (R$)</label>
+
+                <CurrencyInput value={form.valor_convenio} onChange={v => set('valor_convenio', v)} />
+
+              </div>
+
+              <div className="sm:col-span-2">
+
+                <label className={LABEL}>Entidade / Município</label>
+
+                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
+
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className={LABEL}>
+                  <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    className={INPUT + ' pr-9'}
+                    type="url"
+                    placeholder="https://..."
+                    value={form.link_processo ?? ''}
+                    onChange={e => set('link_processo', e.target.value || null)}
+                  />
+                  {form.link_processo && (
+                    <a href={form.link_processo} target="_blank" rel="noopener noreferrer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700">
+                      <ExternalLink size={14} />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+          </section>
+
           {/* ── Inline parcelamento fields (appear when tipo is set) ── */}
           {tipoParc !== '' && (
             <section className={`border rounded-2xl p-5 shadow-sm ${tipoParc === 'REPARCELAMENTO' ? 'bg-purple-50/60 border-purple-100' : 'bg-amber-50/60 border-amber-100'}`}>
@@ -4798,6 +4866,16 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                   </div>
                 </div>
 
+                <div>
+                  <label className={LABEL}>Data da Assinatura do Parcelamento</label>
+                  <input
+                    className={INPUT}
+                    type="date"
+                    value={parcForm.data_assinatura ?? ''}
+                    onChange={e => setParc('data_assinatura', e.target.value || null)}
+                  />
+                </div>
+
                 {tipoParc === 'REPARCELAMENTO' && (
                   <div className="col-span-2">
                     <label className={LABEL}>Data que Parou de Pagar</label>
@@ -4842,71 +4920,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
               </div>
             </section>
           )}
-
-          {/* -- Identificação do Processo -- */}
-
-          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-
-            <Sec icon={<FileText size={13} />} title="Identificação do Processo" action={isEditing ? <LockBtn locked={identLocked} onUnlock={() => tryUnlock(setIdentLocked)} /> : undefined} />
-
-            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 transition-opacity ${identLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-
-              <div>
-
-                <label className={LABEL}>Número do Processo *</label>
-
-                <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
-
-              </div>
-
-              <div>
-
-                <label className={LABEL}>Convênio</label>
-
-                <input className={INPUT} value={form.convenio ?? ''} onChange={e => set('convenio', e.target.value)} placeholder="ex: 555/2024" />
-
-              </div>
-
-              <div>
-
-                <label className={LABEL}>Valor do Convênio (R$)</label>
-
-                <CurrencyInput value={form.valor_convenio} onChange={v => set('valor_convenio', v)} />
-
-              </div>
-
-              <div className="sm:col-span-2">
-
-                <label className={LABEL}>Entidade / Município</label>
-
-                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
-
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className={LABEL}>
-                  <span className="flex items-center gap-1"><LinkIcon size={11} />Link do Processo (URL)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    className={INPUT + ' pr-9'}
-                    type="url"
-                    placeholder="https://..."
-                    value={form.link_processo ?? ''}
-                    onChange={e => set('link_processo', e.target.value || null)}
-                  />
-                  {form.link_processo && (
-                    <a href={form.link_processo} target="_blank" rel="noopener noreferrer"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 hover:text-blue-700">
-                      <ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-            </div>
-
-          </section>
 
 
 
@@ -5942,6 +5955,15 @@ const ParcelamentoForm = ({ processoId, initial, onSave, onClose }: {
             </button>
           </div>
         </div>
+        <div>
+          <label className={LABEL}>Data da Assinatura do Parcelamento</label>
+          <input
+            className={INPUT}
+            type="date"
+            value={f.data_assinatura ?? ''}
+            onChange={e => set('data_assinatura', e.target.value || null)}
+          />
+        </div>
       </div>
 
       {/* Campos exclusivos de Reparcelamento */}
@@ -6108,6 +6130,16 @@ const ParcelasManager = ({ parcelamento, onClose }: {
     catch (ex: any) { toast('error', ex.message); }
   };
 
+  // Registrar rapidamente o pagamento do mês, sem abrir o formulário completo
+  const togglePago = async (r: GpcParcela) => {
+    const next = !r.pago;
+    try {
+      await GpcService.saveParcela({ ...r, pago: next, data_pagamento: next ? new Date().toISOString().slice(0, 10) : null });
+      await load();
+      if (next) toast('success', `Parcela ${r.numero} marcada como paga.`);
+    } catch (ex: any) { toast('error', ex.message); }
+  };
+
   const handleGerar = async () => {
     if (!genDate || !totalEsperado) return;
     setGenerating(true);
@@ -6182,7 +6214,18 @@ const ParcelasManager = ({ parcelamento, onClose }: {
             { label: 'Nº', render: (r: GpcParcela) => <span className="font-semibold">{r.numero}</span> },
             { label: 'Vencimento', render: (r: GpcParcela) => fmtDate(r.data_vencimento) },
             { label: 'Valor', render: (r: GpcParcela) => <span className="text-green-700 font-medium">{fmt(r.valor)}</span> },
-            { label: 'Pago', render: (r: GpcParcela) => r.pago ? <Check size={13} className="text-green-600" /> : <X size={13} className="text-red-400" /> },
+            { label: 'Pago', render: (r: GpcParcela) => (
+              <button
+                type="button"
+                onClick={() => togglePago(r)}
+                title={r.pago ? 'Clique para desmarcar como paga' : 'Clique para marcar como paga hoje'}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
+                  r.pago ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
+                }`}
+              >
+                {r.pago ? <Check size={12} /> : <X size={12} />}{r.pago ? 'Paga' : 'Pendente'}
+              </button>
+            )},
             { label: 'Data Pagamento', render: (r: GpcParcela) => fmtDate(r.data_pagamento) },
             { label: 'Obs.', render: (r: GpcParcela) => <span className="text-slate-500">{r.obs ?? '-'}</span> },
           ]}
