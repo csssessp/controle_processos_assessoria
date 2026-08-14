@@ -111,42 +111,62 @@ Testado ao vivo: registrei um evento real de fluxo no processo 024.00127847/2025
 2019) para confirmar que salva sem erro e aparece na linha do tempo; removi o registro de
 teste depois via REST direto no Supabase para não deixar dado de teste em produção.
 
-## Seções recolhíveis + Assinatura movida para dentro de Exercícios
+## Seções recolhíveis (todas fechadas por padrão)
 
 Com Dados Financeiros + Análise + Situação + Correção + Fluxo + Assinatura + Objetos +
 Parcelamento + Termos Aditivos todos empilhados, a aba Exercícios ficou com scroll grande
 demais. Criado `CollapsibleSection` (variante de `Sec` com cabeçalho clicável que
-abre/fecha o conteúdo) e todas essas seções passaram a usá-lo. Abertas por padrão: Dados
-Financeiros e Análise (uso mais frequente) e Objetos/Parcelamento/Termos Aditivos quando já
-têm dados cadastrados; fechadas por padrão: Situação, Correção, Fluxo Técnico e Assinatura.
-É só um wrapper visual — não muda nenhuma lógica de salvamento.
+abre/fecha o conteúdo) e todas essas seções passaram a usá-lo — **todas começam fechadas**,
+inclusive Dados Financeiros/Análise/Objetos/Parcelamento/TAs (a primeira versão abria algumas
+por padrão; ajustado para começar tudo fechado). Os botões de ação de cada seção (Editar,
+Adicionar) só aparecem quando a seção está aberta — ficam ocultos junto com o resto do
+conteúdo quando fechada. É só um wrapper visual — não muda nenhuma lógica de salvamento.
 
-"Responsável pela Assinatura" também saiu da aba Identificação e passou a viver dentro de
-Exercícios (como uma dessas seções recolhíveis) — continua sendo um dado do registro (não
-por exercício), só mudou de aba.
+O botão **"Salvar Análise deste Exercício"** foi movido para o final de tudo (depois de
+Fluxo Técnico, Assinatura e da zona de exclusão) — usa o atributo HTML `form="exercicio-
+analise-form"` para continuar submetendo o mesmo formulário (Análise + Situação + Correção)
+de fora dele, sem precisar ficar espremido no meio da pilha de seções.
 
-## Exclusão de exercício cadastrado errado
+## Assinatura por exercício
 
-O card "Dados Financeiros" da aba Exercícios ganhou um botão **Excluir** ao lado de "Editar".
-Como um exercício pode já ter Análise/Situação/Fluxo salvos nele, a exclusão só funcionava
-antes se o exercício estivesse "vazio" — com dados vinculados, `GpcService.deleteExercicio`
-falhava com erro de chave estrangeira. `sql_parts/parte_48_exercicio_delete_cascade.sql`
-adiciona `ON DELETE CASCADE` nas FKs de `cgof_gpc_registro_exercicio.exercicio_id` e
-`cgof_gpc_fluxo_tecnico.exercicio_id` (não mexe na FK de `cgof_gpc_historico`, tabela legada
-só-leitura — se um exercício antigo tiver histórico migrado do Access vinculado, a exclusão
-continua bloqueada de propósito). O aviso de confirmação avisa quando há Análise/Fluxo que
-também serão apagados junto.
+"Responsável pela Assinatura" passou a ser um dado **por (registro × exercício)**, não mais
+do registro inteiro — `sql_parts/parte_49_assinatura_por_exercicio.sql` adiciona
+`responsavel_assinatura`/`responsavel_assinatura_2` em `cgof_gpc_registro_exercicio` (as
+colunas antigas em `cgof_gpc_recebidos` continuam existindo, só não são mais editadas pela
+UI). Novo método `GpcService.updateAssinaturaExercicio(registroId, exercicioId, ...)`. O
+componente `AssinaturaResponsavelSection` precisa ser renderizado com `key={exercicioId}`
+pelo chamador — o estado local do "quem já está selecionado" só é recalculado na montagem,
+então sem a key trocar de exercício mostraria a assinatura do exercício anterior.
+
+## Exclusão de exercício cadastrado errado (com senha)
+
+O botão de excluir saiu de dentro do card "Dados Financeiros" (onde tinha ficado por engano
+numa primeira versão) e virou uma "zona de risco" própria, sempre visível (não escondida
+atrás de um collapse), logo antes do botão de salvar: "Excluir Exercício {ano}", com aviso do
+que será apagado junto (Análise/Situação/Fluxo). Reaproveitado o `DeletePasswordModal` que já
+existia para excluir registros inteiros (agora com `title`/`message` configuráveis) — a
+exclusão só é executada depois de `DbService.verifyPassword(currentUser.id, senha)` confirmar
+a senha do usuário logado, mesmo padrão usado para excluir um registro.
+
+Como um exercício pode já ter Análise/Situação/Fluxo salvos nele,
+`sql_parts/parte_48_exercicio_delete_cascade.sql` adiciona `ON DELETE CASCADE` nas FKs de
+`cgof_gpc_registro_exercicio.exercicio_id` e `cgof_gpc_fluxo_tecnico.exercicio_id` (sem isso
+a exclusão falhava com erro de chave estrangeira assim que o exercício tinha qualquer dado
+vinculado). Não mexe na FK de `cgof_gpc_historico` (tabela legada só-leitura) — se um
+exercício antigo tiver histórico migrado do Access vinculado, a exclusão continua bloqueada
+de propósito, para não apagar dado histórico por engano.
 
 ## Principais arquivos modificados
 
-- `pages/GpcProcessos_v2.tsx` — `ExercicioAnaliseTab` (componente novo), `RegistroModal`
-  (barra de abas, Identificação, sub-modal de exercício), `ViewModal` (remoção do botão),
-  `FluxoTecnicoPanel`/`FluxoTecnicoFormInline` (suporte a `exercicioId`),
-  `AssinaturaResponsavelSection` (extraído do `FluxoTecnicoPanel`).
+- `pages/GpcProcessos_v2.tsx` — `ExercicioAnaliseTab` (componente novo), `CollapsibleSection`
+  (componente novo), `RegistroModal` (barra de abas, Identificação, sub-modal de exercício),
+  `ViewModal` (remoção do botão), `FluxoTecnicoPanel`/`FluxoTecnicoFormInline` (suporte a
+  `exercicioId`), `AssinaturaResponsavelSection` (extraído do `FluxoTecnicoPanel`, agora por
+  exercício), `DeletePasswordModal` (título/mensagem configuráveis, reaproveitado).
 - `services/gpcService.ts` — `getRegistroExercicios`, `saveRegistroExercicio`,
-  `syncRecebidoCache`, `saveRecebido` (payload corrigido), `getFluxoTecnico`/
-  `saveFluxoTecnico` (suporte a `exercicio_id`).
-- `types.ts` — `GpcRegistroExercicio`, `GpcFluxoTecnico.exercicio_id`.
+  `updateAssinaturaExercicio`, `syncRecebidoCache`, `saveRecebido` (payload corrigido),
+  `getFluxoTecnico`/`saveFluxoTecnico` (suporte a `exercicio_id`).
+- `types.ts` — `GpcRegistroExercicio` (+ campos de assinatura), `GpcFluxoTecnico.exercicio_id`.
 - `pages/GpcRelatorios.tsx` — colunas de julgamento (Débito/Desfecho/Valor da Multa) nas
   exportações.
 
@@ -154,8 +174,9 @@ também serão apagados junto.
 
 - `npx tsc --noEmit -p .` limpo em todas as etapas.
 - Testado ao vivo (Playwright + Chromium headless, login via sessão injetada, processo real
-  024.00127847/2025-10): navegação completa, abas corretas, seções da Exercícios renderizando
-  juntas, botão "Novo Ciclo" ausente, zero erros no console.
+  024.00127847/2025-10): navegação completa, abas corretas, todas as seções fechadas por
+  padrão, ações só aparecem ao abrir, botão de salvar no final, zona de exclusão com senha
+  abrindo o modal correto, zero erros no console em todas as rodadas.
 
 ## Status
 

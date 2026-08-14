@@ -930,6 +930,8 @@ export const GpcService = {
       valor_devolvido: r.valor_devolvido ?? null,
       correcao_paginas: r.correcao_paginas ?? null,
       correcao_obs: r.correcao_obs ?? null,
+      responsavel_assinatura: r.responsavel_assinatura ?? null,
+      responsavel_assinatura_2: r.responsavel_assinatura_2 ?? null,
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await supabase
@@ -939,6 +941,21 @@ export const GpcService = {
       .single();
     if (error) throw new Error(error.message);
     return data as GpcRegistroExercicio;
+  },
+
+  // Responsável pela assinatura é por (registro x exercício) — salva sem esperar o botão
+  // "Salvar Análise" (mesmo padrão imediato do updateAssinatura de registro, abaixo)
+  updateAssinaturaExercicio: async (registroId: number, exercicioId: number, responsavel_assinatura: string | null, responsavel_assinatura_2: string | null): Promise<void> => {
+    const { error } = await supabase
+      .from('cgof_gpc_registro_exercicio')
+      .upsert({
+        registro_id: registroId,
+        exercicio_id: exercicioId,
+        responsavel_assinatura,
+        responsavel_assinatura_2,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'registro_id,exercicio_id' });
+    if (error) throw new Error(error.message);
   },
 
   // Atualiza APENAS os campos informados em cgof_gpc_recebidos (update parcial de verdade —

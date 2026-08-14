@@ -822,7 +822,7 @@ const CollapsibleSection = ({ icon, title, action, defaultOpen = false, children
           {open ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
         </button>
         <div className="flex-1 h-px bg-slate-100" />
-        {action}
+        {open && action}
       </div>
       {open && <div className="mt-4">{children}</div>}
     </section>
@@ -3512,11 +3512,13 @@ const ParcFluxoCard = ({ parc, currentUserName, onSaveLog }: {
   );
 };
 
-// ---- AssinaturaResponsavelSection: quem assina o parecer/relatório final do registro ----
+// ---- AssinaturaResponsavelSection: quem assina o parecer/relatório final de um exercício ----
 // Extraído do FluxoTecnicoPanel (que hoje só é usado com hideAssinatura, por exercício) —
 // vive na aba Exercícios, dentro de um CollapsibleSection (por isso não tem cabeçalho próprio).
-const AssinaturaResponsavelSection = ({ registroId, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onChange }: {
+// Renderizar com key={exercicioId} no chamador — o estado local só é recalculado na montagem.
+const AssinaturaResponsavelSection = ({ registroId, exercicioId, signatoryUsers, responsavelAssinatura, responsavelAssinatura2, onChange }: {
   registroId: number;
+  exercicioId: number;
   signatoryUsers: { id: string; name: string }[];
   responsavelAssinatura?: string | null;
   responsavelAssinatura2?: string | null;
@@ -3533,14 +3535,14 @@ const AssinaturaResponsavelSection = ({ registroId, signatoryUsers, responsavelA
     const next = [...assinaturasLocal, name];
     setAssinaturasLocal(next);
     onChange?.(next.join(' | '), '');
-    GpcService.updateAssinatura(registroId, next.join(' | '), null)
+    GpcService.updateAssinaturaExercicio(registroId, exercicioId, next.join(' | '), null)
       .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
   };
   const removeAssinatura = (name: string) => {
     const next = assinaturasLocal.filter(n => n !== name);
     setAssinaturasLocal(next);
     onChange?.(next.join(' | '), '');
-    GpcService.updateAssinatura(registroId, next.join(' | ') || null, null)
+    GpcService.updateAssinaturaExercicio(registroId, exercicioId, next.join(' | ') || null, null)
       .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
   };
 
@@ -3601,12 +3603,13 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   onDeleted?: () => void | Promise<void>;
 }) => {
   const { toast } = useToast();
-  const { confirmAction } = useConfirm();
+  const { currentUser } = useApp();
   const [regExs, setRegExs] = useState<GpcRegistroExercicio[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<GpcExercicio | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3721,21 +3724,22 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
     }
   };
 
-  const handleDeleteExercicio = async (ex: GpcExercicio) => {
-    const temAnalise = regExs.some(r => r.exercicio_id === ex.codigo);
-    const aviso = temAnalise
-      ? `Excluir o exercício ${ex.exercicio ?? ''}? Isso também apaga a Análise, Situação e o Fluxo já registrados nele. Essa ação não pode ser desfeita.`
-      : `Excluir o exercício ${ex.exercicio ?? ''}? Essa ação não pode ser desfeita.`;
-    if (!(await confirmAction(aviso, { danger: true }))) return;
+  const confirmDeleteExercicioWithPassword = async (password: string): Promise<string | null> => {
+    if (!deleteTarget) return 'Nenhum exercício selecionado';
+    if (!currentUser?.id) return 'Usuário não autenticado';
+    const valid = await DbService.verifyPassword(currentUser.id, password);
+    if (!valid) return 'Senha incorreta';
     setDeleting(true);
     try {
-      await GpcService.deleteExercicio(ex.codigo);
-      if (selectedId === ex.codigo) setSelectedId(null);
+      await GpcService.deleteExercicio(deleteTarget.codigo);
+      if (selectedId === deleteTarget.codigo) setSelectedId(null);
       await load();
       await onDeleted?.();
       toast('success', 'Exercício excluído.');
+      setDeleteTarget(null);
+      return null;
     } catch (ex2: any) {
-      toast('error', 'Erro ao excluir: ' + ex2.message);
+      return ex2.message ?? 'Erro ao excluir';
     } finally {
       setDeleting(false);
     }
@@ -3818,22 +3822,10 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
           <CollapsibleSection
             icon={<DollarSign size={13} />}
             title="Dados Financeiros"
-            defaultOpen
             action={
-              <div className="flex items-center gap-2">
-                <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
-                  <Edit size={12} />Editar
-                </button>
-                <button
-                  type="button"
-                  disabled={deleting}
-                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                  onClick={() => handleDeleteExercicio(exObj)}
-                  title="Excluir este exercício (se foi cadastrado errado)"
-                >
-                  <Trash2 size={12} />Excluir
-                </button>
-              </div>
+              <button type="button" className={BTN_SEC + ' text-xs px-2.5 py-1'} onClick={() => onOpenExercicioForm?.(exObj)}>
+                <Edit size={12} />Editar
+              </button>
             }
           >
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
@@ -3868,8 +3860,8 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
         </div>
       ) : selectedId != null && (
         <>
-          <form onSubmit={submit} className="space-y-4">
-            <CollapsibleSection icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`} defaultOpen>
+          <form id="exercicio-analise-form" onSubmit={submit} className="space-y-4">
+            <CollapsibleSection icon={<BookOpen size={13} />} title={`Análise — Exercício ${exercicios.find(e => e.codigo === selectedId)?.exercicio ?? ''}`}>
               <div className="space-y-3">
                 <div>
                   <label className={LABEL + ' flex items-center gap-1.5'}>
@@ -4122,12 +4114,6 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               </div>
             </CollapsibleSection>
 
-            <div className="flex justify-end">
-              <button type="submit" className={BTN_PRI} disabled={saving}>
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                Salvar Análise deste Exercício
-              </button>
-            </div>
           </form>
 
           <CollapsibleSection icon={<Activity size={13} />} title="Fluxo Técnico — Posição, Movimento e Linha do Tempo">
@@ -4143,7 +4129,57 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               currentUserName={currentUserName}
             />
           </CollapsibleSection>
+
+          <CollapsibleSection icon={<PenLine size={13} />} title="Responsável pela Assinatura">
+            <AssinaturaResponsavelSection
+              key={selectedId}
+              registroId={registroId}
+              exercicioId={selectedId}
+              signatoryUsers={signatoryUsers}
+              responsavelAssinatura={f.responsavel_assinatura}
+              responsavelAssinatura2={f.responsavel_assinatura_2}
+              onChange={(a1) => set('responsavel_assinatura', a1 || null)}
+            />
+          </CollapsibleSection>
+
+          {(() => {
+            const exObj = exercicios.find(x => x.codigo === selectedId);
+            if (!exObj) return null;
+            return (
+              <div className="flex items-center justify-between gap-3 bg-red-50/60 border border-red-100 rounded-2xl px-5 py-4">
+                <div>
+                  <div className="text-sm font-bold text-red-700">Excluir Exercício {exObj.exercicio ?? ''}</div>
+                  <div className="text-xs text-red-500 mt-0.5">Remove os dados financeiros, análise, situação e fluxo deste exercício. Ação irreversível, exige sua senha.</div>
+                </div>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-red-300 text-red-700 bg-white hover:bg-red-100 transition-colors disabled:opacity-50 flex-shrink-0"
+                  onClick={() => setDeleteTarget(exObj)}
+                >
+                  <Trash2 size={13} />Excluir Exercício
+                </button>
+              </div>
+            );
+          })()}
+
+          <div className="flex justify-end">
+            <button type="submit" form="exercicio-analise-form" className={BTN_PRI} disabled={saving}>
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Salvar Análise deste Exercício
+            </button>
+          </div>
         </>
+      )}
+
+      {deleteTarget && (
+        <DeletePasswordModal
+          processo={`Exercício ${deleteTarget.exercicio ?? ''}`}
+          title="Excluir Exercício"
+          message={<>Esta ação é <strong className="text-red-600">irreversível</strong>. Remove os dados financeiros, Análise, Situação e Fluxo deste exercício. Digite sua senha para confirmar.</>}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDeleteExercicioWithPassword}
+        />
       )}
     </div>
   );
@@ -4475,7 +4511,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
     };
     const Wrapper = collapsible ? CollapsibleSection : 'section';
     const wrapperProps = collapsible
-      ? { ...header, defaultOpen: (full.parcelamentos?.length ?? 0) > 0 }
+      ? header
       : { className: 'bg-white border border-slate-100 rounded-2xl p-5 shadow-sm' };
     return (
       <Wrapper {...(wrapperProps as any)}>
@@ -5035,18 +5071,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 onDeleted={refreshFull}
               />
 
-              {isEditing && (
-                <CollapsibleSection icon={<PenLine size={13} />} title="Responsável pela Assinatura">
-                  <AssinaturaResponsavelSection
-                    registroId={liveRecord!.codigo}
-                    signatoryUsers={signatoryUsers}
-                    responsavelAssinatura={form.responsavel_assinatura}
-                    responsavelAssinatura2={form.responsavel_assinatura_2}
-                    onChange={(a1) => setForm(f => ({ ...f, responsavel_assinatura: a1 || null, responsavel_assinatura_2: null }))}
-                  />
-                </CollapsibleSection>
-              )}
-
               {full && (
                 <>
 
@@ -5057,8 +5081,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                     icon={<ClipboardList size={13} />}
 
                     title={`Objetos (${full.objetos?.length ?? 0})`}
-
-                    defaultOpen={(full.objetos?.length ?? 0) > 0}
 
                     action={
 
@@ -5104,8 +5126,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                     icon={<GitBranch size={13} />}
 
                     title={`Termos Aditivos (${full.tas?.length ?? 0})`}
-
-                    defaultOpen={(full.tas?.length ?? 0) > 0}
 
                     action={
 
@@ -7789,9 +7809,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
 
 
-const DeletePasswordModal = ({ processo, onCancel, onConfirm }: {
+const DeletePasswordModal = ({ processo, title, message, onCancel, onConfirm }: {
 
   processo: string | null;
+
+  title?: string;
+
+  message?: React.ReactNode;
 
   onCancel: () => void;
 
@@ -7839,7 +7863,7 @@ const DeletePasswordModal = ({ processo, onCancel, onConfirm }: {
 
           <div>
 
-            <div className="font-bold text-slate-800 text-sm">Confirmar Exclusão</div>
+            <div className="font-bold text-slate-800 text-sm">{title ?? 'Confirmar Exclusão'}</div>
 
             {processo && <div className="text-xs text-slate-500 font-mono mt-0.5">{processo}</div>}
 
@@ -7850,9 +7874,7 @@ const DeletePasswordModal = ({ processo, onCancel, onConfirm }: {
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
 
           <p className="text-sm text-slate-600">
-
-            Esta ação é <strong className="text-red-600">irreversível</strong>. Digite sua senha para confirmar a exclusão do registro.
-
+            {message ?? <>Esta ação é <strong className="text-red-600">irreversível</strong>. Digite sua senha para confirmar a exclusão do registro.</>}
           </p>
 
           <div>
