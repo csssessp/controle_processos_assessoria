@@ -5244,6 +5244,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                   defaultDataRecebimento={(full.exercicios?.length ?? 0) === 0 ? liveRecord?.data : undefined}
 
+                  defaultExercicio={(full.exercicios?.length ?? 0) === 0 ? liveRecord?.exercicio : undefined}
+
                   onSave={async e => {
                     const saved = await GpcService.saveExercicio(e);
                     const isNew = !subModal.data?.codigo;
@@ -5369,9 +5371,9 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
 
 
-const ExercicioForm = ({ processoId, initial, lastSaldo, defaultDataRecebimento, onSave, onClose }: {
+const ExercicioForm = ({ processoId, initial, lastSaldo, defaultDataRecebimento, defaultExercicio, onSave, onClose }: {
 
-  processoId: number; initial?: Partial<GpcExercicio>; lastSaldo?: number; defaultDataRecebimento?: string | null;
+  processoId: number; initial?: Partial<GpcExercicio>; lastSaldo?: number; defaultDataRecebimento?: string | null; defaultExercicio?: string | null;
 
   onSave: (e: Partial<GpcExercicio>) => Promise<void>; onClose: () => void;
 
@@ -5388,7 +5390,10 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, defaultDataRecebimento,
 
     exercicio_anterior: lastSaldo ?? undefined,
 
-    // primeiro exercicio do processo: pre-preenche com a data de recebimento do processo
+    // primeiro exercicio do processo: pre-preenche com o ano e a data de recebimento
+    // ja informados no cadastro do processo (aba Identificação)
+    exercicio: defaultExercicio ?? undefined,
+
     data_recebimento: defaultDataRecebimento ?? undefined,
 
   });
