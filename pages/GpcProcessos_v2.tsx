@@ -4587,6 +4587,58 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
     );
   };
 
+  // Objetos + Termos Aditivos — dados do processo como um todo (não por exercício),
+  // por isso aparecem tanto na aba Exercícios (prestação de contas) quanto na aba
+  // Parcelamento/Reparcelamento (que não tem aba Exercícios própria).
+  const ObjetosTasSections = () => !full ? null : (
+    <>
+      <CollapsibleSection
+        icon={<ClipboardList size={13} />}
+        title={`Objetos (${full.objetos?.length ?? 0})`}
+        action={
+          <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
+            <Plus size={12} />Adicionar
+          </button>
+        }
+      >
+        <InlineTable
+          cols={[
+            { label: 'Descrição', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
+            { label: 'Custo',     render: (r: GpcObjeto) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
+          ]}
+          rows={full.objetos ?? []}
+          onEdit={r => setSubModal({ type: 'objeto', data: r })}
+          onDelete={r => confirmDeleteSub(() => GpcService.deleteObjeto(r.codigo))}
+          emptyMsg="Nenhum objeto cadastrado"
+        />
+      </CollapsibleSection>
+
+      {!tipoParc && <ParcelamentoSection collapsible />}
+
+      <CollapsibleSection
+        icon={<GitBranch size={13} />}
+        title={`Termos Aditivos (${full.tas?.length ?? 0})`}
+        action={
+          <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
+            <Plus size={12} />Adicionar
+          </button>
+        }
+      >
+        <InlineTable
+          cols={[
+            { label: 'Número', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
+            { label: 'Data',   render: (r: GpcTa) => fmtDate(r.data) },
+            { label: 'Custo',  render: (r: GpcTa) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
+          ]}
+          rows={full.tas ?? []}
+          onEdit={r => setSubModal({ type: 'ta', data: r })}
+          onDelete={r => confirmDeleteSub(() => GpcService.deleteTa(r.codigo))}
+          emptyMsg="Nenhum TA cadastrado"
+        />
+      </CollapsibleSection>
+    </>
+  );
+
 
 
   return (
@@ -4610,10 +4662,13 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
         {([
           { id: 'ident',         label: 'Identificação',           icon: <FileText size={13} /> },
           ...(isEditing ? [
-            { id: 'exercicios',    label: 'Exercícios',               icon: <Calendar size={13} /> },
-            ...(tipoParc !== '' ? [
+            // Parcelamento/Reparcelamento já é sobre um exercício específico — não
+            // precisa da aba Exercícios, que é para prestação de contas.
+            ...(tipoParc === '' ? [
+              { id: 'exercicios',    label: 'Exercícios',               icon: <Calendar size={13} /> },
+            ] : [
               { id: 'parcelamento', label: 'Parcelamento / Reparcelamento', icon: <DollarSign size={13} /> },
-            ] : []),
+            ]),
           ] : []),
         ] as { id: string; label: string; icon: React.ReactNode }[]).map(tab => (
           <button
@@ -5115,100 +5170,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 fallbackResponsavelAssinatura2={liveRecord?.responsavel_assinatura_2}
               />
 
-              {full && (
-                <>
-
-                  {/* Objetos */}
-
-                  <CollapsibleSection
-
-                    icon={<ClipboardList size={13} />}
-
-                    title={`Objetos (${full.objetos?.length ?? 0})`}
-
-                    action={
-
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'objeto' })}>
-
-                        <Plus size={12} />Adicionar
-
-                      </button>
-
-                    }
-
-                  >
-
-                    <InlineTable
-
-                      cols={[
-
-                        { label: 'Descrição', render: (r: GpcObjeto) => <span className="max-w-[300px] block truncate" title={r.objeto ?? ''}>{r.objeto ?? '-'}</span> },
-
-                        { label: 'Custo',     render: (r: GpcObjeto) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
-
-                      ]}
-
-                      rows={full.objetos ?? []}
-
-                      onEdit={r => setSubModal({ type: 'objeto', data: r })}
-
-                      onDelete={r => confirmDeleteSub(() => GpcService.deleteObjeto(r.codigo))}
-
-                      emptyMsg="Nenhum objeto cadastrado"
-
-                    />
-
-                  </CollapsibleSection>
-
-                  {/* Parcelamentos — only for non-parcelamento-type processes */}
-                  {!tipoParc && <ParcelamentoSection collapsible />}
-
-                  {/* TAs */}
-
-                  <CollapsibleSection
-
-                    icon={<GitBranch size={13} />}
-
-                    title={`Termos Aditivos (${full.tas?.length ?? 0})`}
-
-                    action={
-
-                      <button className={BTN_PRI + ' text-xs px-2.5 py-1'} onClick={() => setSubModal({ type: 'ta' })}>
-
-                        <Plus size={12} />Adicionar
-
-                      </button>
-
-                    }
-
-                  >
-
-                    <InlineTable
-
-                      cols={[
-
-                        { label: 'Número', render: (r: GpcTa) => <span className="font-medium">{r.numero ?? '-'}</span> },
-
-                        { label: 'Data',   render: (r: GpcTa) => fmtDate(r.data) },
-
-                        { label: 'Custo',  render: (r: GpcTa) => <span className="text-green-700 font-semibold">{fmt(r.custo)}</span> },
-
-                      ]}
-
-                      rows={full.tas ?? []}
-
-                      onEdit={r => setSubModal({ type: 'ta', data: r })}
-
-                      onDelete={r => confirmDeleteSub(() => GpcService.deleteTa(r.codigo))}
-
-                      emptyMsg="Nenhum TA cadastrado"
-
-                    />
-
-                  </CollapsibleSection>
-
-                </>
-              )}
+              <ObjetosTasSections />
 
             </div>
           )
@@ -5224,6 +5186,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
               </div>
             )}
             {!loadingFull && full && <ParcelamentoSection detailed />}
+            <ObjetosTasSections />
           </div>
         )}
 
