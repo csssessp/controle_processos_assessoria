@@ -770,6 +770,13 @@ export const ProcessManager = () => {
     if (!entryDate) { toast('warning', 'Data de entrada é obrigatória.'); setSaving(false); return; }
     if (!cgof || cgof.trim() === '') { toast('warning', 'Origem (CGOF) é obrigatória.'); setSaving(false); return; }
 
+    const numberVal = ((formData.get('number') as string) || '').trim();
+    if (/^(https?:\/\/|www\.)/i.test(numberVal) || numberVal.includes('://')) {
+      toast('warning', 'Número do Processo não pode ser um link. Cole o link no campo "Link do Processo", mais abaixo.');
+      setSaving(false);
+      return;
+    }
+
 
     const now = new Date().toISOString();
     const newProcess: Process = {
@@ -1608,7 +1615,7 @@ export const ProcessManager = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1 text-slate-700">Número do Processo</label>
-                  <input required name="number" type="text" defaultValue={editingProcess?.number} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm font-mono placeholder-slate-300 focus:ring-2 focus:ring-blue-100" placeholder="000.000/0000" />
+                  <input required name="number" type="text" maxLength={40} defaultValue={editingProcess?.number} className="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm font-mono placeholder-slate-300 focus:ring-2 focus:ring-blue-100" placeholder="000.000/0000" />
                 </div>
               </div>
               <div className="space-y-4">
