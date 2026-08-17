@@ -1532,6 +1532,19 @@ const ATIVIDADE_AVULSA_TIPOS = [
 
 ];
 
+// Duração em incrementos de 30 min (0.5h a 8h) — mais fácil de escolher do que digitar
+// horas decimais (ex.: "0.5" não é óbvio que significa 30 minutos).
+const HORAS_OPCOES = Array.from({ length: 16 }, (_, i) => (i + 1) * 0.5);
+
+function fmtHoras(h: number): string {
+  const totalMin = Math.round(h * 60);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  if (hh === 0) return `${mm} min`;
+  if (mm === 0) return `${hh}h`;
+  return `${hh}h${String(mm).padStart(2, '0')}`;
+}
+
 
 
 const ACAO_OPTIONS = [
@@ -5893,11 +5906,17 @@ const AtividadeAvulsaForm = ({ initial, gpcUsers, currentUserName, onSave, onClo
 
           <label className={LABEL}>Horas Dedicadas</label>
 
-          <input
-            className={INPUT} type="number" min={0} step={0.5}
-            value={f.horas ?? ''} onChange={e => set('horas', e.target.value ? Number(e.target.value) : null)}
-            placeholder="ex: 2.5"
-          />
+          <select
+            className={INPUT}
+            value={f.horas ?? ''}
+            onChange={e => set('horas', e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">— selecione —</option>
+            {HORAS_OPCOES.map(h => <option key={h} value={h}>{fmtHoras(h)}</option>)}
+            {f.horas != null && !HORAS_OPCOES.includes(f.horas) && (
+              <option value={f.horas}>{fmtHoras(f.horas)}</option>
+            )}
+          </select>
 
         </div>
 
