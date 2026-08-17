@@ -283,6 +283,7 @@ export interface GpcRecebido {
   processo_codigo: number | null;
   processo: string | null;
   entidade: string | null;
+  municipio?: string | null;
   convenio: string | null;
   exercicio: string | null;
   drs: number | null;

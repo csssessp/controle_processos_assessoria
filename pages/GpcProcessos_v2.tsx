@@ -2747,6 +2747,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                 { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : '—' },
                 { label: 'Recebimento',  value: recebimentoValue },
                 { label: 'Entidade',     value: row.entidade ?? '—' },
+                { label: 'Município',    value: row.municipio ?? '—' },
               ];
             })().map(({ label, value }) => (
 
@@ -3595,7 +3596,7 @@ const AssinaturaResponsavelSection = ({ registroId, exercicioId, signatoryUsers,
 // nada do registro nem de outro exercício. É o único lugar de trabalho para um exercício: dados
 // financeiros, análise, situação/julgamento, correção documental e fluxo, tudo nesta aba.
 
-const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2 }: {
+const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2, isParcelamento, parcelamentoLabel }: {
   registroId: number;
   exercicios: GpcExercicio[];
   posicoes: GpcPosicao[];
@@ -3611,6 +3612,12 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   // estava preenchido na migração para o modelo por exercício)
   fallbackResponsavelAssinatura?: string | null;
   fallbackResponsavelAssinatura2?: string | null;
+  // Parcelamento/Reparcelamento não tem prestação de contas: sem repasse/aplicação/dados
+  // financeiros, sem julgamento de Situação, sem Objetos/Termos Aditivos — só Análise
+  // (técnicos/páginas), Fluxo Técnico e Assinatura. É um processo de pagamento único (pode
+  // cobrir vários exercícios), então a Análise também é única, não por exercício.
+  isParcelamento?: boolean;
+  parcelamentoLabel?: string; // 'Parcelamento' ou 'Reparcelamento', usado nos títulos no lugar de "Exercício X"
 }) => {
   const { toast } = useToast();
   const { currentUser } = useApp();
@@ -3648,7 +3655,8 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   );
 
   const anoLabel = exercicios.find(e => e.codigo === selectedId)?.exercicio ?? '';
-  const secTitle = (base: string) => `${base} — Exercício ${anoLabel}`;
+  const contextLabel = isParcelamento ? (parcelamentoLabel ?? 'Parcelamento') : `Exercício ${anoLabel}`;
+  const secTitle = (base: string) => `${base} — ${contextLabel}`;
 
   const [f, setF] = useState<Partial<GpcRegistroExercicio>>({});
   // Qtd. de páginas cadastrada no exercício (aba financeira) — usada como valor de
@@ -3722,7 +3730,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
         await GpcService.saveFluxoTecnico({
           registro_id: registroId, exercicio_id: selectedId, tecnico,
           posicao_id: saved.posicao_id,
-          acao: `Exercício ${anoLabel} — avanço automático (analista atribuído)`, data_evento: now,
+          acao: `${contextLabel} — avanço automático (analista atribuído)`, data_evento: now,
         });
       }
 
@@ -3740,7 +3748,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
 
       await load();
       await onSynced?.();
-      toast('success', 'Análise do exercício salva.');
+      toast('success', isParcelamento ? `Análise do ${contextLabel.toLowerCase()} salva.` : 'Análise do exercício salva.');
     } catch (ex: any) {
       toast('error', 'Erro ao salvar: ' + ex.message);
     } finally {
@@ -3772,17 +3780,26 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   if (exercicios.length === 0) {
     return (
       <div className="bg-white border border-slate-100 rounded-2xl p-8 text-center space-y-3">
-        <p className="text-sm text-slate-400">Nenhum exercício cadastrado ainda.</p>
-        <button type="button" className={BTN_PRI} onClick={() => onOpenExercicioForm?.()}>
-          <Plus size={14} />Cadastrar Primeiro Exercício
-        </button>
+        <p className="text-sm text-slate-400">
+          {isParcelamento
+            ? 'Nenhum exercício referenciado ainda. Adicione os anos em Parcelamento/Reparcelamento — Dados do Parcelamento.'
+            : 'Nenhum exercício cadastrado ainda.'}
+        </p>
+        {!isParcelamento && (
+          <button type="button" className={BTN_PRI} onClick={() => onOpenExercicioForm?.()}>
+            <Plus size={14} />Cadastrar Primeiro Exercício
+          </button>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-4 pb-4">
-      {/* Seletor de exercício */}
+      {/* Seletor de exercício — Parcelamento/Reparcelamento é uma análise única, mesmo
+          cobrindo vários anos, então não faz sentido escolher entre eles aqui (os anos já
+          aparecem em Parcelamento/Reparcelamento — Dados do Parcelamento). */}
+      {!isParcelamento && (
       <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
         <Sec
           icon={<Calendar size={13} />}
@@ -3837,9 +3854,10 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
           );
         })()}
       </div>
+      )}
 
       {/* Dados financeiros do exercício selecionado */}
-      {selectedId != null && (() => {
+      {!isParcelamento && selectedId != null && (() => {
         const exObj = exercicios.find(x => x.codigo === selectedId);
         if (!exObj) return null;
         return (
@@ -3880,7 +3898,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
 
       {loading ? (
         <div className="flex items-center gap-2 py-10 justify-center text-slate-400 text-sm">
-          <Loader2 size={16} className="animate-spin" />Carregando análise do exercício...
+          <Loader2 size={16} className="animate-spin" />Carregando análise...
         </div>
       ) : selectedId != null && (
         <>
@@ -3917,6 +3935,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               </div>
             </CollapsibleSection>
 
+            {!isParcelamento && (
             <CollapsibleSection icon={<ShieldCheck size={13} />} title={secTitle('Situação do Processo')}>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4108,6 +4127,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
                 </div>
               </div>
             </CollapsibleSection>
+            )}
 
             <CollapsibleSection icon={<PenLine size={13} />} title={secTitle('Correção Documental')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4168,7 +4188,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
           </CollapsibleSection>
 
           <div className="flex items-center justify-between gap-3">
-            {(() => {
+            {isParcelamento ? <span /> : (() => {
               const exObj = exercicios.find(x => x.codigo === selectedId);
               if (!exObj) return <span />;
               return (
@@ -4185,7 +4205,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
             })()}
             <button type="submit" form="exercicio-analise-form" className={BTN_PRI} disabled={saving}>
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Salvar Análise deste Exercício
+              {isParcelamento ? `Salvar Análise do ${contextLabel}` : 'Salvar Análise deste Exercício'}
             </button>
           </div>
         </>
@@ -4411,6 +4431,45 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   };
 
+  // Parcelamento/Reparcelamento é um processo de pagamento único, mesmo cobrindo vários
+  // exercícios (anos) — não faz sentido ter uma Análise por ano. A Análise é guardada por
+  // exercicio_id (modelo herdado da prestação de contas normal), então mantém-se aqui uma
+  // única "casca" de Exercício por parcelamento (sem dados financeiros), com o rótulo
+  // sincronizado com os anos referenciados, e remove eventuais cascas extras (uma por ano)
+  // que a versão anterior desta lógica chegou a criar.
+  const provisioningExerciciosRef = useRef(false);
+  useEffect(() => {
+    if (!full || tipoParc === '' || provisioningExerciciosRef.current) return;
+    const referencedYears = new Set<number>();
+    for (const p of full.parcelamentos ?? []) {
+      const years = p.exercicios && p.exercicios.length > 0 ? p.exercicios : (p.exercicio ? [p.exercicio] : []);
+      years.forEach(y => referencedYears.add(y));
+    }
+    const label = referencedYears.size > 0 ? [...referencedYears].sort((a, b) => a - b).join(', ') : null;
+    const existing = full.exercicios ?? [];
+    const needsCreate = existing.length === 0 && !!label;
+    const needsRename = existing.length > 0 && !!label && existing[0].exercicio !== label;
+    const needsCleanup = existing.length > 1;
+    if (!needsCreate && !needsRename && !needsCleanup) return;
+
+    provisioningExerciciosRef.current = true;
+    (async () => {
+      try {
+        if (needsCreate) {
+          await GpcService.saveExercicio({ processo_id: full.codigo, exercicio: label! });
+        } else if (needsRename) {
+          await GpcService.saveExercicio({ codigo: existing[0].codigo, processo_id: full.codigo, exercicio: label! });
+        }
+        if (needsCleanup) {
+          for (const ex of existing.slice(1)) await GpcService.deleteExercicio(ex.codigo);
+        }
+        await refreshFull();
+      } finally {
+        provisioningExerciciosRef.current = false;
+      }
+    })();
+  }, [full, tipoParc]);
+
   // Recarrega liveRecord/form direto do banco — usado depois que a aba Exercícios sincroniza
   // posição/movimento/situação em cgof_gpc_recebidos, para o resumo da Identificação (e o
   // próximo "Salvar Alterações" ali) não ficarem com o snapshot desatualizado do mount.
@@ -4452,6 +4511,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
           // Only save if user filled some data
           if (parcForm.valor_parcelado || parcForm.valor_corrigido || parcForm.parcelas || (parcForm.exercicios?.length ?? 0) > 0) {
             await GpcService.saveParcelamento(parcPayload);
+            // Recarrega full com o parcelamento recém-salvo — sem isso o estado `full` fica
+            // desatualizado e a aba Análise não enxerga os exercícios (anos) recém-referenciados
+            // para provisioná-los automaticamente.
+            const freshFull = await GpcService.getProcessoFull(procId);
+            setFull(freshFull);
           }
         }
       }
@@ -4569,8 +4633,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
             ...(detailed ? [{ label: 'Valor Corrigido', render: (r: GpcParcelamento) => <span className="text-green-700 font-medium">{fmt(r.valor_corrigido)}</span> }] : []),
             { label: 'Parcelas', render: (r: GpcParcelamento) => (
               <button type="button" onClick={() => setSubModal({ type: 'parcelas', data: r })}
-                className="inline-flex items-center gap-1 text-blue-700 hover:underline font-semibold">
-                {r.parcelas ?? '-'} <ListChecks size={11} />
+                title="Ver as parcelas individuais deste parcelamento"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors text-[11px] font-semibold">
+                <ListChecks size={12} />
+                {r.parcelas ? `Ver ${r.parcelas} parcela${r.parcelas === 1 ? '' : 's'}` : 'Ver parcelas'}
               </button>
             )},
             ...(detailed ? [{ label: 'Vl/Parcela', render: (r: GpcParcelamento) => r.valor_por_parcela ? fmt(r.valor_por_parcela) : (r.valor_corrigido && r.parcelas ? fmt(r.valor_corrigido / r.parcelas) : '-') }] : []),
@@ -4587,9 +4653,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
     );
   };
 
-  // Objetos + Termos Aditivos — dados do processo como um todo (não por exercício),
-  // por isso aparecem tanto na aba Exercícios (prestação de contas) quanto na aba
-  // Parcelamento/Reparcelamento (que não tem aba Exercícios própria).
+  // Objetos + Termos Aditivos — só fazem sentido para prestação de contas normal;
+  // Parcelamento/Reparcelamento não tem Objeto nem Termo Aditivo próprios.
   const ObjetosTasSections = () => !full ? null : (
     <>
       <CollapsibleSection
@@ -4662,13 +4727,10 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
         {([
           { id: 'ident',         label: 'Identificação',           icon: <FileText size={13} /> },
           ...(isEditing ? [
-            // Parcelamento/Reparcelamento já é sobre um exercício específico — não
-            // precisa da aba Exercícios, que é para prestação de contas.
-            ...(tipoParc === '' ? [
-              { id: 'exercicios',    label: 'Exercícios',               icon: <Calendar size={13} /> },
-            ] : [
+            { id: 'exercicios',    label: 'Análise',               icon: <BookOpen size={13} /> },
+            ...(tipoParc !== '' ? [
               { id: 'parcelamento', label: 'Parcelamento / Reparcelamento', icon: <DollarSign size={13} /> },
-            ]),
+            ] : []),
           ] : []),
         ] as { id: string; label: string; icon: React.ReactNode }[]).map(tab => (
           <button
@@ -4833,11 +4895,19 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
               </div>
 
-              <div className="sm:col-span-2">
+              <div>
 
-                <label className={LABEL}>Entidade / Município</label>
+                <label className={LABEL}>Entidade</label>
 
-                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade ou município" />
+                <input className={INPUT} value={form.entidade ?? ''} onChange={e => set('entidade', e.target.value)} placeholder="Nome da entidade" />
+
+              </div>
+
+              <div>
+
+                <label className={LABEL}>Município</label>
+
+                <input className={INPUT} value={form.municipio ?? ''} onChange={e => set('municipio', e.target.value)} placeholder="Nome do município" />
 
               </div>
 
@@ -5168,9 +5238,11 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 onDeleted={refreshFull}
                 fallbackResponsavelAssinatura={liveRecord?.responsavel_assinatura}
                 fallbackResponsavelAssinatura2={liveRecord?.responsavel_assinatura_2}
+                isParcelamento={tipoParc !== ''}
+                parcelamentoLabel={tipoParc === 'REPARCELAMENTO' ? 'Reparcelamento' : 'Parcelamento'}
               />
 
-              <ObjetosTasSections />
+              {tipoParc === '' && <ObjetosTasSections />}
 
             </div>
           )
@@ -5186,7 +5258,6 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
               </div>
             )}
             {!loadingFull && full && <ParcelamentoSection detailed />}
-            <ObjetosTasSections />
           </div>
         )}
 
@@ -8069,6 +8140,8 @@ export const GpcProcessos = () => {
 
   useEffect(() => { load(); GpcService.getPosicoes().then(setPosicoes); }, [load]);
 
+  const movimentoOptions = useMemo(() => Array.from(new Set(rows.map(r => r.movimento).filter((m): m is string => !!m))).sort((a, b) => a.localeCompare(b)), [rows]);
+
 
 
   const duplicateMap = useMemo(() => {
@@ -8119,7 +8192,7 @@ export const GpcProcessos = () => {
 
       (!f.posicao_id  || sv(r.posicao_id) === sv(f.posicao_id)) &&
 
-      (!f.movimento   || sv(r.movimento).includes(sv(f.movimento))) &&
+      (!f.movimento   || sv(r.movimento) === sv(f.movimento)) &&
 
       (!f.remessa     || sv(r.remessa) === sv(f.remessa)) &&
 
@@ -8483,7 +8556,7 @@ export const GpcProcessos = () => {
 
     const headers = [
 
-      'Processo', 'Convênio', 'Entidade', 'Exercício', 'DRS', 'Data Recebimento',
+      'Processo', 'Convênio', 'Entidade', 'Município', 'Exercício', 'DRS', 'Data Recebimento',
 
       'Responsável', 'Posição', 'Movimento', 'Remessa', 'Parcelamento',
 
@@ -8502,6 +8575,8 @@ export const GpcProcessos = () => {
       r.convenio ?? '',
 
       r.entidade ?? '',
+
+      r.municipio ?? '',
 
       r.exercicio ?? '',
 
@@ -8976,7 +9051,13 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>Movimento</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.movimento} onChange={e => setF('movimento', e.target.value)} />
+                  <select className={INPUT + ' py-1.5 text-xs'} value={filters.movimento} onChange={e => setF('movimento', e.target.value)}>
+
+                    <option value="">Todas</option>
+
+                    {movimentoOptions.map(m => <option key={m} value={m}>{m}</option>)}
+
+                  </select>
 
                 </div>
 

@@ -650,6 +650,7 @@ export const GpcService = {
       processo_codigo: r.processo_codigo ?? null,
       processo: r.processo ?? null,
       entidade: r.entidade ?? null,
+      municipio: r.municipio ?? null,
       convenio: r.convenio ?? null,
       exercicio: r.exercicio ?? null,
       drs: r.drs ?? null,
