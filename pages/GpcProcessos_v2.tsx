@@ -8229,6 +8229,13 @@ export const GpcProcessos = () => {
 
   const movimentoOptions = useMemo(() => Array.from(new Set(rows.map(r => r.movimento).filter((m): m is string => !!m))).sort((a, b) => a.localeCompare(b)), [rows]);
 
+  // Sugestões para os campos de filtro em texto livre — mesma ideia do datalist de Município,
+  // só que a partir dos valores que já existem nos processos carregados.
+  const processoOptions = useMemo(() => Array.from(new Set(rows.map(r => r.processo).filter((v): v is string => !!v))).sort((a, b) => a.localeCompare(b)), [rows]);
+  const convenioOptions = useMemo(() => Array.from(new Set(rows.map(r => r.convenio).filter((v): v is string => !!v))).sort((a, b) => a.localeCompare(b)), [rows]);
+  const entidadeOptions = useMemo(() => Array.from(new Set(rows.map(r => r.entidade).filter((v): v is string => !!v))).sort((a, b) => a.localeCompare(b)), [rows]);
+  const analistaOptions = useMemo(() => Array.from(new Set(gpcUsersAtividade.map(u => u.name))).sort((a, b) => a.localeCompare(b)), [gpcUsersAtividade]);
+
 
 
   const duplicateMap = useMemo(() => {
@@ -9076,7 +9083,10 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>Processo</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.processo} onChange={e => setF('processo', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} list="dl-filtro-processo" placeholder="filtrar..." value={filters.processo} onChange={e => setF('processo', e.target.value)} />
+                  <datalist id="dl-filtro-processo">
+                    {processoOptions.map(v => <option key={v} value={v} />)}
+                  </datalist>
 
                 </div>
 
@@ -9084,7 +9094,10 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>Convênio</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.convenio} onChange={e => setF('convenio', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} list="dl-filtro-convenio" placeholder="filtrar..." value={filters.convenio} onChange={e => setF('convenio', e.target.value)} />
+                  <datalist id="dl-filtro-convenio">
+                    {convenioOptions.map(v => <option key={v} value={v} />)}
+                  </datalist>
 
                 </div>
 
@@ -9092,7 +9105,10 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>Entidade</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="filtrar..." value={filters.entidade} onChange={e => setF('entidade', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} list="dl-filtro-entidade" placeholder="filtrar..." value={filters.entidade} onChange={e => setF('entidade', e.target.value)} />
+                  <datalist id="dl-filtro-entidade">
+                    {entidadeOptions.map(v => <option key={v} value={v} />)}
+                  </datalist>
 
                 </div>
 
@@ -9100,7 +9116,10 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>Exercício</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="ano" value={filters.exercicio} onChange={e => setF('exercicio', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} list="dl-filtro-exercicio" placeholder="ano" value={filters.exercicio} onChange={e => setF('exercicio', e.target.value)} />
+                  <datalist id="dl-filtro-exercicio">
+                    {ANOS_EXERCICIO.map(a => <option key={a} value={a} />)}
+                  </datalist>
 
                 </div>
 
@@ -9108,7 +9127,10 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>DRS</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="nº ou nome" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} list="dl-filtro-drs" placeholder="nº ou nome" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
+                  <datalist id="dl-filtro-drs">
+                    {DRS_NOMES_ORDENADOS.map(nome => <option key={nome} value={nome} />)}
+                  </datalist>
 
                 </div>
 
@@ -9116,7 +9138,10 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>Analista</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="nome..." value={filters.responsavel} onChange={e => setF('responsavel', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} list="dl-filtro-analista" placeholder="nome..." value={filters.responsavel} onChange={e => setF('responsavel', e.target.value)} />
+                  <datalist id="dl-filtro-analista">
+                    {analistaOptions.map(v => <option key={v} value={v} />)}
+                  </datalist>
 
                 </div>
 
