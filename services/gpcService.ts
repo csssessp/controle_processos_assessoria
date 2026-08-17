@@ -58,12 +58,22 @@ function localPeriodKey(dataEvento: string, gran: Granularidade): string {
   return String(y);
 }
 
-function normalizeNomeTecnico(nome: string): string {
+const CONECTIVOS_NOME = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+
+// Normaliza o nome do técnico para uma forma canônica única — necessário porque o mesmo
+// nome pode chegar com grafias diferentes (maiúsculas/minúsculas, espaços) de fontes
+// distintas (cgof_gpc_produtividade, cgof_gpc_fluxo_tecnico, cgof_gpc_atividade_avulsa),
+// o que faz a tela de Produtividade agrupar o mesmo técnico em linhas separadas.
+export function normalizeNomeTecnico(nome: string): string {
   return nome
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()
-    .replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+    .split(' ')
+    .map((palavra, i) => (i > 0 && CONECTIVOS_NOME.has(palavra))
+      ? palavra
+      : palavra.replace(/^\p{L}/u, (c) => c.toUpperCase()))
+    .join(' ');
 }
 
 // Busca todas as linhas de uma tabela em blocos de 1000, contornando o limite

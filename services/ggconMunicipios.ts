@@ -37,3 +37,19 @@ export function buscarDRSPorMunicipio(municipio: string): string | null {
   if (!alvo) return null;
   return MUNICIPIO_PARA_DRS.get(alvo) ?? null;
 }
+
+// Ordem I..XVII igual à dos números de DRS usados no módulo GPC (1 a 17).
+export const DRS_NOMES_ORDENADOS = Object.keys(MUNICIPIOS_POR_DRS);
+
+export function buscarNumeroDRSPorMunicipio(municipio: string): number | null {
+  const nome = buscarDRSPorMunicipio(municipio);
+  if (!nome) return null;
+  const idx = DRS_NOMES_ORDENADOS.indexOf(nome);
+  return idx === -1 ? null : idx + 1;
+}
+
+// Nome completo da DRS (ex.: "VII - Campinas") a partir do número usado no módulo GPC (1 a 17).
+export function nomeDRSPorNumero(n: number | null | undefined): string | null {
+  if (n == null || n < 1 || n > DRS_NOMES_ORDENADOS.length) return null;
+  return DRS_NOMES_ORDENADOS[n - 1];
+}

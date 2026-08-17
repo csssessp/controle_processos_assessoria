@@ -29,7 +29,9 @@ import { useConfirm } from '../context/ConfirmContext';
 
 import { UserRole } from '../types';
 
-import { GpcService } from '../services/gpcService';
+import { GpcService, normalizeNomeTecnico } from '../services/gpcService';
+
+import { MUNICIPIOS, buscarNumeroDRSPorMunicipio, DRS_NOMES_ORDENADOS, nomeDRSPorNumero } from '../services/ggconMunicipios';
 
 import { DbService } from '../services/dbService';
 
@@ -137,6 +139,17 @@ const INPUT = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm b
 const LABEL = 'block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5';
 
 const LABEL_SM = 'block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1';
+
+// Sugestões de ano para o campo Exercício — mais recente primeiro. O campo continua aceitando
+// texto livre (faixas como "2022-2023-2024" ou casos especiais como "FISICO" já existem em produção).
+const ANOS_EXERCICIO = Array.from({ length: new Date().getFullYear() - 2010 + 1 }, (_, i) => String(new Date().getFullYear() - i));
+
+// Extrai só o primeiro ano de um texto que pode conter uma faixa (ex.: "2020/2021" → "2020") —
+// usado para pré-preencher o exercício financeiro (que é sempre de um único ano) a partir do
+// campo legado de Identificação, que permite faixas/texto livre.
+function primeiroAno(s: string | null | undefined): string | undefined {
+  return s?.match(/\b(19|20)\d{2}\b/)?.[0] ?? s ?? undefined;
+}
 
 const BTN_PRI = 'inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
 
@@ -1749,7 +1762,17 @@ const FluxoTecnicoFormInline = ({ registroId, exercicioId, posicoes, numPaginas,
 
             <label className={LABEL}>Posição Atual</label>
 
-            <select className={INPUT} value={form.posicao_id ?? ''} onChange={e => set('posicao_id', e.target.value ? Number(e.target.value) : null)}>
+            <select
+              className={INPUT}
+              value={form.posicao_id ?? ''}
+              onChange={e => {
+                const v = e.target.value ? Number(e.target.value) : null;
+                // "Aguardando Análise" sempre anda junto com o movimento "RECEBIDO" —
+                // mantém as duas telas (Identificação/Fluxo Técnico) consistentes.
+                const posLabel = posicoes.find(p => p.codigo === v)?.posicao;
+                setForm(f => ({ ...f, posicao_id: v, movimento: posLabel === 'Aguardando Análise' ? 'RECEBIDO' : f.movimento }));
+              }}
+            >
 
               <option value="">— selecione —</option>
 
@@ -2744,7 +2767,7 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
                 : fmtDate(row.data);
               return [
                 { label: 'Exercício',    value: exercicioValue },
-                { label: 'DRS',          value: row.drs != null ? `DRS ${String(row.drs).padStart(2, '0')}` : '—' },
+                { label: 'DRS',          value: nomeDRSPorNumero(row.drs) ?? '—' },
                 { label: 'Recebimento',  value: recebimentoValue },
                 { label: 'Entidade',     value: row.entidade ?? '—' },
                 { label: 'Município',    value: row.municipio ?? '—' },
@@ -3683,6 +3706,10 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
     setSaving(true);
     try {
       let next: Partial<GpcRegistroExercicio> = { ...f, registro_id: registroId, exercicio_id: selectedId };
+      // Só true quando a posição avança por uma ação real de um técnico (assumir análise) —
+      // usado abaixo pra decidir se credita produtividade. O default de inicialização logo
+      // a seguir NÃO deve creditar (ninguém "avançou" nada, o exercício só deixou de ficar em branco).
+      let posicaoAvancadaPorAnalista = false;
 
       // Auto-avança para "Em Análise" quando um técnico novo é atribuído e a posição
       // ainda não avançou (mesma regra usada no cadastro do registro)
@@ -3693,7 +3720,18 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
         const emAnaliseId = posicoes.find(p => p.posicao === 'Em Análise')?.codigo;
         if (emAnaliseId != null && (next.posicao_id == null || next.posicao_id === aguardandoId)) {
           next = { ...next, posicao_id: emAnaliseId };
+          posicaoAvancadaPorAnalista = true;
         }
+      }
+
+      // Exercício novo (primeiro salvamento desta Análise): começa em "Aguardando Análise",
+      // mesmo padrão usado no cadastro do registro — sem isso, um exercício sem nenhum
+      // analista atribuído fica com posição em branco e a aba Identificação mostra
+      // "Situação Atual" vazia mesmo já tendo Dados Financeiros preenchidos. É só uma
+      // inicialização (não um trabalho realizado), por isso não passa por posicaoAvancadaPorAnalista.
+      if (current == null && next.posicao_id == null) {
+        const aguardandoId = posicoes.find(p => p.posicao === 'Aguardando Análise')?.codigo;
+        if (aguardandoId != null) next = { ...next, posicao_id: aguardandoId, movimento: 'RECEBIDO' };
       }
 
       const saved = await GpcService.saveRegistroExercicio(next);
@@ -3726,7 +3764,7 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
       const now = new Date().toISOString();
       const tecnico = saved.responsaveis_analise?.[0] ?? currentUserName ?? 'GPC';
 
-      if (saved.posicao_id != null && saved.posicao_id !== (current?.posicao_id ?? null)) {
+      if (posicaoAvancadaPorAnalista && saved.posicao_id != null && saved.posicao_id !== (current?.posicao_id ?? null)) {
         await GpcService.saveFluxoTecnico({
           registro_id: registroId, exercicio_id: selectedId, tecnico,
           posicao_id: saved.posicao_id,
@@ -4907,7 +4945,40 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                 <label className={LABEL}>Município</label>
 
-                <input className={INPUT} value={form.municipio ?? ''} onChange={e => set('municipio', e.target.value)} placeholder="Nome do município" />
+                <input
+                  className={INPUT}
+                  list="dl-municipio-gpc"
+                  value={form.municipio ?? ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    set('municipio', v);
+                    // Ao escolher um município da lista, preenche a DRS automaticamente.
+                    const drs = buscarNumeroDRSPorMunicipio(v);
+                    if (drs) set('drs', drs);
+                  }}
+                  placeholder="Nome do município"
+                />
+                <datalist id="dl-municipio-gpc">
+                  {MUNICIPIOS.map(m => <option key={m} value={m} />)}
+                </datalist>
+
+              </div>
+
+              <div>
+
+                <label className={LABEL}>DRS</label>
+
+                <select className={INPUT} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}>
+
+                  <option value="">— sel. —</option>
+
+                  {DRS_NOMES_ORDENADOS.map((nome, i) => (
+
+                    <option key={nome} value={i + 1}>{nome}</option>
+
+                  ))}
+
+                </select>
 
               </div>
 
@@ -5070,33 +5141,24 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
             <Sec icon={<ClipboardList size={13} />} title="Classificação e Posição" action={isEditing ? <LockBtn locked={classifLocked} onUnlock={() => tryUnlock(setClassifLocked)} /> : undefined} />
 
-            <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${classifLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 transition-opacity ${classifLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
 
               {!tipoParc && <div>
 
                 <label className={LABEL}>Exercício (ano)</label>
 
-                <input className={INPUT} value={form.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} placeholder="ex: 2024" />
+                <input
+                  className={INPUT}
+                  list="dl-exercicio-gpc"
+                  value={form.exercicio ?? ''}
+                  onChange={e => set('exercicio', e.target.value)}
+                  placeholder="ex: 2024"
+                />
+                <datalist id="dl-exercicio-gpc">
+                  {ANOS_EXERCICIO.map(a => <option key={a} value={a} />)}
+                </datalist>
 
               </div>}
-
-              <div>
-
-                <label className={LABEL}>DRS</label>
-
-                <select className={INPUT} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}>
-
-                  <option value="">— sel. —</option>
-
-                  {Array.from({ length: 17 }, (_, i) => i + 1).map(n => (
-
-                    <option key={n} value={n}>DRS {n.toString().padStart(2, '0')}</option>
-
-                  ))}
-
-                </select>
-
-              </div>
 
               <div>
 
@@ -5307,7 +5369,7 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
                   defaultDataRecebimento={(full.exercicios?.length ?? 0) === 0 ? liveRecord?.data : undefined}
 
-                  defaultExercicio={(full.exercicios?.length ?? 0) === 0 ? liveRecord?.exercicio : undefined}
+                  defaultExercicio={(full.exercicios?.length ?? 0) === 0 ? primeiroAno(liveRecord?.exercicio) : undefined}
 
                   onSave={async e => {
                     const saved = await GpcService.saveExercicio(e);
@@ -5471,7 +5533,23 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, defaultDataRecebimento,
 
   const submit = async (e: React.FormEvent) => {
 
-    e.preventDefault(); setSaving(true); setErr('');
+    e.preventDefault(); setErr('');
+
+    // Cada exercício aqui é um único ano — tem sua própria trilha de Análise/Situação/Fluxo
+    // e o saldo é transportado ano a ano (exercicio_anterior calculado do exercício anterior).
+    // Se o usuário digitar mais de um ano junto (ex.: "2020/2021"), isso quebra essa cadeia —
+    // é preciso um registro de exercício por ano.
+    const anos = [...new Set((f.exercicio ?? '').match(/\b(19|20)\d{2}\b/g) ?? [])];
+
+    if (anos.length > 1) {
+
+      setErr(`Este campo é para um único ano. Você digitou ${anos.length} anos (${anos.join(', ')}) — cadastre um exercício para "${anos[0]}", salve, depois clique em "Novo Exercício" de novo para "${anos[1]}"${anos.length > 2 ? ' e assim por diante' : ''}.`);
+
+      return;
+
+    }
+
+    setSaving(true);
 
     try { await onSave({ ...f, processo_id: processoId }); }
 
@@ -5487,7 +5565,13 @@ const ExercicioForm = ({ processoId, initial, lastSaldo, defaultDataRecebimento,
 
       <div className="grid grid-cols-2 gap-3">
 
-        <div><label className={LABEL}>Exercício *</label><input className={INPUT} value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required /></div>
+        <div>
+          <label className={LABEL}>Exercício *</label>
+          <input className={INPUT} list="dl-exercicio-form" value={f.exercicio ?? ''} onChange={e => set('exercicio', e.target.value)} required />
+          <datalist id="dl-exercicio-form">
+            {ANOS_EXERCICIO.map(a => <option key={a} value={a} />)}
+          </datalist>
+        </div>
 
         <div><label className={LABEL}>Data de Recebimento</label><input type="date" className={INPUT} value={f.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)} /></div>
 
@@ -6558,7 +6642,10 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     setEvents(d);
 
-    setAtividades(a);
+    // Normaliza o nome do técnico — cgof_gpc_atividade_avulsa não passa por
+    // normalizeNomeTecnico() como os eventos de cgof_gpc_produtividade/fluxo_tecnico,
+    // então o mesmo técnico com grafia diferente virava uma linha separada nesta tela.
+    setAtividades(a.map(item => ({ ...item, tecnico: normalizeNomeTecnico(item.tecnico) })));
 
     if (isRefresh) setRefreshing(false); else setLoading(false);
 
@@ -8186,7 +8273,7 @@ export const GpcProcessos = () => {
 
       (!f.exercicio   || sv(r.exercicio).includes(sv(f.exercicio))) &&
 
-      (!f.drs         || sv(r.drs).includes(sv(f.drs))) &&
+      (!f.drs         || sv(r.drs).includes(sv(f.drs)) || sv(nomeDRSPorNumero(r.drs)).includes(sv(f.drs))) &&
 
       (!f.responsavel || sv(r.responsavel).includes(sv(f.responsavel))) &&
 
@@ -8580,7 +8667,7 @@ export const GpcProcessos = () => {
 
       r.exercicio ?? '',
 
-      r.drs ?? '',
+      nomeDRSPorNumero(r.drs) ?? '',
 
       fmtDate(r.data),
 
@@ -9021,7 +9108,7 @@ export const GpcProcessos = () => {
 
                   <label className={LABEL_SM}>DRS</label>
 
-                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="nº" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
+                  <input className={INPUT + ' py-1.5 text-xs'} placeholder="nº ou nome" value={filters.drs} onChange={e => setF('drs', e.target.value)} />
 
                 </div>
 
@@ -9123,7 +9210,7 @@ export const GpcProcessos = () => {
 
                       <SortTh label="Exer."       col="exercicio"   sort={sort} onSort={toggleSort} cls="w-16" />
 
-                      <SortTh label="DRS"         col="drs"         sort={sort} onSort={toggleSort} cls="w-14" />
+                      <SortTh label="DRS"         col="drs"         sort={sort} onSort={toggleSort} cls="w-36" />
 
                       <SortTh label="Data"        col="data"        sort={sort} onSort={toggleSort} cls="w-24" />
 
@@ -9267,7 +9354,7 @@ export const GpcProcessos = () => {
 
                           </td>
 
-                          <td className="px-3 py-4 text-center text-slate-500 text-xs font-medium">{r.drs ?? '—'}</td>
+                          <td className="px-3 py-4 text-center text-slate-500 text-xs font-medium truncate" title={nomeDRSPorNumero(r.drs) ?? ''}>{nomeDRSPorNumero(r.drs) ?? '—'}</td>
 
                           <td className="px-3 py-4 whitespace-nowrap text-slate-400 text-xs">
                             {exs.length > 0 ? (

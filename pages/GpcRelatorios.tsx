@@ -6,6 +6,7 @@ import {
   RefreshCw, CheckCircle2, Users2, ChevronDown, ChevronUp, ShieldAlert,
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
+import { nomeDRSPorNumero } from '../services/ggconMunicipios';
 import { GpcRecebido } from '../types';
 
 // ─── XLSX utility ────────────────────────────────────────────────────────────
@@ -200,7 +201,7 @@ export const GpcRelatorios = () => {
         'Tipo': p.tipo ?? '',
         'Ano Cadastro': p.ano_cadastro ?? '',
         'Entidade': p.entidade ?? '',
-        'DRS': p.drs ?? '',
+        'DRS': nomeDRSPorNumero(p.drs) ?? '',
         'Vistoriado': p.vistoriado ? 'Sim' : 'Não',
         'Parcelamento': p.parcelamento ? 'Sim' : 'Não',
         'Acima/Abaixo': p.acima_abaixo ?? '',
@@ -261,7 +262,7 @@ export const GpcRelatorios = () => {
         'Convênio': r.convenio ?? '',
         'Entidade': r.entidade ?? '',
         'Exercício': r.exercicio ?? '',
-        'DRS': r.drs ?? '',
+        'DRS': nomeDRSPorNumero(r.drs) ?? '',
         'Responsável': r.responsavel ?? '',
         'Posição': r.posicao ?? '',
         'Movimento': r.movimento ?? '',
@@ -299,7 +300,7 @@ export const GpcRelatorios = () => {
     exportXLSX([
       {
         name: 'Por DRS',
-        rows: d.byDrs.map(x => ({ 'DRS': x.drs ?? 'Não informado', 'Quantidade': x.count })),
+        rows: d.byDrs.map(x => ({ 'DRS': nomeDRSPorNumero(x.drs) ?? 'Não informado', 'Quantidade': x.count })),
       },
       {
         name: 'Por Tipo',
@@ -351,7 +352,7 @@ export const GpcRelatorios = () => {
           'Tipo': p.tipo ?? '',
           'Ano Cadastro': p.ano_cadastro ?? '',
           'Entidade': p.entidade ?? '',
-          'DRS': p.drs ?? '',
+          'DRS': nomeDRSPorNumero(p.drs) ?? '',
           'Vistoriado': p.vistoriado ? 'Sim' : 'Não',
           'Parcelamento': p.parcelamento ? 'Sim' : 'Não',
           'Acima/Abaixo': p.acima_abaixo ?? '',
@@ -365,7 +366,7 @@ export const GpcRelatorios = () => {
           'Convênio': r.convenio ?? '',
           'Entidade': r.entidade ?? '',
           'Exercício': r.exercicio ?? '',
-          'DRS': r.drs ?? '',
+          'DRS': nomeDRSPorNumero(r.drs) ?? '',
           'Responsável': r.responsavel ?? '',
           'Posição': r.posicao ?? '',
           'Movimento': r.movimento ?? '',
@@ -429,7 +430,7 @@ export const GpcRelatorios = () => {
       },
       {
         name: 'Por DRS',
-        rows: reportData.byDrs.map(x => ({ 'DRS': x.drs ?? 'Não informado', 'Quantidade': x.count })),
+        rows: reportData.byDrs.map(x => ({ 'DRS': nomeDRSPorNumero(x.drs) ?? 'Não informado', 'Quantidade': x.count })),
       },
       {
         name: 'Por Tipo',
