@@ -6,6 +6,7 @@ import {
 import { GpcService } from '../services/gpcService';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { DRS_NOMES_ORDENADOS } from '../services/ggconMunicipios';
 import { GpcRecebido, GpcPosicao } from '../types';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -99,7 +100,12 @@ const RecebidoForm = ({ initial, posicoes, onSave, onClose }: {
         </div>
         <div>
           <label className={LABEL}>DRS</label>
-          <input className={INPUT} type="number" min={0} max={20} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}/>
+          <select className={INPUT} value={form.drs ?? ''} onChange={e => set('drs', e.target.value ? Number(e.target.value) : null)}>
+            <option value="">— selecione —</option>
+            {DRS_NOMES_ORDENADOS.map((nome, i) => (
+              <option key={nome} value={i + 1}>{nome}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className={LABEL}>Data</label>

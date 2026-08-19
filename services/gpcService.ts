@@ -3,7 +3,7 @@ import { emitError } from './errorBus';
 import {
   GpcProcesso, GpcExercicio, GpcHistorico, GpcObjeto,
   GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico,
-  GpcAtividadeAvulsa, GpcRegistroExercicio,
+  GpcAtividadeAvulsa, GpcRegistroExercicio, GpcServidor,
 } from '../types';
 
 export interface GpcReportData {
@@ -1014,6 +1014,51 @@ export const GpcService = {
 
   deleteAtividadeAvulsa: async (codigo: number): Promise<void> => {
     const { error } = await supabase.from('cgof_gpc_atividade_avulsa').delete().eq('codigo', codigo);
+    if (error) throw new Error(error.message);
+  },
+
+  // ── SERVIDORES (publicações DOE / requisições do TCE) ──────────────────────
+
+  getServidores: async (tipo?: GpcServidor['tipo']): Promise<GpcServidor[]> => {
+    return fetchAllRows<GpcServidor>(
+      'cgof_gpc_servidores', '*',
+      q => {
+        let query = q.order('prazo', { ascending: true, nullsFirst: false });
+        if (tipo) query = query.eq('tipo', tipo);
+        return query;
+      },
+    );
+  },
+
+  saveServidor: async (s: Partial<GpcServidor>): Promise<GpcServidor> => {
+    const payload = {
+      tipo: s.tipo,
+      processo_tce: s.processo_tce ?? null,
+      beneficiario: s.beneficiario ?? null,
+      drs: s.drs ?? null,
+      convenio: s.convenio ?? null,
+      qtde_volumes: s.qtde_volumes ?? null,
+      prazo: s.prazo ?? null,
+      exercicio: s.exercicio ?? null,
+      responsavel: s.responsaveis?.[0] ?? s.responsavel ?? null,
+      responsaveis: s.responsaveis ?? null,
+      situacao: s.situacao ?? null,
+      observacoes: s.observacoes ?? null,
+      entrega_catc: s.entrega_catc ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    if (s.codigo) {
+      const { data, error } = await supabase.from('cgof_gpc_servidores').update(payload).eq('codigo', s.codigo).select().single();
+      if (error) throw new Error(error.message);
+      return data as GpcServidor;
+    }
+    const { data, error } = await supabase.from('cgof_gpc_servidores').insert(payload).select().single();
+    if (error) throw new Error(error.message);
+    return data as GpcServidor;
+  },
+
+  deleteServidor: async (codigo: number): Promise<void> => {
+    const { error } = await supabase.from('cgof_gpc_servidores').delete().eq('codigo', codigo);
     if (error) throw new Error(error.message);
   },
 

@@ -15,6 +15,7 @@ import { Profile } from './pages/Profile';
 import { UserRole, userHasArea } from './types';
 import { GpcProcessos } from './pages/GpcProcessos_v2';
 import { GpcRelatorios } from './pages/GpcRelatorios';
+import { GpcServidores } from './pages/GpcServidores';
 import { GgconProcessos } from './pages/GgconProcessos';
 import { GgconRelatorios } from './pages/GgconRelatorios';
 
@@ -109,6 +110,12 @@ const AppRoutes = () => {
       <Route path="/gpc/relatorios" element={
         <ProtectedRoute requireArea="gpc">
           <GpcRelatorios />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/gpc/servidores" element={
+        <ProtectedRoute requireArea="gpc">
+          <GpcServidores />
         </ProtectedRoute>
       } />
 

@@ -1,37 +1,72 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   FileSpreadsheet, Loader2, DollarSign, FolderOpen,
   ClipboardList, GitBranch, BarChart3, Layers, Info,
   RefreshCw, CheckCircle2, Users2, ChevronDown, ChevronUp, ShieldAlert,
+  Gavel, AlertTriangle, PhoneCall, Archive, Landmark,
 } from 'lucide-react';
 import { GpcService } from '../services/gpcService';
 import { nomeDRSPorNumero } from '../services/ggconMunicipios';
 import { GpcRecebido } from '../types';
 
 // ─── XLSX utility ────────────────────────────────────────────────────────────
+// Cabeçalho dourado (#FFE699) — mesma cor usada nas abas PARCELAMENTOS / CSS
+// PARCELAMENTO / Servidores da planilha de referência do TCE. A lib xlsx (grátis)
+// só lê estilo, não escreve — por isso os relatórios usam exceljs para gerar
+// arquivos já formatados (cor, negrito, bordas, congelar cabeçalho).
+const HEADER_FILL = 'FFFFE699';
+const BORDER_COLOR = 'FFE2E8F0';
+const THIN_BORDER = { style: 'thin' as const, color: { argb: BORDER_COLOR } };
 
-function exportXLSX(
+async function exportXLSX(
   sheets: { name: string; rows: Record<string, unknown>[] }[],
   filename: string,
 ) {
-  const wb = XLSX.utils.book_new();
-  for (const { name, rows } of sheets) {
-    if (!rows.length) continue;
-    const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = new ExcelJS.Workbook();
+  const withData = sheets.filter(s => s.rows.length > 0);
+  const finalSheets = withData.length ? withData : [{ name: 'Sem dados', rows: [{ 'Aviso': 'Sem dados para os filtros selecionados' }] }];
+
+  for (const { name, rows } of finalSheets) {
+    const ws = wb.addWorksheet(name.substring(0, 31));
     const cols = Object.keys(rows[0]);
-    ws['!cols'] = cols.map(col => ({
-      wch: Math.min(
+    ws.columns = cols.map(col => ({
+      header: col,
+      key: col,
+      width: Math.min(
         60,
         Math.max(col.length + 2, ...rows.slice(0, 300).map(r => String(r[col] ?? '').length + 1)),
       ),
     }));
-    XLSX.utils.book_append_sheet(wb, ws, name.substring(0, 31));
+    ws.addRows(rows);
+
+    ws.eachRow(row => {
+      row.eachCell(cell => {
+        cell.border = { top: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER, bottom: THIN_BORDER };
+      });
+    });
+
+    const headerRow = ws.getRow(1);
+    headerRow.height = 22;
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+      cell.font = { bold: true, color: { argb: 'FF3F3300' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    });
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    if (cols.length) {
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+    }
   }
-  if (!wb.SheetNames.length) {
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sem dados']]), 'Sem dados');
-  }
-  XLSX.writeFile(wb, filename);
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 const todayStr = () => new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
@@ -95,9 +130,9 @@ const KpiCard = ({
   </div>
 );
 
-// ─── Report Card ─────────────────────────────────────────────────────────────
+// ─── Report List Item ───────────────────────────────────────────────────────
 
-const ReportCard = ({
+const ReportListItem = ({
   icon: Icon, color, title, description, badge, onGenerate,
 }: {
   icon: React.ElementType;
@@ -123,10 +158,10 @@ const ReportCard = ({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start gap-3">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
+      <div className="flex items-start gap-3 sm:items-center flex-1 min-w-0">
         <div className={`p-2.5 rounded-xl ${color} shrink-0`}>
-          <Icon size={20} className="text-white" />
+          <Icon size={18} className="text-white" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -137,13 +172,13 @@ const ReportCard = ({
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{description}</p>
+          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{description}</p>
         </div>
       </div>
       <button
         onClick={handle}
         disabled={loading}
-        className={`mt-auto flex items-center justify-center gap-2 w-full py-2.5 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-60
+        className={`shrink-0 w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-60
           ${done ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-green-700 hover:bg-green-800'}`}
       >
         {loading ? (
@@ -192,7 +227,7 @@ export const GpcRelatorios = () => {
 
   const relProcessos = useCallback(async () => {
     const rows = await GpcService.getAllProcessosExport();
-    exportXLSX([{
+    await exportXLSX([{
       name: 'Processos',
       rows: rows.map(p => ({
         'Código': p.codigo,
@@ -211,7 +246,7 @@ export const GpcRelatorios = () => {
 
   const relExercicios = useCallback(async () => {
     const rows = await GpcService.getExerciciosRelatorio();
-    exportXLSX([{
+    await exportXLSX([{
       name: 'Processos x Exercícios',
       rows: rows.map(e => ({
         'Código': e.processo_id,
@@ -232,7 +267,7 @@ export const GpcRelatorios = () => {
 
   const relParcelamentos = useCallback(async () => {
     const d = await GpcService.getReportData();
-    exportXLSX([{
+    await exportXLSX([{
       name: 'Parcelamentos',
       rows: (d.parcelamentosDetalhes ?? []).map(p => ({
         'Cód. Processo': p.processo_id,
@@ -254,7 +289,7 @@ export const GpcRelatorios = () => {
 
   const relRegistros = useCallback(async () => {
     const rows = await GpcService.getAllRecebidos();
-    exportXLSX([{
+    await exportXLSX([{
       name: 'Registros — Situação',
       rows: rows.map(r => ({
         'Código': r.codigo,
@@ -281,7 +316,7 @@ export const GpcRelatorios = () => {
 
   const relTas = useCallback(async () => {
     const rows = await GpcService.getAllTasExport();
-    exportXLSX([{
+    await exportXLSX([{
       name: 'Termos Aditivos',
       rows: rows.map(t => ({
         'Código TA': t.codigo,
@@ -297,7 +332,7 @@ export const GpcRelatorios = () => {
 
   const relDistribuicao = useCallback(async () => {
     const d = await GpcService.getReportData();
-    exportXLSX([
+    await exportXLSX([
       {
         name: 'Por DRS',
         rows: d.byDrs.map(x => ({ 'DRS': nomeDRSPorNumero(x.drs) ?? 'Não informado', 'Quantidade': x.count })),
@@ -307,6 +342,136 @@ export const GpcRelatorios = () => {
         rows: d.byTipo.map(x => ({ 'Tipo': x.tipo ?? 'Não informado', 'Quantidade': x.count })),
       },
     ], `gpc_distribuicao_${todayStr()}.xlsx`);
+  }, []);
+
+  const relPorDrsDetalhado = useCallback(async () => {
+    const rows = await GpcService.getAllRecebidos();
+    // DRS válido é 1–17, mais 18 = CSS (Coordenadoria de Serviços de Saúde, não é
+    // uma DRS geográfica — ver services/ggconMunicipios.ts). Qualquer outro valor
+    // (0, 19+ — lixo de digitação) cai no grupo "Não informado" em vez de virar
+    // uma aba fantasma tipo "DRS 0".
+    const porDrs = new Map<number | null, GpcRecebido[]>();
+    for (const r of rows) {
+      const key = (r.drs != null && r.drs >= 1 && r.drs <= 18) ? r.drs : null;
+      if (!porDrs.has(key)) porDrs.set(key, []);
+      porDrs.get(key)!.push(r);
+    }
+    const drsKeys = Array.from(porDrs.keys()).sort((a, b) => {
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return a - b;
+    });
+    // Nome da aba exatamente como na planilha de referência do TCE: "DRS 01".."DRS 17", "CSS".
+    const sheets = drsKeys.map(drs => ({
+      name: drs != null ? (drs === 18 ? 'CSS' : `DRS ${String(drs).padStart(2, '0')}`) : 'Não informado',
+      rows: porDrs.get(drs)!.map(r => ({
+        'Código': r.codigo,
+        'Processo': r.processo ?? '',
+        'Convênio': r.convenio ?? '',
+        'Entidade': r.entidade ?? '',
+        'Exercício': r.exercicio ?? '',
+        'Responsável': r.responsavel ?? '',
+        'Posição': r.posicao ?? '',
+        'Movimento': r.movimento ?? '',
+        'Data': r.data ?? '',
+        'Situação': situacaoLabel(r.situacao),
+        'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+        'Desfecho do Julgamento': desfechoJulgamentoLabel(r),
+        'Valor a Devolver (R$)': r.valor_a_devolver ?? 0,
+        'Valor Devolvido (R$)': r.valor_devolvido ?? 0,
+      })),
+    }));
+    await exportXLSX(sheets, `gpc_registros_por_drs_${todayStr()}.xlsx`);
+  }, []);
+
+  // Colunas comuns a CJ/Outros — mesmo recorte de campos do relatório "Registros por DRS".
+  const recebidoRowExport = (r: GpcRecebido) => ({
+    'Código': r.codigo,
+    'Processo': r.processo ?? '',
+    'Convênio': r.convenio ?? '',
+    'Entidade': r.entidade ?? '',
+    'DRS': nomeDRSPorNumero(r.drs) ?? '',
+    'Exercício': r.exercicio ?? '',
+    'Responsável': r.responsavel ?? '',
+    'Posição': r.posicao ?? '',
+    'Movimento': r.movimento ?? '',
+    'Data': r.data ?? '',
+    'Observações': r.situacao_obs ?? '',
+  });
+
+  const relCj = useCallback(async () => {
+    const rows = await GpcService.getAllRecebidos();
+    const cj = rows.filter(r => r.posicao === 'Consultoria Jurídica (CJ)');
+    await exportXLSX([{ name: 'CJ', rows: cj.map(recebidoRowExport) }], `gpc_cj_${todayStr()}.xlsx`);
+  }, []);
+
+  const relProcessosIrregulares = useCallback(async () => {
+    const rows = await GpcService.getAllRecebidos();
+    const irregulares = rows.filter(r => r.situacao === 'IRREGULAR');
+    await exportXLSX([{
+      name: 'Processos Irregulares',
+      rows: irregulares.map(r => ({
+        'Código': r.codigo,
+        'Processo': r.processo ?? '',
+        'Convênio': r.convenio ?? '',
+        'Entidade': r.entidade ?? '',
+        'Exercício': r.exercicio ?? '',
+        'DRS': nomeDRSPorNumero(r.drs) ?? '',
+        'Responsável': r.responsavel ?? '',
+        'Posição': r.posicao ?? '',
+        'Movimento': r.movimento ?? '',
+        'Data': r.data ?? '',
+        'Situação': situacaoLabel(r.situacao),
+        'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+        'Valor a Devolver (R$)': r.valor_a_devolver ?? 0,
+        'Valor Devolvido (R$)': r.valor_devolvido ?? 0,
+        'Obs. Situação': r.situacao_obs ?? '',
+      })),
+    }], `gpc_processos_irregulares_${todayStr()}.xlsx`);
+  }, []);
+
+  const relServicosApartados = useCallback(async () => {
+    const rows = await GpcService.getAtividadesAvulsas();
+    await exportXLSX([{
+      name: 'Serviços Apartados',
+      rows: rows.map(a => ({
+        'Técnico': a.tecnico,
+        'Tipo': a.tipo,
+        'Descrição': a.descricao,
+        'Contexto': a.contexto ?? '',
+        'Horas': a.horas ?? '',
+        'Páginas': a.paginas ?? '',
+        'Data': a.data_atividade.slice(0, 16).replace('T', ' '),
+      })),
+    }], `gpc_servicos_apartados_${todayStr()}.xlsx`);
+  }, []);
+
+  // "Outros" e "CSS Parcelamento" eram recortes manuais da planilha sem campo
+  // estrutural equivalente no sistema — dependem da coluna origem_planilha
+  // (parte_61), preenchida só para os registros importados dessas duas abas.
+  const relOutros = useCallback(async () => {
+    const rows = await GpcService.getAllRecebidos();
+    const outros = rows.filter(r => r.origem_planilha === 'OUTROS');
+    await exportXLSX([{ name: 'OUTROS', rows: outros.map(recebidoRowExport) }], `gpc_outros_${todayStr()}.xlsx`);
+  }, []);
+
+  const relCssParcelamento = useCallback(async () => {
+    const d = await GpcService.getReportData();
+    const css = (d.parcelamentosDetalhes ?? []).filter(p => p.origem_planilha === 'CSS_PARCELAMENTO');
+    await exportXLSX([{
+      name: 'CSS Parcelamento',
+      rows: css.map(p => ({
+        'Cód. Processo': p.processo_id,
+        'Processo': p.processo ?? '',
+        'Convênio': p.convenio ?? '',
+        'Entidade': p.entidade ?? '',
+        'Exercício': p.exercicio ?? '',
+        'Valor Corrigido (R$)': p.valor_corrigido ?? 0,
+        'Em Dia': p.em_dia ? 'Sim' : 'Não',
+        'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
+        'Observações': p.obs ?? '',
+      })),
+    }], `gpc_css_parcelamento_${todayStr()}.xlsx`);
   }, []);
 
   const relCompleto = useCallback(async () => {
@@ -326,7 +491,7 @@ export const GpcRelatorios = () => {
     const parcialmente = recebidos.filter(r => r.situacao === 'PARCIALMENTE_REGULAR').length;
     const semSituacao = recebidos.filter(r => !r.situacao).length;
 
-    exportXLSX([
+    await exportXLSX([
       {
         name: 'Resumo',
         rows: [{
@@ -436,6 +601,40 @@ export const GpcRelatorios = () => {
         name: 'Por Tipo',
         rows: reportData.byTipo.map(x => ({ 'Tipo': x.tipo ?? 'Não informado', 'Quantidade': x.count })),
       },
+      {
+        name: 'CJ',
+        rows: recebidos.filter(r => r.posicao === 'Consultoria Jurídica (CJ)').map(recebidoRowExport),
+      },
+      {
+        name: 'OUTROS',
+        rows: recebidos.filter(r => r.origem_planilha === 'OUTROS').map(recebidoRowExport),
+      },
+      {
+        name: 'CSS Parcelamento',
+        rows: (reportData.parcelamentosDetalhes ?? []).filter(p => p.origem_planilha === 'CSS_PARCELAMENTO').map(p => ({
+          'Cód. Processo': p.processo_id,
+          'Processo': p.processo ?? '',
+          'Convênio': p.convenio ?? '',
+          'Entidade': p.entidade ?? '',
+          'Exercício': p.exercicio ?? '',
+          'Valor Corrigido (R$)': raw(p.valor_corrigido),
+          'Em Dia': p.em_dia ? 'Sim' : 'Não',
+          'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
+          'Observações': p.obs ?? '',
+        })),
+      },
+      {
+        name: 'Serviços Apartados',
+        rows: (await GpcService.getAtividadesAvulsas()).map(a => ({
+          'Técnico': a.tecnico,
+          'Tipo': a.tipo,
+          'Descrição': a.descricao,
+          'Contexto': a.contexto ?? '',
+          'Horas': a.horas ?? '',
+          'Páginas': a.paginas ?? '',
+          'Data': a.data_atividade.slice(0, 16).replace('T', ' '),
+        })),
+      },
     ], `gpc_relatorio_completo_${todayStr()}.xlsx`);
   }, []);
 
@@ -472,7 +671,7 @@ export const GpcRelatorios = () => {
         : e === 'CADASTRO_EXERCICIO' ? 'Exercício Cadastrado'
         : e;
 
-      exportXLSX([
+      await exportXLSX([
         {
           name: 'Resumo por Técnico',
           rows: resumo.map(t => ({
@@ -574,12 +773,61 @@ export const GpcRelatorios = () => {
       onGenerate: relDistribuicao,
     },
     {
+      icon: Users2,
+      color: 'bg-cyan-600',
+      title: 'Registros por DRS',
+      description:
+        'Lista detalhada dos registros (processo, entidade, responsável, posição, situação) separada em uma aba por DRS.',
+      badge: 'Múltiplas abas',
+      onGenerate: relPorDrsDetalhado,
+    },
+    {
+      icon: Gavel,
+      color: 'bg-purple-600',
+      title: 'CJ',
+      description:
+        'Processos atualmente na posição "Consultoria Jurídica (CJ)".',
+      onGenerate: relCj,
+    },
+    {
+      icon: AlertTriangle,
+      color: 'bg-red-600',
+      title: 'Processos Irregulares',
+      description:
+        'Recorte apenas dos registros com situação Irregular — mesma informação de "Registros — Situação", filtrada.',
+      onGenerate: relProcessosIrregulares,
+    },
+    {
+      icon: PhoneCall,
+      color: 'bg-teal-600',
+      title: 'Serviços Apartados',
+      description:
+        'Atendimentos e tarefas avulsas dos técnicos sem vínculo a um processo específico do GPC.',
+      onGenerate: relServicosApartados,
+    },
+    {
+      icon: Archive,
+      color: 'bg-orange-600',
+      title: 'Outros',
+      description:
+        'Processos diversos sem classificação de DRS — recorte histórico da planilha de origem (só cobre os registros importados a partir dela).',
+      onGenerate: relOutros,
+    },
+    {
+      icon: Landmark,
+      color: 'bg-fuchsia-600',
+      title: 'CSS Parcelamento',
+      description:
+        'Parcelamentos originados da Coordenadoria de Serviços de Saúde (CSS) — recorte histórico da planilha de origem.',
+      onGenerate: relCssParcelamento,
+    },
+    {
       icon: Layers,
       color: 'bg-rose-600',
       title: 'Relatório Completo',
       description:
-        'Arquivo único com todas as abas: Resumo, Processos, Situação dos Registros, Exercícios, Parcelamentos, TAs, DRS e Tipo.',
-      badge: '8 abas',
+        'Arquivo único com todas as abas: Resumo, Processos, Situação dos Registros, Exercícios, Parcelamentos, TAs, DRS, Tipo, CJ, Outros, CSS Parcelamento e Serviços Apartados.',
+      badge: '12 abas',
       onGenerate: relCompleto,
     },
   ];
@@ -627,11 +875,11 @@ export const GpcRelatorios = () => {
       {/* ── Report catalog ─────────────────────────────────────────────────── */}
       <div>
         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">
-          Relatórios disponíveis
+          Relatórios disponíveis ({reports.length})
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 divide-y divide-slate-100 overflow-hidden">
           {reports.map(r => (
-            <ReportCard key={r.title} {...r} />
+            <ReportListItem key={r.title} {...r} />
           ))}
         </div>
       </div>

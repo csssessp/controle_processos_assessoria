@@ -19,7 +19,7 @@ import {
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
   ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap, MoreVertical, RefreshCw,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Gavel,
 
 } from 'lucide-react';
 
@@ -34,6 +34,8 @@ import { GpcService, normalizeNomeTecnico } from '../services/gpcService';
 import { MUNICIPIOS, buscarNumeroDRSPorMunicipio, DRS_NOMES_ORDENADOS, nomeDRSPorNumero } from '../services/ggconMunicipios';
 
 import { DbService } from '../services/dbService';
+
+import { GpcServidores } from './GpcServidores';
 
 import {
 
@@ -2938,6 +2940,20 @@ const ViewModal = ({ row, posicoes, onEdit, onClose, prevPositions, onRecordUpda
 
 
         {/* -- Situação do Processo -- */}
+
+        {/* -- Observações (registro sem julgamento de situação) -- registros importados de
+             planilhas (DRS, OUTROS, CJ, parcelamentos antigos) trazem contexto valioso em
+             situacao_obs, mas antes só aparecia dentro da seção "Situação do Processo",
+             que só existe quando row.situacao está preenchido — a observação ficava
+             invisível para todo o resto. */}
+        {!row.situacao && row.situacao_obs && (
+          <section className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <Sec icon={<FileText size={13} />} title="Observações" />
+            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+              <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{row.situacao_obs}</p>
+            </div>
+          </section>
+        )}
 
         {row.situacao && (
 
@@ -8191,7 +8207,7 @@ export const GpcProcessos = () => {
   const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
   const isViewOnly = currentUser?.view_only === true;
 
-  const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade'>('registros');
+  const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade' | 'tce'>('registros');
 
   const [rows, setRows] = useState<GpcRecebido[]>([]);
 
@@ -8785,6 +8801,14 @@ export const GpcProcessos = () => {
 
               ? `${filtered.length.toLocaleString('pt-BR')} de ${rows.length.toLocaleString('pt-BR')} registros`
 
+              : mainTab === 'parcelamentos'
+
+              ? `${rows.filter(r => !!r.is_parcelamento).length.toLocaleString('pt-BR')} parcelamentos`
+
+              : mainTab === 'tce'
+
+              ? 'Publicações no DOE e requisições de documentos do Tribunal de Contas'
+
               : 'Produtividade mensal por técnico'}
 
           </p>
@@ -9028,6 +9052,20 @@ export const GpcProcessos = () => {
 
         <button
 
+          onClick={() => setMainTab('tce')}
+
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'tce' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+
+        >
+
+          <Gavel size={14} className={mainTab === 'tce' ? 'text-purple-600' : 'text-slate-400'} />
+
+          TCE
+
+        </button>
+
+        <button
+
           onClick={() => setMainTab('produtividade')}
 
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'produtividade' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -9045,6 +9083,8 @@ export const GpcProcessos = () => {
 
 
       {mainTab === 'produtividade' && <ProdutividadePage rows={rows} />}
+
+      {mainTab === 'tce' && <GpcServidores embedded />}
 
 
 

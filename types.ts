@@ -249,6 +249,7 @@ export interface GpcParcelamento {
   data_assinatura: string | null;
   autorizo_governador: boolean;
   autorizacoes_log?: ParcAutorizacaoEntry[] | null;
+  origem_planilha?: string | null; // proveniência quando importado de planilha externa (ex.: 'CSS_PARCELAMENTO')
 }
 
 export interface GpcParcela {
@@ -319,6 +320,7 @@ export interface GpcRecebido {
   // Correção documental — processo devolvido para correção
   correcao_paginas?: number | null;   // páginas analisadas na correção
   correcao_obs?: string | null;       // descrição do que foi corrigido
+  origem_planilha?: string | null;    // proveniência quando importado de planilha externa (ex.: 'OUTROS')
   created_at?: string;
 }
 
@@ -395,6 +397,27 @@ export interface GpcAtividadeAvulsa {
   data_atividade: string;
   registrado_por?: string | null;
   created_at?: string;
+}
+
+// Controle de publicações no DOE e requisições de documentos do Tribunal de
+// Contas (TCE), com prazo de resposta e status de entrega à CATC.
+export interface GpcServidor {
+  codigo: number;
+  tipo: 'PUBLICACAO_DOE' | 'REQUISICAO';
+  processo_tce: string | null;
+  beneficiario: string | null;
+  drs: number | null;
+  convenio: string | null;
+  qtde_volumes: number | null;
+  prazo: string | null; // ISO date — usado para alerta de vencimento na UI
+  exercicio: string | null;
+  responsavel: string | null; // legado — reflete responsaveis[0], mantido por compatibilidade
+  responsaveis?: string[] | null;
+  situacao: string | null;
+  observacoes: string | null;
+  entrega_catc: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
