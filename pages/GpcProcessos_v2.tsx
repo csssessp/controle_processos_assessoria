@@ -19,7 +19,7 @@ import {
   BarChart2, Save, Eye, Lock, BookOpen, Gauge, Timer, PenLine, Pencil,
 
   ShieldCheck, ShieldAlert, ShieldOff, Award, KeyRound, Unlock, Star, ListChecks, Zap, MoreVertical, RefreshCw,
-  ChevronDown, ChevronUp, Gavel,
+  ChevronDown, ChevronUp,
 
 } from 'lucide-react';
 
@@ -35,7 +35,6 @@ import { MUNICIPIOS, buscarNumeroDRSPorMunicipio, DRS_NOMES_ORDENADOS, nomeDRSPo
 
 import { DbService } from '../services/dbService';
 
-import { GpcServidores } from './GpcServidores';
 
 import {
 
@@ -8207,7 +8206,7 @@ export const GpcProcessos = () => {
   const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.GPC;
   const isViewOnly = currentUser?.view_only === true;
 
-  const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade' | 'tce'>('registros');
+  const [mainTab, setMainTab] = useState<'registros' | 'parcelamentos' | 'produtividade'>('registros');
 
   const [rows, setRows] = useState<GpcRecebido[]>([]);
 
@@ -8805,10 +8804,6 @@ export const GpcProcessos = () => {
 
               ? `${rows.filter(r => !!r.is_parcelamento).length.toLocaleString('pt-BR')} parcelamentos`
 
-              : mainTab === 'tce'
-
-              ? 'Publicações no DOE e requisições de documentos do Tribunal de Contas'
-
               : 'Produtividade mensal por técnico'}
 
           </p>
@@ -9052,20 +9047,6 @@ export const GpcProcessos = () => {
 
         <button
 
-          onClick={() => setMainTab('tce')}
-
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'tce' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-
-        >
-
-          <Gavel size={14} className={mainTab === 'tce' ? 'text-purple-600' : 'text-slate-400'} />
-
-          TCE
-
-        </button>
-
-        <button
-
           onClick={() => setMainTab('produtividade')}
 
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${mainTab === 'produtividade' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -9083,8 +9064,6 @@ export const GpcProcessos = () => {
 
 
       {mainTab === 'produtividade' && <ProdutividadePage rows={rows} />}
-
-      {mainTab === 'tce' && <GpcServidores embedded />}
 
 
 

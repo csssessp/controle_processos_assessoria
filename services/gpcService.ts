@@ -3,7 +3,7 @@ import { emitError } from './errorBus';
 import {
   GpcProcesso, GpcExercicio, GpcHistorico, GpcObjeto,
   GpcParcelamento, GpcParcela, GpcTa, GpcPosicao, GpcClassificacao, GpcProcessoFull, GpcRecebido, GpcProdutividade, GpcFluxoTecnico,
-  GpcAtividadeAvulsa, GpcRegistroExercicio, GpcServidor,
+  GpcAtividadeAvulsa, GpcRegistroExercicio,
 } from '../types';
 
 export interface GpcReportData {
@@ -607,6 +607,89 @@ export const GpcService = {
     };
   },
 
+  // Timeline bruta de fluxo técnico (registro_id + data do evento) — usada pelos
+  // relatórios para calcular "Início da Análise"/"Término da Análise" a partir dos
+  // eventos reais, já que cgof_gpc_parcelamento/cgof_gpc_recebidos não têm essas
+  // datas como campo próprio (só existem como texto livre em imports antigos).
+  getFluxoTecnicoTimeline: async (): Promise<{ registro_id: number; data_evento: string }[]> => {
+    return fetchAllRows<{ registro_id: number; data_evento: string }>(
+      'cgof_gpc_fluxo_tecnico', 'registro_id, data_evento',
+    );
+  },
+
+  // Parcelamentos com todo o contexto que a planilha de origem tinha (DRS, valor,
+  // responsável, início/término da análise, situação) — cgof_gpc_parcelamento por si
+  // só não tem responsável/datas de análise: isso vive no envelope (cgof_gpc_recebidos
+  // com is_parcelamento=true) e no fluxo técnico ligados ao mesmo processo. ~20% dos
+  // parcelamentos (os importados diretamente da planilha via SQL) não têm envelope
+  // ligado — para esses, cai para um extrator de texto do próprio `obs`, que guarda
+  // "Responsável/Análise: X | Início da Análise: Y | Término da Análise: Z | Situação: W"
+  // desde que foram importados (ver sql_parts/parte_33/55/56/60).
+  getParcelamentosCompletos: async (): Promise<(GpcParcelamento & {
+    processo: string | null; convenio: string | null; entidade: string | null; drs: number | null;
+    responsavel: string | null; movimento: string | null;
+    inicio_analise: string | null; termino_analise: string | null;
+  })[]> => {
+    const [parcelamentos, recebidos, fluxo] = await Promise.all([
+      fetchAllRows<GpcParcelamento & {
+        cgof_gpc_processos?: { processo: string | null; convenio: string | null; entidade: string | null; drs: number | null } | null;
+      }>('cgof_gpc_parcelamento', '*, cgof_gpc_processos(processo, convenio, entidade, drs)'),
+      fetchAllRows<{
+        codigo: number; processo_codigo: number | null; processo: string | null; responsavel: string | null; responsavel_cadastro: string | null;
+        responsaveis_analise: string[] | null; movimento: string | null;
+      }>('cgof_gpc_recebidos', 'codigo, processo_codigo, processo, responsavel, responsavel_cadastro, responsaveis_analise, movimento', q => q.eq('is_parcelamento', true)),
+      fetchAllRows<{ registro_id: number; data_evento: string }>('cgof_gpc_fluxo_tecnico', 'registro_id, data_evento'),
+    ]);
+
+    // Um processo pode ter mais de um envelope em cgof_gpc_recebidos (um por
+    // parcelamento/reparcelamento) — agrupa todos por processo_codigo para poder
+    // escolher, abaixo, o que bate pelo número do processo (proc_parcela), não
+    // só o primeiro que aparecer.
+    const norm = (s: string | null | undefined) => (s ?? '').replace(/[.\-/\s]/g, '').toLowerCase();
+    const recebidosPorProcesso = new Map<number, typeof recebidos>();
+    for (const r of recebidos) {
+      if (r.processo_codigo == null) continue;
+      if (!recebidosPorProcesso.has(r.processo_codigo)) recebidosPorProcesso.set(r.processo_codigo, []);
+      recebidosPorProcesso.get(r.processo_codigo)!.push(r);
+    }
+    const datasPorRegistro = new Map<number, string[]>();
+    for (const f of fluxo) {
+      if (!datasPorRegistro.has(f.registro_id)) datasPorRegistro.set(f.registro_id, []);
+      datasPorRegistro.get(f.registro_id)!.push(f.data_evento);
+    }
+
+    const extraiDoObs = (obs: string | null, campo: string): string | null => {
+      const m = obs?.match(new RegExp(`${campo}:\\s*([^|]+)`, 'i'));
+      return m ? m[1].trim() : null;
+    };
+
+    return parcelamentos.map(p => {
+      const candidatos = p.processo_id != null ? (recebidosPorProcesso.get(p.processo_id) ?? []) : [];
+      // Prefere o envelope cujo número de processo bate com este parcelamento específico
+      // (proc_parcela) — um mesmo processo pode ter vários parcelamentos ao longo do
+      // tempo, cada um com seu próprio envelope; sem isso, sempre pegava o primeiro
+      // envelope do processo, mesmo quando era de outro parcelamento/exercício.
+      const rec = candidatos.find(r => norm(r.processo) === norm(p.proc_parcela)) ?? candidatos[0];
+      const datas = rec ? (datasPorRegistro.get(rec.codigo) ?? []).slice().sort() : [];
+      const responsavel = (rec?.responsaveis_analise?.length ? rec.responsaveis_analise.join(', ') : null)
+        ?? rec?.responsavel_cadastro
+        ?? rec?.responsavel
+        ?? extraiDoObs(p.obs, 'Responsável/Análise');
+      const movimento = rec?.movimento ?? extraiDoObs(p.obs, 'Situação');
+      return {
+        ...p,
+        processo: p.cgof_gpc_processos?.processo ?? null,
+        convenio: p.cgof_gpc_processos?.convenio ?? null,
+        entidade: p.cgof_gpc_processos?.entidade ?? null,
+        drs: p.cgof_gpc_processos?.drs ?? null,
+        responsavel,
+        movimento,
+        inicio_analise: datas[0] ?? extraiDoObs(p.obs, 'Início da Análise'),
+        termino_analise: datas.length ? datas[datas.length - 1] : extraiDoObs(p.obs, 'Término da Análise'),
+      };
+    });
+  },
+
   // ── RECEBIDOS ────────────────────────────────────────────────────────────
 
   getAllRecebidos: async (): Promise<GpcRecebido[]> => {
@@ -1014,51 +1097,6 @@ export const GpcService = {
 
   deleteAtividadeAvulsa: async (codigo: number): Promise<void> => {
     const { error } = await supabase.from('cgof_gpc_atividade_avulsa').delete().eq('codigo', codigo);
-    if (error) throw new Error(error.message);
-  },
-
-  // ── SERVIDORES (publicações DOE / requisições do TCE) ──────────────────────
-
-  getServidores: async (tipo?: GpcServidor['tipo']): Promise<GpcServidor[]> => {
-    return fetchAllRows<GpcServidor>(
-      'cgof_gpc_servidores', '*',
-      q => {
-        let query = q.order('prazo', { ascending: true, nullsFirst: false });
-        if (tipo) query = query.eq('tipo', tipo);
-        return query;
-      },
-    );
-  },
-
-  saveServidor: async (s: Partial<GpcServidor>): Promise<GpcServidor> => {
-    const payload = {
-      tipo: s.tipo,
-      processo_tce: s.processo_tce ?? null,
-      beneficiario: s.beneficiario ?? null,
-      drs: s.drs ?? null,
-      convenio: s.convenio ?? null,
-      qtde_volumes: s.qtde_volumes ?? null,
-      prazo: s.prazo ?? null,
-      exercicio: s.exercicio ?? null,
-      responsavel: s.responsaveis?.[0] ?? s.responsavel ?? null,
-      responsaveis: s.responsaveis ?? null,
-      situacao: s.situacao ?? null,
-      observacoes: s.observacoes ?? null,
-      entrega_catc: s.entrega_catc ?? null,
-      updated_at: new Date().toISOString(),
-    };
-    if (s.codigo) {
-      const { data, error } = await supabase.from('cgof_gpc_servidores').update(payload).eq('codigo', s.codigo).select().single();
-      if (error) throw new Error(error.message);
-      return data as GpcServidor;
-    }
-    const { data, error } = await supabase.from('cgof_gpc_servidores').insert(payload).select().single();
-    if (error) throw new Error(error.message);
-    return data as GpcServidor;
-  },
-
-  deleteServidor: async (codigo: number): Promise<void> => {
-    const { error } = await supabase.from('cgof_gpc_servidores').delete().eq('codigo', codigo);
     if (error) throw new Error(error.message);
   },
 

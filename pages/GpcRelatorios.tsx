@@ -70,6 +70,17 @@ async function exportXLSX(
 }
 
 const todayStr = () => new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+const fmtData = (d: string | null | undefined) => d ? d.slice(0, 10) : '';
+
+// A UI atual não grava mais o campo legado "responsavel" (ver comentário em
+// GpcProcessos_v2.tsx sobre responsavel_cadastro/responsaveis_analise) — usando
+// só r.responsavel, todo registro cadastrado pelo sistema hoje sai com
+// Responsável vazio no relatório. Mesma ordem de prioridade da tela de detalhes.
+const resolveResponsavel = (r: Pick<GpcRecebido, 'responsavel' | 'responsavel_cadastro' | 'responsaveis_analise'>) =>
+  (r.responsaveis_analise?.length ? r.responsaveis_analise.join(', ') : null)
+  ?? r.responsavel_cadastro
+  ?? r.responsavel
+  ?? '';
 
 const SITUACAO_LABELS: Record<string, string> = {
   REGULAR: 'Regular',
@@ -265,25 +276,38 @@ export const GpcRelatorios = () => {
     }], `gpc_exercicios_${todayStr()}.xlsx`);
   }, []);
 
+  // Mesma estrutura de colunas da aba PARCELAMENTOS/CSS PARCELAMENTO da planilha de
+  // referência do TCE (ITEM, Nº PROCESSO SEI/SPDOC..., ENTIDADE, Valor do Conv, DRS,
+  // CONVENIO, EXERCICIO, RESPONSÁVEL/ANALISE, INICIO/TERMINO DA ANALISE, SITUAÇÃO,
+  // Observação-Estatus) — Responsável e Início/Término vêm do envelope em
+  // cgof_gpc_recebidos e da timeline em cgof_gpc_fluxo_tecnico (cgof_gpc_parcelamento
+  // não tem esses campos), ver GpcService.getParcelamentosCompletos. Colunas extras do
+  // próprio sistema (Tipo, Nº Parcelas, Em Dia, Concluído) ficam no fim, além do que a
+  // planilha original tinha.
+  const parcelamentoRowExport = (p: Awaited<ReturnType<typeof GpcService.getParcelamentosCompletos>>[number], item: number) => ({
+    'ITEM': item,
+    'Nº PROCESSO SEI/SPDOC SEM PAPEL/SISRAD': p.proc_parcela ?? p.processo ?? '',
+    'ENTIDADE': p.entidade ?? '',
+    'Valor do Conv (R$)': p.valor_corrigido ?? 0,
+    'DRS': nomeDRSPorNumero(p.drs) ?? '',
+    'CONVENIO': p.convenio ?? '',
+    'EXERCICIO': p.exercicios?.length ? p.exercicios.join(', ') : (p.exercicio ?? ''),
+    'RESPONSÁVEL/ANALISE': p.responsavel ?? '',
+    'INICIO DA ANALISE': fmtData(p.inicio_analise),
+    'TERMINO DA ANALISE': fmtData(p.termino_analise),
+    'SITUAÇÃO': p.movimento ?? (p.parcelas_concluidas ? 'Parcelamento Quitado' : p.em_dia ? 'Em Pagamento' : ''),
+    'Observação-Estatus': p.obs ?? p.providencias ?? '',
+    'Tipo': p.tipo_parcelamento ?? p.tipo ?? '',
+    'Nº Parcelas': p.parcelas ?? '',
+    'Em Dia': p.em_dia ? 'Sim' : 'Não',
+    'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
+  });
+
   const relParcelamentos = useCallback(async () => {
-    const d = await GpcService.getReportData();
+    const rows = await GpcService.getParcelamentosCompletos();
     await exportXLSX([{
       name: 'Parcelamentos',
-      rows: (d.parcelamentosDetalhes ?? []).map(p => ({
-        'Cód. Processo': p.processo_id,
-        'Processo': p.processo ?? '',
-        'Convênio': p.convenio ?? '',
-        'Entidade': p.entidade ?? '',
-        'Proc. Parcela': p.proc_parcela ?? '',
-        'Tipo': p.tipo ?? '',
-        'Exercício': p.exercicio ?? '',
-        'Valor Gerador (R$)': p.valor_parcelado ?? 0,
-        'Valor Corrigido (R$)': p.valor_corrigido ?? 0,
-        'Nº Parcelas': p.parcelas ?? '',
-        'Em Dia': p.em_dia ? 'Sim' : 'Não',
-        'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
-        'Providências': p.providencias ?? '',
-      })),
+      rows: rows.map((p, i) => parcelamentoRowExport(p, i + 1)),
     }], `gpc_parcelamentos_${todayStr()}.xlsx`);
   }, []);
 
@@ -298,7 +322,7 @@ export const GpcRelatorios = () => {
         'Entidade': r.entidade ?? '',
         'Exercício': r.exercicio ?? '',
         'DRS': nomeDRSPorNumero(r.drs) ?? '',
-        'Responsável': r.responsavel ?? '',
+        'Responsável': resolveResponsavel(r),
         'Posição': r.posicao ?? '',
         'Movimento': r.movimento ?? '',
         'Data': r.data ?? '',
@@ -345,7 +369,20 @@ export const GpcRelatorios = () => {
   }, []);
 
   const relPorDrsDetalhado = useCallback(async () => {
-    const rows = await GpcService.getAllRecebidos();
+    const [rows, fluxo] = await Promise.all([
+      GpcService.getAllRecebidos(),
+      GpcService.getFluxoTecnicoTimeline(),
+    ]);
+    // Início/término da análise (colunas "Inicio"/"Termino" na planilha DRS 01..17) não
+    // são campo próprio de cgof_gpc_recebidos — vêm do primeiro/último evento do técnico
+    // no Fluxo Técnico ligado a este registro.
+    const datasPorRegistro = new Map<number, string[]>();
+    for (const f of fluxo) {
+      if (!datasPorRegistro.has(f.registro_id)) datasPorRegistro.set(f.registro_id, []);
+      datasPorRegistro.get(f.registro_id)!.push(f.data_evento);
+    }
+    const enviadoGgcon = (r: GpcRecebido) => /ggcon/i.test(r.movimento ?? '') || /ggcon/i.test(r.posicao ?? '') ? 'Sim' : 'Não';
+
     // DRS válido é 1–17, mais 18 = CSS (Coordenadoria de Serviços de Saúde, não é
     // uma DRS geográfica — ver services/ggconMunicipios.ts). Qualquer outro valor
     // (0, 19+ — lixo de digitação) cai no grupo "Não informado" em vez de virar
@@ -362,24 +399,36 @@ export const GpcRelatorios = () => {
       return a - b;
     });
     // Nome da aba exatamente como na planilha de referência do TCE: "DRS 01".."DRS 17", "CSS".
+    // Colunas seguem a mesma estrutura das abas "DRS 01".."DRS 17" originais (Numero_Processo,
+    // Convênio, Valor do convênio, Nome do interessado, Data_Recebimento_GPC, Exercício
+    // analisado, nome do tecn, Inicio, Termino, Folhas analisada, Enviado ao GGCON, Situação),
+    // com as colunas de julgamento (Situação/Irregularidade) do sistema no fim.
     const sheets = drsKeys.map(drs => ({
       name: drs != null ? (drs === 18 ? 'CSS' : `DRS ${String(drs).padStart(2, '0')}`) : 'Não informado',
-      rows: porDrs.get(drs)!.map(r => ({
-        'Código': r.codigo,
-        'Processo': r.processo ?? '',
-        'Convênio': r.convenio ?? '',
-        'Entidade': r.entidade ?? '',
-        'Exercício': r.exercicio ?? '',
-        'Responsável': r.responsavel ?? '',
-        'Posição': r.posicao ?? '',
-        'Movimento': r.movimento ?? '',
-        'Data': r.data ?? '',
-        'Situação': situacaoLabel(r.situacao),
-        'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
-        'Desfecho do Julgamento': desfechoJulgamentoLabel(r),
-        'Valor a Devolver (R$)': r.valor_a_devolver ?? 0,
-        'Valor Devolvido (R$)': r.valor_devolvido ?? 0,
-      })),
+      rows: porDrs.get(drs)!.map(r => {
+        const datas = (datasPorRegistro.get(r.codigo) ?? []).slice().sort();
+        return {
+          'Código': r.codigo,
+          'Numero_Processo': r.processo ?? '',
+          'Convênio': r.convenio ?? '',
+          'Valor do convênio (R$)': r.valor_convenio ?? 0,
+          'Nome do interessado': r.entidade ?? '',
+          'Data_Recebimento_GPC': fmtData(r.data),
+          'Exercício analisado': r.exercicio ?? '',
+          'nome do tecn': resolveResponsavel(r),
+          'Inicio': fmtData(datas[0]),
+          'Termino': fmtData(datas.length ? datas[datas.length - 1] : null),
+          'Folhas analisada': r.num_paginas ?? '',
+          'Enviado ao GGCON': enviadoGgcon(r),
+          'Posição': r.posicao ?? '',
+          'Movimento': r.movimento ?? '',
+          'Situação': situacaoLabel(r.situacao),
+          'Tipos de Irregularidade': irregularTiposLabel(r.irregular_tipos),
+          'Desfecho do Julgamento': desfechoJulgamentoLabel(r),
+          'Valor a Devolver (R$)': r.valor_a_devolver ?? 0,
+          'Valor Devolvido (R$)': r.valor_devolvido ?? 0,
+        };
+      }),
     }));
     await exportXLSX(sheets, `gpc_registros_por_drs_${todayStr()}.xlsx`);
   }, []);
@@ -392,7 +441,7 @@ export const GpcRelatorios = () => {
     'Entidade': r.entidade ?? '',
     'DRS': nomeDRSPorNumero(r.drs) ?? '',
     'Exercício': r.exercicio ?? '',
-    'Responsável': r.responsavel ?? '',
+    'Responsável': resolveResponsavel(r),
     'Posição': r.posicao ?? '',
     'Movimento': r.movimento ?? '',
     'Data': r.data ?? '',
@@ -417,7 +466,7 @@ export const GpcRelatorios = () => {
         'Entidade': r.entidade ?? '',
         'Exercício': r.exercicio ?? '',
         'DRS': nomeDRSPorNumero(r.drs) ?? '',
-        'Responsável': r.responsavel ?? '',
+        'Responsável': resolveResponsavel(r),
         'Posição': r.posicao ?? '',
         'Movimento': r.movimento ?? '',
         'Data': r.data ?? '',
@@ -456,31 +505,22 @@ export const GpcRelatorios = () => {
   }, []);
 
   const relCssParcelamento = useCallback(async () => {
-    const d = await GpcService.getReportData();
-    const css = (d.parcelamentosDetalhes ?? []).filter(p => p.origem_planilha === 'CSS_PARCELAMENTO');
+    const rows = await GpcService.getParcelamentosCompletos();
+    const css = rows.filter(p => p.origem_planilha === 'CSS_PARCELAMENTO');
     await exportXLSX([{
       name: 'CSS Parcelamento',
-      rows: css.map(p => ({
-        'Cód. Processo': p.processo_id,
-        'Processo': p.processo ?? '',
-        'Convênio': p.convenio ?? '',
-        'Entidade': p.entidade ?? '',
-        'Exercício': p.exercicio ?? '',
-        'Valor Corrigido (R$)': p.valor_corrigido ?? 0,
-        'Em Dia': p.em_dia ? 'Sim' : 'Não',
-        'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
-        'Observações': p.obs ?? '',
-      })),
+      rows: css.map((p, i) => parcelamentoRowExport(p, i + 1)),
     }], `gpc_css_parcelamento_${todayStr()}.xlsx`);
   }, []);
 
   const relCompleto = useCallback(async () => {
-    const [exercicios, reportData, processos, tas, recebidos] = await Promise.all([
+    const [exercicios, reportData, processos, tas, recebidos, parcelamentos] = await Promise.all([
       GpcService.getExerciciosRelatorio(),
       GpcService.getReportData(),
       GpcService.getAllProcessosExport(),
       GpcService.getAllTasExport(),
       GpcService.getAllRecebidos(),
+      GpcService.getParcelamentosCompletos(),
     ]);
 
     const raw = (v: number | null | undefined) =>
@@ -532,7 +572,7 @@ export const GpcRelatorios = () => {
           'Entidade': r.entidade ?? '',
           'Exercício': r.exercicio ?? '',
           'DRS': nomeDRSPorNumero(r.drs) ?? '',
-          'Responsável': r.responsavel ?? '',
+          'Responsável': resolveResponsavel(r),
           'Posição': r.posicao ?? '',
           'Movimento': r.movimento ?? '',
           'Data': r.data ?? '',
@@ -565,21 +605,7 @@ export const GpcRelatorios = () => {
       },
       {
         name: 'Parcelamentos',
-        rows: (reportData.parcelamentosDetalhes ?? []).map(p => ({
-          'Cód. Processo': p.processo_id,
-          'Processo': p.processo ?? '',
-          'Convênio': p.convenio ?? '',
-          'Entidade': p.entidade ?? '',
-          'Proc. Parcela': p.proc_parcela ?? '',
-          'Tipo': p.tipo ?? '',
-          'Exercício': p.exercicio ?? '',
-          'Valor Gerador (R$)': raw(p.valor_parcelado),
-          'Valor Corrigido (R$)': raw(p.valor_corrigido),
-          'Nº Parcelas': p.parcelas ?? '',
-          'Em Dia': p.em_dia ? 'Sim' : 'Não',
-          'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
-          'Providências': p.providencias ?? '',
-        })),
+        rows: parcelamentos.map((p, i) => parcelamentoRowExport(p, i + 1)),
       },
       {
         name: 'Termos Aditivos',
@@ -611,17 +637,7 @@ export const GpcRelatorios = () => {
       },
       {
         name: 'CSS Parcelamento',
-        rows: (reportData.parcelamentosDetalhes ?? []).filter(p => p.origem_planilha === 'CSS_PARCELAMENTO').map(p => ({
-          'Cód. Processo': p.processo_id,
-          'Processo': p.processo ?? '',
-          'Convênio': p.convenio ?? '',
-          'Entidade': p.entidade ?? '',
-          'Exercício': p.exercicio ?? '',
-          'Valor Corrigido (R$)': raw(p.valor_corrigido),
-          'Em Dia': p.em_dia ? 'Sim' : 'Não',
-          'Concluído': p.parcelas_concluidas ? 'Sim' : 'Não',
-          'Observações': p.obs ?? '',
-        })),
+        rows: parcelamentos.filter(p => p.origem_planilha === 'CSS_PARCELAMENTO').map((p, i) => parcelamentoRowExport(p, i + 1)),
       },
       {
         name: 'Serviços Apartados',

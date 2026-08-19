@@ -399,27 +399,6 @@ export interface GpcAtividadeAvulsa {
   created_at?: string;
 }
 
-// Controle de publicações no DOE e requisições de documentos do Tribunal de
-// Contas (TCE), com prazo de resposta e status de entrega à CATC.
-export interface GpcServidor {
-  codigo: number;
-  tipo: 'PUBLICACAO_DOE' | 'REQUISICAO';
-  processo_tce: string | null;
-  beneficiario: string | null;
-  drs: number | null;
-  convenio: string | null;
-  qtde_volumes: number | null;
-  prazo: string | null; // ISO date — usado para alerta de vencimento na UI
-  exercicio: string | null;
-  responsavel: string | null; // legado — reflete responsaveis[0], mantido por compatibilidade
-  responsaveis?: string[] | null;
-  situacao: string | null;
-  observacoes: string | null;
-  entrega_catc: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GGCON — Controle de Entrada de Processos SEI
 // Cada registro é uma movimentação de um processo SEI (mesmo processo_sei pode
