@@ -230,7 +230,15 @@ const GgconForm = ({ initial, tecnicos, onSave, onClose }: {
         </div>
         <div>
           <label className={LABEL}>Tipo</label>
-          <ListInput id="dl-tipo" options={TIPOS} value={form.tipo ?? ''} onChange={v => set('tipo', v || null)} placeholder="Convênio, Termo Aditivo..."/>
+          {/* Lista fechada, não texto livre: "Prestação de Contas" precisa bater
+              exatamente com esse valor pra tela de Processos oferecer criar o
+              registro correspondente em Análise GGCON (ver salvarProcessoEChecarAnalise
+              abaixo) — texto livre já deixou passar variação de grafia no passado. */}
+          <select className={INPUT} value={form.tipo ?? ''} onChange={e => set('tipo', e.target.value || null)}>
+            <option value="">Selecione...</option>
+            {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+            {form.tipo && !TIPOS.includes(form.tipo) && <option value={form.tipo}>{form.tipo}</option>}
+          </select>
         </div>
         <div>
           <label className={LABEL}>Valor do Estado (R$)</label>
@@ -809,7 +817,7 @@ export const GgconProcessos = () => {
   const salvarProcessoEChecarAnalise = async (p: Partial<GgconProcesso>) => {
     await GgconService.saveProcesso(p);
     await refreshAfterChange();
-    if (p.tipo === 'Prestação de Contas' && p.processo_sei) {
+    if (p.tipo?.trim() === 'Prestação de Contas' && p.processo_sei) {
       const jaExiste = await GgconAnaliseService.existeParaProcesso(p.processo_sei);
       if (!jaExiste) setSugestaoAnalise(p);
     }
