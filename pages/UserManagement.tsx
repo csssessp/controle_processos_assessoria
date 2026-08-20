@@ -93,6 +93,8 @@ export const UserManagement = () => {
       can_sign: formData.get('can_sign') === 'on',
       view_only: formData.get('view_only') === 'on',
       ggcon_libera_analise: formData.get('ggcon_libera_analise') === 'on',
+      ggcon_assina: formData.get('ggcon_assina') === 'on',
+      ggcon_restrito_analise: formData.get('ggcon_restrito_analise') === 'on',
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
     };
@@ -325,6 +327,18 @@ export const UserManagement = () => {
                   <span className="flex items-center gap-1 text-purple-700 font-medium">Pode liberar processos para análise</span>
                 </label>
                 <p className="text-[10px] text-slate-400">Usuários com esta permissão podem cadastrar despachos, liberar processos para um analista e reatribuir/encaminhar na tela "Análise Processo GGCON". Administradores sempre podem, independente desta marcação.</p>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none pt-1">
+                  <input type="checkbox" name="ggcon_assina" defaultChecked={editingUser?.ggcon_assina ?? false} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"/>
+                  <span className="flex items-center gap-1 text-purple-700 font-medium">Pode assinar (etapa de Assinatura)</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Usuários com esta permissão veem o aviso de processos aguardando assinatura e podem confirmá-la na tela "Análise Processo GGCON", antes do Encaminhar. Administradores sempre podem.</p>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none pt-1">
+                  <input type="checkbox" name="ggcon_restrito_analise" defaultChecked={editingUser?.ggcon_restrito_analise ?? false} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"/>
+                  <span className="flex items-center gap-1 text-purple-700 font-medium">Restringir só à tela de Análise</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Usuários com esta permissão marcada não veem "Processos GGCON" nem "Relatórios GGCON" — só "Análise Processo GGCON". Administradores nunca ficam restritos, mesmo com esta marcação.</p>
               </div>
             </div>
 

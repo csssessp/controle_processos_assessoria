@@ -119,7 +119,7 @@ export const GgconAnaliseService = {
     if (search.trim()) {
       query = query.or(`processo_sei.ilike.%${search}%,convenio_numero.ilike.%${search}%,interessado.ilike.%${search}%`);
     }
-    if (status === 'EM_ANDAMENTO') query = query.in('status', ['AGUARDANDO_ANALISE', 'EM_ANALISE']);
+    if (status === 'EM_ANDAMENTO') query = query.in('status', ['AGUARDANDO_ANALISE', 'EM_ANALISE', 'AGUARDANDO_ASSINATURA', 'CONFERENCIA_PENDENCIA']);
     else if (status) query = query.eq('status', status);
     if (analista.trim()) query = query.eq('analista_atual', analista);
     if (tipoConveniada) query = query.eq('tipo_conveniada', tipoConveniada);
@@ -130,18 +130,20 @@ export const GgconAnaliseService = {
   },
 
   // Contadores dos cards-resumo do topo da tela — total por status e, quando um
-  // analista está logado, quantas dessas são dele especificamente.
+  // analista está logado, quantas dessas são dele especificamente. `aguardandoAssinatura`
+  // conta só quem ainda não foi assinado — é a fila de quem tem ggcon_assina (ex.: Marilsa).
   getResumo: async (nomeAnalista?: string | null): Promise<{
-    aguardandoLiberacao: number; minhaFila: number; emAndamento: number; concluidas: number;
+    aguardandoLiberacao: number; minhaFila: number; emAndamento: number; aguardandoAssinatura: number; concluidas: number;
   }> => {
-    const all = await fetchAllRows<{ status: GgconAnaliseStatus; analista_atual: string | null }>(
-      'cgof_ggcon_analises', 'status, analista_atual',
+    const all = await fetchAllRows<{ status: GgconAnaliseStatus; analista_atual: string | null; data_assinatura: string | null }>(
+      'cgof_ggcon_analises', 'status, analista_atual, data_assinatura',
     );
     const meu = (r: { analista_atual: string | null }) => !!nomeAnalista && r.analista_atual === nomeAnalista;
     return {
       aguardandoLiberacao: all.filter(r => r.status === 'AGUARDANDO_LIBERACAO').length,
       minhaFila: all.filter(r => meu(r) && (r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE')).length,
-      emAndamento: all.filter(r => r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE').length,
+      emAndamento: all.filter(r => r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE' || r.status === 'AGUARDANDO_ASSINATURA' || r.status === 'CONFERENCIA_PENDENCIA').length,
+      aguardandoAssinatura: all.filter(r => r.status === 'AGUARDANDO_ASSINATURA' && !r.data_assinatura).length,
       concluidas: all.filter(r => r.status === 'CONCLUIDA').length,
     };
   },
@@ -305,7 +307,8 @@ export const GgconAnaliseService = {
   },
 
   // Marca a conclusão do preenchimento do checklist — o processo continua com o
-  // analista (status EM_ANALISE) até alguém com permissão de liberação encaminhá-lo.
+  // analista (status EM_ANALISE) até alguém com permissão de liberação liberar para
+  // assinatura.
   concluirAnalise: async (id: number, usuarioResponsavel: string): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       data_analise: hoje(),
@@ -315,9 +318,61 @@ export const GgconAnaliseService = {
     await registrarEvento(id, 'CONCLUIDA', { usuarioResponsavel });
   },
 
+  // Alternativa a concluirAnalise: a conferência encontrou algo a corrigir. Pula a
+  // etapa de Assinatura e vai direto para Encaminhar (ver validação em `encaminhar`)
+  // — a pendência fica registrada permanentemente em data_pendencia/pendencia_descricao,
+  // mesmo depois de encaminhado.
+  concluirAnaliseComPendencia: async (id: number, usuarioResponsavel: string, descricaoPendencia: string): Promise<void> => {
+    const { error } = await supabase.from('cgof_ggcon_analises').update({
+      status: 'CONFERENCIA_PENDENCIA',
+      data_analise: hoje(),
+      data_pendencia: hoje(),
+      pendencia_descricao: descricaoPendencia,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
+    await registrarEvento(id, 'CONCLUIDA_COM_PENDENCIA', { usuarioResponsavel, observacao: descricaoPendencia });
+  },
+
+  // Libera o processo, já com o checklist concluído, para a etapa de assinatura —
+  // quem tem a permissão ggcon_assina (ex.: Marilsa) passa a ver o aviso na tela.
+  liberarParaAssinatura: async (id: number, usuarioResponsavel: string): Promise<void> => {
+    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_analise').eq('id', id).single();
+    if (!atual || (atual as any).status !== 'EM_ANALISE' || !(atual as any).data_analise) {
+      throw new Error('Conclua o preenchimento do checklist antes de liberar para assinatura.');
+    }
+    const { error } = await supabase.from('cgof_ggcon_analises').update({
+      status: 'AGUARDANDO_ASSINATURA',
+      data_liberacao_assinatura: hoje(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
+    await registrarEvento(id, 'LIBERADA_ASSINATURA', { usuarioResponsavel });
+  },
+
+  // Confirma a assinatura (quem tem ggcon_assina) — não muda o status (continua
+  // AGUARDANDO_ASSINATURA), só carimba data/autor; é essa data que libera o
+  // Encaminhar (ver validação em `encaminhar` abaixo).
+  confirmarAssinatura: async (id: number, usuarioResponsavel: string): Promise<void> => {
+    const { error } = await supabase.from('cgof_ggcon_analises').update({
+      data_assinatura: hoje(),
+      assinado_por: usuarioResponsavel,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
+    await registrarEvento(id, 'ASSINADA', { usuarioResponsavel });
+  },
+
   // Encaminha o processo para fora do GGCON (GPC, DRS, Consultoria Jurídica etc.) —
-  // fecha o fluxo de análise.
+  // fecha o fluxo de análise. Exige assinatura confirmada antes, a menos que a
+  // conferência tenha sido concluída com pendência (pula a assinatura de propósito)
+  // ou já esteja Concluída (permite corrigir a área/data de um encaminhamento existente).
   encaminhar: async (id: number, areaEncaminhamento: string, usuarioResponsavel: string): Promise<void> => {
+    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_assinatura').eq('id', id).single();
+    const podeEncaminhar = !!atual && ((atual as any).status === 'CONCLUIDA' ||
+      (atual as any).status === 'CONFERENCIA_PENDENCIA' ||
+      ((atual as any).status === 'AGUARDANDO_ASSINATURA' && !!(atual as any).data_assinatura));
+    if (!podeEncaminhar) throw new Error('É necessário confirmar a assinatura antes de encaminhar.');
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: 'CONCLUIDA',
       data_encaminhamento: hoje(),
@@ -345,10 +400,10 @@ export const GgconAnaliseService = {
   },
 
   // Reseta a análise: limpa todas as respostas do checklist e as datas de
-  // análise/encaminhamento, devolvendo o processo para AGUARDANDO_ANALISE — o
-  // analista responsável permanece o mesmo (reatribuir é uma ação separada).
-  // Só quem libera processos (podeLiberarAnalise) chama isso, e a tela exige
-  // confirmação de senha antes — ver PasswordConfirmModal em GgconAnalise.tsx.
+  // análise/assinatura/pendência/encaminhamento, devolvendo o processo para
+  // AGUARDANDO_ANALISE — o analista responsável permanece o mesmo (reatribuir é uma
+  // ação separada). Só quem libera processos (podeLiberarAnalise) chama isso, e a
+  // tela exige confirmação de senha antes — ver PasswordConfirmModal em GgconAnalise.tsx.
   resetarAnalise: async (id: number, usuarioResponsavel: string, motivo?: string): Promise<void> => {
     const { error: itensError } = await supabase.from('cgof_ggcon_analise_itens').update({
       resposta: null, documento_sei: null, observacao: null, updated_at: new Date().toISOString(),
@@ -359,6 +414,11 @@ export const GgconAnaliseService = {
       status: 'AGUARDANDO_ANALISE',
       data_inicio_analise: null,
       data_analise: null,
+      data_liberacao_assinatura: null,
+      data_assinatura: null,
+      assinado_por: null,
+      data_pendencia: null,
+      pendencia_descricao: null,
       data_encaminhamento: null,
       area_encaminhamento: null,
       updated_at: new Date().toISOString(),

@@ -12,7 +12,7 @@ import { UserManagement } from './pages/UserManagement';
 import { Logs } from './pages/Logs';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
-import { UserRole, userHasArea } from './types';
+import { UserRole, userHasArea, podeAcessarProcessosGgcon } from './types';
 import { GpcProcessos } from './pages/GpcProcessos_v2';
 import { GpcRelatorios } from './pages/GpcRelatorios';
 import { GgconProcessos } from './pages/GgconProcessos';
@@ -24,15 +24,15 @@ const getHomePath = (user: User | null): string => {
   if (!user) return '/login';
   if (userHasArea(user, 'assessoria')) return '/dashboard';
   if (userHasArea(user, 'gpc')) return '/gpc';
-  if (userHasArea(user, 'ggcon')) return '/ggcon';
+  if (userHasArea(user, 'ggcon')) return podeAcessarProcessosGgcon(user) ? '/ggcon' : '/ggcon/analise';
   return '/dashboard';
 };
 
 import type { User } from './types';
 
-const ProtectedRoute = ({ children, adminOnly = false, requireArea }: { children?: React.ReactNode, adminOnly?: boolean, requireArea?: 'assessoria' | 'gpc' | 'ggcon' }) => {
+const ProtectedRoute = ({ children, adminOnly = false, requireArea, requireGgconAcessoTotal }: { children?: React.ReactNode, adminOnly?: boolean, requireArea?: 'assessoria' | 'gpc' | 'ggcon', requireGgconAcessoTotal?: boolean }) => {
   const { currentUser } = useApp();
-  
+
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
@@ -42,6 +42,12 @@ const ProtectedRoute = ({ children, adminOnly = false, requireArea }: { children
   }
 
   if (requireArea && !userHasArea(currentUser, requireArea)) {
+    return <Navigate to={getHomePath(currentUser)} replace />;
+  }
+
+  // Processos/Relatórios GGCON ficam fora do alcance de usuários restritos a
+  // "Análise Processo GGCON" (ggcon_restrito_analise) — ver podeAcessarProcessosGgcon.
+  if (requireGgconAcessoTotal && !podeAcessarProcessosGgcon(currentUser)) {
     return <Navigate to={getHomePath(currentUser)} replace />;
   }
 
@@ -114,13 +120,13 @@ const AppRoutes = () => {
       } />
 
       <Route path="/ggcon" element={
-        <ProtectedRoute requireArea="ggcon">
+        <ProtectedRoute requireArea="ggcon" requireGgconAcessoTotal>
           <GgconProcessos />
         </ProtectedRoute>
       } />
 
       <Route path="/ggcon/relatorios" element={
-        <ProtectedRoute requireArea="ggcon">
+        <ProtectedRoute requireArea="ggcon" requireGgconAcessoTotal>
           <GgconRelatorios />
         </ProtectedRoute>
       } />

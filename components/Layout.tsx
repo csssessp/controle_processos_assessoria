@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserRole, userHasArea } from '../types';
+import { UserRole, userHasArea, podeAcessarProcessosGgcon } from '../types';
 import logoImg from '../img/BRASAO-3-texto-branco.png';
 import {
   Files,
@@ -195,13 +195,14 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
             </>
           )}
 
-          {/* GGCON — users with ggcon area access */}
+          {/* GGCON — users with ggcon area access. Processos/Relatórios ficam fora do
+              menu de quem está restrito a "Análise Processo GGCON" (ggcon_restrito_analise). */}
           {isGgcon && (
             <>
               <SectionLabel label="GGCON" />
-              <DrawerItem to="/ggcon" icon={FolderKanban} label="Processos GGCON" />
+              {podeAcessarProcessosGgcon(currentUser) && <DrawerItem to="/ggcon" icon={FolderKanban} label="Processos GGCON" />}
               <DrawerItem to="/ggcon/analise" icon={ClipboardCheck} label="Análise Processo GGCON" />
-              <DrawerItem to="/ggcon/relatorios" icon={BarChart2} label="Relatórios GGCON" />
+              {podeAcessarProcessosGgcon(currentUser) && <DrawerItem to="/ggcon/relatorios" icon={BarChart2} label="Relatórios GGCON" />}
             </>
           )}
 

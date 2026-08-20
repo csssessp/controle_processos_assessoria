@@ -33,6 +33,8 @@ export interface User {
   can_sign?: boolean; // Pode ser responsável pela assinatura de processos
   view_only?: boolean; // Usuário somente leitura — não pode alterar dados
   ggcon_libera_analise?: boolean; // Pode liberar processos para a fila de Análise GGCON
+  ggcon_assina?: boolean; // Pode confirmar a assinatura na etapa de Análise GGCON (ex.: Marilsa)
+  ggcon_restrito_analise?: boolean; // Só enxerga "Análise Processo GGCON" — sem acesso a Processos/Relatórios GGCON
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
 }
@@ -49,6 +51,21 @@ export const podeLiberarAnalise = (user: User | null): boolean => {
   if (!user) return false;
   if (user.role === UserRole.ADMIN) return true;
   return userHasArea(user, 'ggcon') && user.ggcon_libera_analise === true;
+};
+
+/** Verifica se o usuário pode confirmar a assinatura na etapa de Análise GGCON (Admin sempre pode) */
+export const podeAssinarGgcon = (user: User | null): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return userHasArea(user, 'ggcon') && user.ggcon_assina === true;
+};
+
+/** Falso quando o usuário está restrito a ver só "Análise Processo GGCON" — sem
+ * acesso a "Processos GGCON" nem "Relatórios GGCON" (Admin sempre tem acesso total). */
+export const podeAcessarProcessosGgcon = (user: User | null): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return user.ggcon_restrito_analise !== true;
 };
 
 export interface Process {
@@ -455,12 +472,16 @@ export type GgconAnaliseStatus =
   | 'AGUARDANDO_LIBERACAO'
   | 'AGUARDANDO_ANALISE'
   | 'EM_ANALISE'
+  | 'AGUARDANDO_ASSINATURA'
+  | 'CONFERENCIA_PENDENCIA'
   | 'CONCLUIDA';
 
 export const GGCON_ANALISE_STATUS_LABELS: Record<GgconAnaliseStatus, string> = {
   AGUARDANDO_LIBERACAO: 'Aguardando Liberação',
   AGUARDANDO_ANALISE: 'Aguardando Análise',
   EM_ANALISE: 'Em Análise',
+  AGUARDANDO_ASSINATURA: 'Aguardando Assinatura',
+  CONFERENCIA_PENDENCIA: 'Conferência com Pendência',
   CONCLUIDA: 'Concluída',
 };
 
@@ -492,6 +513,11 @@ export interface GgconAnalise {
   data_liberacao: string | null;
   data_inicio_analise: string | null;
   data_analise: string | null;
+  data_liberacao_assinatura: string | null;
+  data_assinatura: string | null;
+  assinado_por: string | null;
+  data_pendencia: string | null;
+  pendencia_descricao: string | null;
   data_encaminhamento: string | null;
   area_encaminhamento: string | null;
   observacoes: string | null;
@@ -516,7 +542,7 @@ export interface GgconAnaliseItem {
 
 export type GgconAnaliseEvento =
   | 'LIBERADA' | 'REATRIBUIDA' | 'INICIADA' | 'CONCLUIDA' | 'ENCAMINHADA' | 'RESETADA'
-  | 'STATUS_ALTERADO' | 'HISTORICO_LIMPO';
+  | 'STATUS_ALTERADO' | 'HISTORICO_LIMPO' | 'LIBERADA_ASSINATURA' | 'ASSINADA' | 'CONCLUIDA_COM_PENDENCIA';
 
 export interface GgconAnaliseHistorico {
   id: number;

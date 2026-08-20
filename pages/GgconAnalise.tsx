@@ -3,7 +3,7 @@ import {
   Search, Plus, X, Check, Loader2, AlertCircle, ClipboardCheck, Send, UserCog,
   History, ChevronLeft, ChevronRight, Lock, Trash2, MoreVertical, RotateCcw, Inbox,
   ArrowUp, ArrowDown, ArrowUpDown, RefreshCw, StickyNote, Download, Users, ExternalLink,
-  Pencil,
+  Pencil, FileSignature, AlertTriangle,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import {
   GgconAnalise, GgconAnaliseItem, GgconAnaliseHistorico, GgconAnaliseStatus,
-  GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, User, UserRole,
+  GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, User, UserRole,
 } from '../types';
 
 const DRS_UNIDADES = [
@@ -163,8 +163,14 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     `Recebimento: ${fmtDate(analise.data_recebimento)}      Atribuição: ${fmtDate(analise.data_liberacao)}      Conclusão: ${fmtDate(analise.data_analise)}      Encaminhamento: ${analise.area_encaminhamento ?? '-'} (${fmtDate(analise.data_encaminhamento)})`,
     14, finalY + 5,
   );
+  let proximaLinhaY = finalY + 10;
+  if (analise.pendencia_descricao) {
+    const linhas = doc.splitTextToSize(`Pendência (${fmtDate(analise.data_pendencia)}): ${analise.pendencia_descricao}`, 270);
+    doc.text(linhas, 14, proximaLinhaY);
+    proximaLinhaY += linhas.length * 5;
+  }
   if (analise.observacoes) {
-    doc.text(doc.splitTextToSize(`Observações: ${analise.observacoes}`, 270), 14, finalY + 10);
+    doc.text(doc.splitTextToSize(`Observações: ${analise.observacoes}`, 270), 14, proximaLinhaY);
   }
 
   doc.save(`analise_${analise.processo_sei.replace(/\D/g, '')}.pdf`);
@@ -233,6 +239,8 @@ const statusTone = (status: GgconAnaliseStatus): { bg: string; text: string; bor
     case 'AGUARDANDO_LIBERACAO': return { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' };
     case 'AGUARDANDO_ANALISE': return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
     case 'EM_ANALISE': return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
+    case 'AGUARDANDO_ASSINATURA': return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' };
+    case 'CONFERENCIA_PENDENCIA': return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' };
     case 'CONCLUIDA': return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
   }
 };
@@ -922,6 +930,9 @@ const EVENTO_LABELS: Record<GgconAnaliseHistorico['evento'], string> = {
   RESETADA: 'Análise resetada',
   STATUS_ALTERADO: 'Status alterado manualmente',
   HISTORICO_LIMPO: 'Histórico limpo',
+  LIBERADA_ASSINATURA: 'Liberado para assinatura',
+  ASSINADA: 'Assinado',
+  CONCLUIDA_COM_PENDENCIA: 'Conferência concluída com pendência',
 };
 
 const HistoricoResponsaveis = ({ historico }: { historico: GgconAnaliseHistorico[] }) => (
@@ -970,6 +981,8 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [showAlterarStatus, setShowAlterarStatus] = useState(false);
   const [showLimparHistorico, setShowLimparHistorico] = useState(false);
   const [showEditCadastro, setShowEditCadastro] = useState(false);
+  const [showPendencia, setShowPendencia] = useState(false);
+  const [pendenciaTexto, setPendenciaTexto] = useState('');
   const isAdmin = currentUser?.role === UserRole.ADMIN;
   const [resetMotivo, setResetMotivo] = useState('');
 
@@ -1002,14 +1015,25 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   }, [analiseId]);
 
   const isDono = !!currentUserName && analise?.analista_atual === currentUserName;
-  // canEdit governa o checklist em si (trava depois de Concluída — é o produto final da análise).
-  const canEdit = (isDono || canLiberar) && analise?.status !== 'CONCLUIDA';
+  // canEdit governa o checklist em si (trava a partir de Aguardando Assinatura ou
+  // Conferência com Pendência — o checklist já é o produto final da análise assim
+  // que ela é concluída, por qualquer um dos dois caminhos).
+  const canEdit = (isDono || canLiberar) && analise?.status !== 'CONCLUIDA'
+    && analise?.status !== 'AGUARDANDO_ASSINATURA' && analise?.status !== 'CONFERENCIA_PENDENCIA';
   // canManage governa observações e encaminhamento — quem libera pode corrigir a
   // qualquer momento (mesmo depois de concluída), e o analista pode sempre deixar notas.
   const canManage = isDono || canLiberar;
+  // Quem confirma a assinatura (ex.: Marilsa) — ver podeAssinarGgcon em types.ts.
+  const podeAssinar = podeAssinarGgcon(currentUser);
   const respondidos = itens.filter(i => i.resposta).length;
   const total = itens.length;
   const completo = total > 0 && respondidos === total;
+  // Encaminhar só libera depois da assinatura confirmada, OU se a conferência foi
+  // concluída com pendência (pula a assinatura de propósito), OU se já estava
+  // Concluída, pra permitir corrigir área/data de um encaminhamento existente.
+  const podeEncaminhar = !!analise?.area_encaminhamento || analise?.status === 'CONCLUIDA' ||
+    analise?.status === 'CONFERENCIA_PENDENCIA' ||
+    (analise?.status === 'AGUARDANDO_ASSINATURA' && !!analise?.data_assinatura);
 
   // Dica fixa do template ("Se não tiver, pedir declaração negativa" etc.) por número
   // de item — não fica salva em cgof_ggcon_analise_itens (só a resposta/documento_sei
@@ -1034,6 +1058,44 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
       await load();
       onChanged();
       toast('success', 'Preenchimento concluído.');
+    } catch (ex: any) { toast('error', ex.message); }
+    finally { setBusy(false); }
+  };
+
+  const handleConcluirComPendencia = async () => {
+    if (!analise || !currentUserName || !pendenciaTexto.trim()) return;
+    setBusy(true);
+    try {
+      await GgconAnaliseService.concluirAnaliseComPendencia(analise.id, currentUserName, pendenciaTexto.trim());
+      await load();
+      onChanged();
+      setShowPendencia(false);
+      setPendenciaTexto('');
+      toast('success', 'Conferência concluída com pendência.');
+    } catch (ex: any) { toast('error', ex.message); }
+    finally { setBusy(false); }
+  };
+
+  const handleLiberarAssinatura = async () => {
+    if (!analise || !currentUserName) return;
+    setBusy(true);
+    try {
+      await GgconAnaliseService.liberarParaAssinatura(analise.id, currentUserName);
+      await load();
+      onChanged();
+      toast('success', 'Liberado para assinatura.');
+    } catch (ex: any) { toast('error', ex.message); }
+    finally { setBusy(false); }
+  };
+
+  const handleConfirmarAssinatura = async () => {
+    if (!analise || !currentUserName) return;
+    setBusy(true);
+    try {
+      await GgconAnaliseService.confirmarAssinatura(analise.id, currentUserName);
+      await load();
+      onChanged();
+      toast('success', 'Assinatura confirmada.');
     } catch (ex: any) { toast('error', ex.message); }
     finally { setBusy(false); }
   };
@@ -1228,6 +1290,16 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
               {/* Coluna lateral — datas, ações, histórico */}
               <div className="space-y-4">
+                {/* Pendência — fica visível mesmo depois de Encaminhada/Concluída, como
+                    registro permanente de que a conferência apontou algo a corrigir. */}
+                {analise.pendencia_descricao && (
+                  <div className="bg-orange-50 rounded-xl border border-orange-200 p-4 space-y-1">
+                    <h4 className="text-sm font-bold text-orange-800 flex items-center gap-1.5"><AlertTriangle size={14}/>Pendência registrada</h4>
+                    <p className="text-xs text-orange-700 whitespace-pre-wrap">{analise.pendencia_descricao}</p>
+                    <p className="text-[11px] text-orange-500">{fmtDate(analise.data_pendencia)}</p>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
                   <h4 className="text-sm font-bold text-slate-700">Datas</h4>
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1271,7 +1343,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                       // Já concluído e ainda completo — some o botão para não permitir clicar de
                       // novo e gerar eventos "CONCLUIDA" duplicados no histórico à toa.
                       <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
-                        <Check size={14} className="shrink-0"/>Preenchimento concluído em {fmtDate(analise.data_analise)} — aguardando encaminhamento.
+                        <Check size={14} className="shrink-0"/>Preenchimento concluído em {fmtDate(analise.data_analise)} — aguardando liberação para assinatura.
                       </p>
                     ) : (
                       <>
@@ -1279,14 +1351,81 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                           <Check size={16}/>Concluir preenchimento
                         </button>
                         {!completo && <p className="text-[11px] text-amber-600 text-center">Responda todos os {total} itens para concluir.</p>}
+                        {completo && !showPendencia && (
+                          <button
+                            type="button"
+                            className="w-full text-center text-[11px] text-orange-700 hover:text-orange-800 font-medium underline underline-offset-2"
+                            onClick={() => setShowPendencia(true)}
+                          >
+                            Concluir com pendência (pula a assinatura, vai direto para Encaminhar)
+                          </button>
+                        )}
+                        {completo && showPendencia && (
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <label className={LABEL}>Descrição da pendência</label>
+                            <textarea
+                              className={INPUT}
+                              rows={2}
+                              placeholder="Ex.: falta comprovante de..."
+                              value={pendenciaTexto}
+                              onChange={e => setPendenciaTexto(e.target.value)}
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <button type="button" className={BTN_GHOST + ' flex-1 justify-center'} onClick={() => { setShowPendencia(false); setPendenciaTexto(''); }}>Cancelar</button>
+                              <button
+                                type="button"
+                                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                disabled={!pendenciaTexto.trim() || busy}
+                                onClick={handleConcluirComPendencia}
+                              >
+                                {busy ? <Loader2 size={16} className="animate-spin"/> : <AlertTriangle size={16}/>}Confirmar Pendência
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
                 )}
 
+                {/* Assinatura — etapa obrigatória entre o checklist concluído e o Encaminhar.
+                    Quem libera processos libera para assinatura; quem tem ggcon_assina
+                    (ex.: Marilsa) confirma. Ver podeAssinarGgcon em types.ts. */}
+                {canLiberar && analise.status === 'EM_ANALISE' && analise.data_analise && (
+                  <div className="bg-white rounded-xl border border-purple-200 bg-purple-50/30 p-4 space-y-2">
+                    <h4 className="text-sm font-bold text-purple-800 flex items-center gap-1.5"><FileSignature size={14}/>Assinatura</h4>
+                    <p className="text-[11px] text-purple-700/80">Antes de encaminhar, o processo precisa ser liberado e assinado.</p>
+                    <button className={BTN_PRIMARY + ' w-full justify-center'} disabled={busy} onClick={handleLiberarAssinatura}>
+                      {busy ? <Loader2 size={16} className="animate-spin"/> : <FileSignature size={16}/>}Liberar para Assinatura
+                    </button>
+                  </div>
+                )}
+
+                {analise.status === 'AGUARDANDO_ASSINATURA' && (
+                  <div className="bg-white rounded-xl border border-purple-200 bg-purple-50/30 p-4 space-y-2">
+                    <h4 className="text-sm font-bold text-purple-800 flex items-center gap-1.5"><FileSignature size={14}/>Assinatura</h4>
+                    {analise.data_assinatura ? (
+                      <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                        <Check size={14} className="shrink-0"/>Assinado por {analise.assinado_por ?? '—'} em {fmtDate(analise.data_assinatura)}.
+                      </p>
+                    ) : podeAssinar ? (
+                      <>
+                        <p className="text-[11px] text-purple-700/80">Liberado para assinatura em {fmtDate(analise.data_liberacao_assinatura)}.</p>
+                        <button className={BTN_PRIMARY + ' w-full justify-center'} disabled={busy} onClick={handleConfirmarAssinatura}>
+                          {busy ? <Loader2 size={16} className="animate-spin"/> : <FileSignature size={16}/>}Confirmar Assinatura
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-purple-700/80">Aguardando assinatura (liberado em {fmtDate(analise.data_liberacao_assinatura)}).</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Encaminhamento — só quem libera processos decide o destino; fica disponível
-                    mesmo depois de concluída, para corrigir a área/data se necessário. */}
-                {canLiberar && (
+                    mesmo depois de concluída, para corrigir a área/data se necessário. Só
+                    aparece depois da assinatura confirmada (ver podeEncaminhar acima). */}
+                {canLiberar && podeEncaminhar && (
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><Send size={14}/>Encaminhamento</h4>
                     {showEncaminhar ? (
@@ -1342,7 +1481,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                 {canLiberar && analise.status !== 'AGUARDANDO_LIBERACAO' && (
                   <div className="bg-white rounded-xl border border-amber-200 bg-amber-50/30 p-4 space-y-2">
                     <h4 className="text-sm font-bold text-amber-800 flex items-center gap-1.5"><RefreshCw size={14}/>Resetar Análise</h4>
-                    <p className="text-[11px] text-amber-700/80">Apaga todas as respostas do checklist e as datas de análise/encaminhamento. O analista responsável é mantido.</p>
+                    <p className="text-[11px] text-amber-700/80">Apaga todas as respostas do checklist, a pendência registrada e as datas de análise/assinatura/encaminhamento. O analista responsável é mantido.</p>
                     <button
                       className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-amber-700 text-sm font-semibold rounded-xl border border-amber-300 hover:bg-amber-100 active:scale-95 transition-all"
                       onClick={() => setShowReset(true)}
@@ -1387,7 +1526,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
       {showReset && analise && (
         <PasswordConfirmModal
           title="Resetar análise"
-          message={`Confirme sua senha para resetar a análise do processo ${analise.processo_sei}. Todas as respostas do checklist e as datas de análise/encaminhamento serão apagadas — o processo volta para "Aguardando Análise", ainda com ${analise.analista_atual ?? 'o mesmo analista'} responsável. Fica registrado no histórico e não pode ser desfeito.`}
+          message={`Confirme sua senha para resetar a análise do processo ${analise.processo_sei}. Todas as respostas do checklist, a pendência registrada e as datas de análise/assinatura/encaminhamento serão apagadas — o processo volta para "Aguardando Análise", ainda com ${analise.analista_atual ?? 'o mesmo analista'} responsável. Fica registrado no histórico e não pode ser desfeito.`}
           confirmLabel="Resetar"
           confirmIcon={RefreshCw}
           tone="amber"
@@ -1491,7 +1630,7 @@ export const GgconAnalisePage = () => {
   const [rows, setRows] = useState<GgconAnalise[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
-  const [resumo, setResumo] = useState({ aguardandoLiberacao: 0, minhaFila: 0, emAndamento: 0, concluidas: 0 });
+  const [resumo, setResumo] = useState({ aguardandoLiberacao: 0, minhaFila: 0, emAndamento: 0, aguardandoAssinatura: 0, concluidas: 0 });
   const [analistas, setAnalistas] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -1665,6 +1804,23 @@ export const GgconAnalisePage = () => {
             onClick={() => { setAnalistaFiltro(currentUser.name); setStatusFiltro('EM_ANDAMENTO'); setPage(1); }}
           >
             Ver meus processos
+          </button>
+        </div>
+      )}
+
+      {/* Destaque — processos aguardando a assinatura de quem tem a permissão
+          ggcon_assina (ex.: Marilsa), visível assim que ela entra na tela. */}
+      {currentUser && podeAssinarGgcon(currentUser) && resumo.aguardandoAssinatura > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 rounded-2xl bg-purple-600 text-white shadow-sm">
+          <FileSignature size={20} className="shrink-0"/>
+          <p className="text-sm font-medium flex-1">
+            Você tem <strong>{resumo.aguardandoAssinatura}</strong> processo{resumo.aguardandoAssinatura !== 1 ? 's' : ''} aguardando sua assinatura.
+          </p>
+          <button
+            className="text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg transition-colors shrink-0 w-fit"
+            onClick={() => { setStatusFiltro('AGUARDANDO_ASSINATURA'); setAnalistaFiltro(''); setPage(1); }}
+          >
+            Ver processos aguardando assinatura
           </button>
         </div>
       )}
@@ -1922,7 +2078,7 @@ export const GgconAnalisePage = () => {
       {resetRequest && (
         <PasswordConfirmModal
           title="Resetar análise"
-          message={`Confirme sua senha para resetar a análise do processo ${resetRequest.processo_sei}. Todas as respostas do checklist e as datas de análise/encaminhamento serão apagadas — o processo volta para "Aguardando Análise", ainda com ${resetRequest.analista_atual ?? 'o mesmo analista'} responsável. Fica registrado no histórico e não pode ser desfeito.`}
+          message={`Confirme sua senha para resetar a análise do processo ${resetRequest.processo_sei}. Todas as respostas do checklist, a pendência registrada e as datas de análise/assinatura/encaminhamento serão apagadas — o processo volta para "Aguardando Análise", ainda com ${resetRequest.analista_atual ?? 'o mesmo analista'} responsável. Fica registrado no histórico e não pode ser desfeito.`}
           confirmLabel="Resetar"
           confirmIcon={RefreshCw}
           tone="amber"
