@@ -106,7 +106,8 @@ export const DbService = {
       active: user.active,
       areas: user.areas || [],
       can_sign: user.can_sign ?? false,
-      view_only: user.view_only ?? false
+      view_only: user.view_only ?? false,
+      ggcon_libera_analise: user.ggcon_libera_analise ?? false
     };
 
     if (user.password && user.password.trim().length > 0) {

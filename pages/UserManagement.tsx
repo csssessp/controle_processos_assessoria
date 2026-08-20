@@ -6,7 +6,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { DbService } from '../services/dbService';
 import { generateUUID } from '../utils';
 import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
-import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin, Eye } from 'lucide-react';
+import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin, Eye, ClipboardCheck } from 'lucide-react';
 
 // "GPC" (o nível, não a área) dá acesso ampliado dentro das telas de GPC (ver
 // isAdminView em GpcProcessos_v2.tsx) — é diferente de ter a Área GPC marcada,
@@ -92,6 +92,7 @@ export const UserManagement = () => {
       areas: role === UserRole.ADMIN ? ['assessoria', 'gpc', 'ggcon'] : selectedAreas,
       can_sign: formData.get('can_sign') === 'on',
       view_only: formData.get('view_only') === 'on',
+      ggcon_libera_analise: formData.get('ggcon_libera_analise') === 'on',
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
     };
@@ -215,13 +216,14 @@ export const UserManagement = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex justify-between bg-slate-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex justify-between bg-slate-50 shrink-0">
               <h3 className="font-bold text-slate-800">{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</h3>
               <button onClick={() => setIsModalOpen(false)}><XIcon size={20} className="text-slate-400 hover:text-slate-600"/></button>
             </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+            <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden flex-1 min-h-0">
+            <div className="p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium mb-1 text-slate-700">Nome Completo</label>
                 <input required name="name" defaultValue={editingUser?.name} className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none" placeholder="Ex: João Silva"/>
@@ -316,7 +318,17 @@ export const UserManagement = () => {
                 <p className="text-[10px] text-slate-400">Selecione as áreas que o usuário terá acesso. Administradores têm acesso a todas as áreas automaticamente.</p>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1"><ClipboardCheck size={12}/> Análise Processo GGCON</p>
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                  <input type="checkbox" name="ggcon_libera_analise" defaultChecked={editingUser?.ggcon_libera_analise ?? false} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"/>
+                  <span className="flex items-center gap-1 text-purple-700 font-medium">Pode liberar processos para análise</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Usuários com esta permissão podem cadastrar despachos, liberar processos para um analista e reatribuir/encaminhar na tela "Análise Processo GGCON". Administradores sempre podem, independente desta marcação.</p>
+              </div>
+            </div>
+
+              <div className="flex gap-3 p-6 pt-4 border-t border-slate-100 shrink-0">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 text-slate-600 hover:bg-slate-100 rounded font-medium">Cancelar</button>
                   <button type="submit" disabled={saving} className="flex-1 py-2 bg-accent text-white rounded font-medium hover:bg-blue-600 flex items-center justify-center gap-2 disabled:opacity-70">
                       {saving && <Loader2 size={16} className="animate-spin"/>}

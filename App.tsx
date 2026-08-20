@@ -17,6 +17,7 @@ import { GpcProcessos } from './pages/GpcProcessos_v2';
 import { GpcRelatorios } from './pages/GpcRelatorios';
 import { GgconProcessos } from './pages/GgconProcessos';
 import { GgconRelatorios } from './pages/GgconRelatorios';
+import { GgconAnalisePage } from './pages/GgconAnalise';
 
 /** Resolve a home page based on user areas */
 const getHomePath = (user: User | null): string => {
@@ -121,6 +122,12 @@ const AppRoutes = () => {
       <Route path="/ggcon/relatorios" element={
         <ProtectedRoute requireArea="ggcon">
           <GgconRelatorios />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/ggcon/analise" element={
+        <ProtectedRoute requireArea="ggcon">
+          <GgconAnalisePage />
         </ProtectedRoute>
       } />
 

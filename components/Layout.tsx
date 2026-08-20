@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   ChevronRight,
   FolderKanban,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -199,6 +200,7 @@ export const Layout = ({ children }: { children?: React.ReactNode }) => {
             <>
               <SectionLabel label="GGCON" />
               <DrawerItem to="/ggcon" icon={FolderKanban} label="Processos GGCON" />
+              <DrawerItem to="/ggcon/analise" icon={ClipboardCheck} label="Análise Processo GGCON" />
               <DrawerItem to="/ggcon/relatorios" icon={BarChart2} label="Relatórios GGCON" />
             </>
           )}

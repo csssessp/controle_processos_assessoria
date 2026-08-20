@@ -32,6 +32,7 @@ export interface User {
   areas?: UserArea[]; // Áreas que o usuário pode acessar
   can_sign?: boolean; // Pode ser responsável pela assinatura de processos
   view_only?: boolean; // Usuário somente leitura — não pode alterar dados
+  ggcon_libera_analise?: boolean; // Pode liberar processos para a fila de Análise GGCON
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
 }
@@ -41,6 +42,13 @@ export const userHasArea = (user: User | null, area: UserArea): boolean => {
   if (!user) return false;
   if (user.role === UserRole.ADMIN) return true;
   return Array.isArray(user.areas) && user.areas.includes(area);
+};
+
+/** Verifica se o usuário pode liberar processos para a fila de Análise GGCON (Admin sempre pode) */
+export const podeLiberarAnalise = (user: User | null): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return userHasArea(user, 'ggcon') && user.ggcon_libera_analise === true;
 };
 
 export interface Process {
@@ -431,4 +439,92 @@ export interface GgconProcesso {
   urgente: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GGCON — Análise Processo (conferência de Prestação de Contas)
+// Fluxo: liberador cadastra o despacho e libera para um analista → analista
+// preenche o checklist oficial (Entidade ou Prefeitura) em tela → conclui →
+// liberador encaminha para outra área. Toda troca de analista fica registrada
+// em cgof_ggcon_analise_historico (ver services/ggconAnaliseService.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GgconTipoConveniada = 'ENTIDADE' | 'PREFEITURA';
+
+export type GgconAnaliseStatus =
+  | 'AGUARDANDO_LIBERACAO'
+  | 'AGUARDANDO_ANALISE'
+  | 'EM_ANALISE'
+  | 'CONCLUIDA';
+
+export const GGCON_ANALISE_STATUS_LABELS: Record<GgconAnaliseStatus, string> = {
+  AGUARDANDO_LIBERACAO: 'Aguardando Liberação',
+  AGUARDANDO_ANALISE: 'Aguardando Análise',
+  EM_ANALISE: 'Em Análise',
+  CONCLUIDA: 'Concluída',
+};
+
+export type GgconAnaliseResposta = 'SIM' | 'NAO' | 'NAO_SE_APLICA';
+
+export interface GgconAnalise {
+  id: number;
+  processo_sei: string;
+  convenio_numero: string | null;
+  cnpj: string | null;
+  interessado: string | null;
+  objeto: string | null;
+  custeio: boolean;
+  investimento: boolean;
+  valor_repasse: number | null;
+  vigencia_inicio: string | null;
+  vigencia_termino: string | null;
+  vigencia_prorrogado_ate: string | null;
+  termo_aditivo_numeros: string[] | null;
+  termo_retirratificacao: boolean;
+  resolucao_numero: string | null;
+  tipo_conveniada: GgconTipoConveniada;
+  municipio: string | null;
+  drs_unidade: string | null;
+  status: GgconAnaliseStatus;
+  analista_atual: string | null;
+  liberado_por: string | null;
+  data_recebimento: string | null;
+  data_liberacao: string | null;
+  data_inicio_analise: string | null;
+  data_analise: string | null;
+  data_encaminhamento: string | null;
+  area_encaminhamento: string | null;
+  observacoes: string | null;
+  created_by: string | null;
+  created_at?: string;
+  updated_at?: string;
+  // agregados calculados no service, não persistidos
+  itens_total?: number;
+  itens_respondidos?: number;
+}
+
+export interface GgconAnaliseItem {
+  id: number;
+  analise_id: number;
+  item_numero: number;
+  item_descricao: string;
+  resposta: GgconAnaliseResposta | null;
+  documento_sei: string[] | null; // lista de links dos documentos SEI comprobatórios deste item
+  observacao: string | null;
+  updated_at?: string;
+}
+
+export type GgconAnaliseEvento =
+  | 'LIBERADA' | 'REATRIBUIDA' | 'INICIADA' | 'CONCLUIDA' | 'ENCAMINHADA' | 'RESETADA'
+  | 'STATUS_ALTERADO' | 'HISTORICO_LIMPO';
+
+export interface GgconAnaliseHistorico {
+  id: number;
+  analise_id: number;
+  evento: GgconAnaliseEvento;
+  analista_anterior: string | null;
+  analista_novo: string | null;
+  usuario_responsavel: string | null;
+  data_evento: string;
+  observacao: string | null;
 }
