@@ -182,6 +182,7 @@ const INPUT = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm b
 const LABEL = 'block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5';
 const BTN_PRIMARY = 'inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm';
 const BTN_PRIMARY_GREEN = BTN_PRIMARY.replace('bg-blue-600', 'bg-green-600').replace('hover:bg-blue-700', 'hover:bg-green-700');
+const BTN_PRIMARY_RED = BTN_PRIMARY.replace('bg-blue-600', 'bg-red-600').replace('hover:bg-blue-700', 'hover:bg-red-700');
 const BTN_GHOST = 'inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-600 text-sm font-medium rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all shadow-sm';
 const BTN_MUTED = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors';
 const BTN_PRIMARY_LG = 'inline-flex items-center gap-2 px-5 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg';
@@ -761,6 +762,35 @@ const ReatribuirLoteModal = ({ quantidade, analistas, onConfirm, onClose }: {
           </button>
         </div>
       </form>
+    </Modal>
+  );
+};
+
+const ConfirmarAssinaturaLoteModal = ({ quantidade, onConfirm, onClose }: {
+  quantidade: number; onConfirm: () => Promise<void>; onClose: () => void;
+}) => {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleConfirm = async () => {
+    setBusy(true); setErr('');
+    try { await onConfirm(); onClose(); }
+    catch (ex: any) { setErr(ex.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title="Confirmar Assinatura em Lote" subtitle={`${quantidade} processo${quantidade !== 1 ? 's' : ''} selecionado${quantidade !== 1 ? 's' : ''} — só os que estão "Aguardando Assinatura" e ainda não assinados serão confirmados`} onClose={onClose} size="md">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">Confirma a assinatura de todos os processos elegíveis selecionados? Fica registrado no histórico de cada um, com sua data e seu nome.</p>
+        {err && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16}/>{err}</div>}
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" className={BTN_GHOST} onClick={onClose}>Cancelar</button>
+          <button type="button" className={BTN_PRIMARY} disabled={busy} onClick={handleConfirm}>
+            {busy ? <Loader2 size={16} className="animate-spin"/> : <FileSignature size={16}/>}Confirmar todos
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 };
@@ -1347,20 +1377,24 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                       </p>
                     ) : (
                       <>
-                        <button className={BTN_PRIMARY_GREEN + ' w-full justify-center'} disabled={!completo || busy} onClick={handleConcluir}>
-                          <Check size={16}/>Concluir preenchimento
-                        </button>
                         {!completo && <p className="text-[11px] text-amber-600 text-center">Responda todos os {total} itens para concluir.</p>}
-                        {completo && !showPendencia && (
-                          <button
-                            type="button"
-                            className="w-full text-center text-[11px] text-orange-700 hover:text-orange-800 font-medium underline underline-offset-2"
-                            onClick={() => setShowPendencia(true)}
-                          >
-                            Concluir com pendência (pula a assinatura, vai direto para Encaminhar)
-                          </button>
+                        {!showPendencia && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button className={BTN_PRIMARY_GREEN + ' justify-center'} disabled={!completo || busy} onClick={handleConcluir} title="Checklist sem pendências — segue para a etapa de Assinatura">
+                              <Check size={16}/>Conferência sem Pendência
+                            </button>
+                            <button
+                              type="button"
+                              className={BTN_PRIMARY_RED + ' justify-center'}
+                              disabled={!completo || busy}
+                              onClick={() => setShowPendencia(true)}
+                              title="Falta algo a corrigir — pula a assinatura, vai direto para Encaminhar"
+                            >
+                              <AlertTriangle size={16}/>Conferência com Pendência
+                            </button>
+                          </div>
                         )}
-                        {completo && showPendencia && (
+                        {showPendencia && (
                           <div className="space-y-2 pt-2 border-t border-slate-100">
                             <label className={LABEL}>Descrição da pendência</label>
                             <textarea
@@ -1461,8 +1495,10 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
                 {/* Alterar status manualmente — corrige registros que não se encaixam no fluxo
                     automático (ex.: importados da planilha antiga, já "Concluída" mas sem
-                    checklist digitalizado aqui). Não mexe em mais nada, só no campo status. */}
-                {canLiberar && (
+                    checklist digitalizado aqui). Não mexe em mais nada, só no campo status.
+                    Restrito a Administrador — ação sensível o suficiente pra não ficar
+                    disponível a quem só tem a permissão de liberar processos. */}
+                {isAdmin && (
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><RefreshCw size={14}/>Alterar Status</h4>
                     <p className="text-[11px] text-slate-400">Corrige o status manualmente, sem passar pelo fluxo normal (Liberar → Analisar → Concluir → Encaminhar).</p>
@@ -1626,6 +1662,8 @@ export const GgconAnalisePage = () => {
   const { currentUser } = useApp();
   const isViewOnly = currentUser?.view_only === true;
   const canLiberar = podeLiberarAnalise(currentUser);
+  const podeAssinar = podeAssinarGgcon(currentUser);
+  const isAdmin = currentUser?.role === UserRole.ADMIN;
 
   const [rows, setRows] = useState<GgconAnalise[]>([]);
   const [count, setCount] = useState(0);
@@ -1638,7 +1676,7 @@ export const GgconAnalisePage = () => {
   const [resetRequest, setResetRequest] = useState<GgconAnalise | null>(null);
   const [resetMotivo, setResetMotivo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [loteOverlay, setLoteOverlay] = useState<null | 'liberar' | 'reatribuir'>(null);
+  const [loteOverlay, setLoteOverlay] = useState<null | 'liberar' | 'reatribuir' | 'assinatura'>(null);
   const [showConsolidado, setShowConsolidado] = useState(false);
 
   const filtrosIniciais = useMemo(carregarFiltrosPersistidos, []);
@@ -1699,6 +1737,7 @@ export const GgconAnalisePage = () => {
   const selecionadas = rows.filter(r => selectedIds.has(r.id));
   const elegiveisLiberar = selecionadas.filter(r => r.status === 'AGUARDANDO_LIBERACAO');
   const elegiveisReatribuir = selecionadas.filter(r => r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE');
+  const elegiveisAssinatura = selecionadas.filter(r => r.status === 'AGUARDANDO_ASSINATURA' && !r.data_assinatura);
   const todasSelecionaveisMarcadas = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
 
   const filtrosAtivos = !!(search || statusFiltro || analistaFiltro || tipoFiltro);
@@ -1765,6 +1804,15 @@ export const GgconAnalisePage = () => {
     await refresh();
     if (falhas > 0) toast('warning', `${ok} reatribuído(s) para ${novoAnalista}; ${falhas} falharam — tente novamente para os que faltaram.`);
     else toast('success', `${ok} processo(s) reatribuído(s) para ${novoAnalista}.`);
+  };
+
+  const executeConfirmarAssinaturaLote = async () => {
+    if (!currentUser || !elegiveisAssinatura.length) return;
+    const { ok, falhas } = await GgconAnaliseService.confirmarAssinaturaEmLote(elegiveisAssinatura.map(r => r.id), currentUser.name);
+    setSelectedIds(new Set());
+    await refresh();
+    if (falhas > 0) toast('warning', `${ok} assinatura(s) confirmada(s); ${falhas} falharam — tente novamente para os que faltaram.`);
+    else toast('success', `${ok} assinatura(s) confirmada(s).`);
   };
 
   return (
@@ -1872,25 +1920,39 @@ export const GgconAnalisePage = () => {
       </div>
 
       {/* Barra de ações em lote — só aparece com alguma linha marcada */}
-      {canLiberar && selectedIds.size > 0 && (
+      {(canLiberar || podeAssinar) && selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-2xl bg-slate-800 text-white shadow-sm">
           <span className="text-sm font-semibold">{selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}</span>
-          <button
-            className="text-xs font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
-            disabled={!elegiveisLiberar.length}
-            title={!elegiveisLiberar.length ? 'Nenhuma das linhas selecionadas está "Aguardando Liberação"' : undefined}
-            onClick={() => setLoteOverlay('liberar')}
-          >
-            <Send size={12}/>Liberar em lote ({elegiveisLiberar.length})
-          </button>
-          <button
-            className="text-xs font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
-            disabled={!elegiveisReatribuir.length}
-            title={!elegiveisReatribuir.length ? 'Nenhuma das linhas selecionadas está em análise' : undefined}
-            onClick={() => setLoteOverlay('reatribuir')}
-          >
-            <UserCog size={12}/>Reatribuir em lote ({elegiveisReatribuir.length})
-          </button>
+          {canLiberar && (
+            <button
+              className="text-xs font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
+              disabled={!elegiveisLiberar.length}
+              title={!elegiveisLiberar.length ? 'Nenhuma das linhas selecionadas está "Aguardando Liberação"' : undefined}
+              onClick={() => setLoteOverlay('liberar')}
+            >
+              <Send size={12}/>Liberar em lote ({elegiveisLiberar.length})
+            </button>
+          )}
+          {canLiberar && (
+            <button
+              className="text-xs font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
+              disabled={!elegiveisReatribuir.length}
+              title={!elegiveisReatribuir.length ? 'Nenhuma das linhas selecionadas está em análise' : undefined}
+              onClick={() => setLoteOverlay('reatribuir')}
+            >
+              <UserCog size={12}/>Reatribuir em lote ({elegiveisReatribuir.length})
+            </button>
+          )}
+          {podeAssinar && (
+            <button
+              className="text-xs font-semibold bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
+              disabled={!elegiveisAssinatura.length}
+              title={!elegiveisAssinatura.length ? 'Nenhuma das linhas selecionadas está "Aguardando Assinatura" sem assinar' : undefined}
+              onClick={() => setLoteOverlay('assinatura')}
+            >
+              <FileSignature size={12}/>Confirmar assinatura em lote ({elegiveisAssinatura.length})
+            </button>
+          )}
           <button className="ml-auto text-xs text-slate-300 hover:text-white transition-colors" onClick={() => setSelectedIds(new Set())}>
             Limpar seleção
           </button>
@@ -1906,7 +1968,7 @@ export const GgconAnalisePage = () => {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {canLiberar && (
+                  {(canLiberar || podeAssinar) && (
                     <th className="px-3 py-3 w-8">
                       <input
                         type="checkbox"
@@ -1936,14 +1998,14 @@ export const GgconAnalisePage = () => {
                       { label: 'Editar Cadastro', icon: ClipboardCheck, onClick: () => setOverlay({ type: 'form', data: r }) },
                       ...(r.status === 'AGUARDANDO_LIBERACAO' ? [{ label: 'Liberar para Análise', icon: Send, onClick: () => setOverlay({ type: 'liberar', analise: r }) }] : []),
                       ...(r.status !== 'AGUARDANDO_LIBERACAO' && r.status !== 'CONCLUIDA' ? [{ label: 'Reatribuir Analista', icon: UserCog, onClick: () => setOverlay({ type: 'reatribuir', analise: r }) }] : []),
-                      { label: 'Alterar Status', icon: RefreshCw, onClick: () => setOverlay({ type: 'alterarStatus', analise: r }) },
+                      ...(isAdmin ? [{ label: 'Alterar Status', icon: RefreshCw, onClick: () => setOverlay({ type: 'alterarStatus', analise: r }) }] : []),
                       ...(r.status !== 'AGUARDANDO_LIBERACAO' ? [{ label: 'Resetar Análise', icon: RefreshCw, onClick: () => setResetRequest(r) }] : []),
                       { label: 'Excluir', icon: Trash2, danger: true, onClick: () => setDeleteId(r.id) },
                     ] : []),
                   ];
                   return (
                     <tr key={r.id} className={`border-t transition-colors ${isMeu ? 'bg-blue-50/50 border-l-[3px] border-l-blue-400 border-slate-100 hover:bg-blue-50/80' : 'border-slate-100 hover:bg-blue-50/30'}`}>
-                      {canLiberar && (
+                      {(canLiberar || podeAssinar) && (
                         <td className="px-3 py-3">
                           <input
                             type="checkbox"
@@ -1983,7 +2045,7 @@ export const GgconAnalisePage = () => {
                   );
                 })}
                 {!rows.length && (
-                  <tr><td colSpan={COLUNAS.length + (canLiberar ? 1 : 0)} className="py-16 text-center text-slate-400">
+                  <tr><td colSpan={COLUNAS.length + ((canLiberar || podeAssinar) ? 1 : 0)} className="py-16 text-center text-slate-400">
                     <Inbox size={28} className="mx-auto mb-2 text-slate-300"/>Nenhum registro encontrado
                   </td></tr>
                 )}
@@ -2105,6 +2167,14 @@ export const GgconAnalisePage = () => {
           analistas={analistas}
           onClose={() => setLoteOverlay(null)}
           onConfirm={executeReatribuirLote}
+        />
+      )}
+
+      {loteOverlay === 'assinatura' && (
+        <ConfirmarAssinaturaLoteModal
+          quantidade={elegiveisAssinatura.length}
+          onClose={() => setLoteOverlay(null)}
+          onConfirm={executeConfirmarAssinaturaLote}
         />
       )}
     </div>

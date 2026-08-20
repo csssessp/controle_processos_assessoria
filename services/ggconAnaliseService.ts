@@ -428,20 +428,21 @@ export const GgconAnaliseService = {
     await registrarEvento(id, 'RESETADA', { usuarioResponsavel, observacao: motivo ?? null });
   },
 
-  // Correção manual do status — para quem libera processos. Existe principalmente
-  // para os registros importados da planilha antiga de controle (já vêm "Concluída"
-  // porque já foram finalizados no processo real, mas sem checklist digitalizado
-  // aqui) e para qualquer correção pontual que não se encaixe no fluxo automático
-  // (Liberar → Iniciar → Concluir → Encaminhar). Não mexe em datas nem no checklist —
-  // só no status e, quando o novo status é AGUARDANDO_LIBERACAO, também limpa o
-  // analista responsável: por definição, "aguardando liberação" é o estado de quem
-  // ainda não foi atribuído a ninguém, então os dois campos nunca podem ficar
-  // inconsistentes (status "aguardando" com um analista já preenchido).
+  // Correção manual do status — só Administrador (checado na tela). Existe
+  // principalmente para os registros importados da planilha antiga de controle (já
+  // vêm "Concluída" porque já foram finalizados no processo real, mas sem checklist
+  // digitalizado aqui) e para qualquer correção pontual que não se encaixe no fluxo
+  // automático (Liberar → Iniciar → Concluir → Encaminhar). Não mexe em datas nem no
+  // checklist — só no status e, quando o novo status é AGUARDANDO_LIBERACAO, também
+  // limpa analista responsável e data de atribuição: por definição, "aguardando
+  // liberação" é o estado de quem ainda não foi atribuído a ninguém, então esses
+  // campos nunca podem ficar inconsistentes (status "aguardando" com analista/data
+  // de atribuição já preenchidos).
   alterarStatus: async (id: number, novoStatus: GgconAnaliseStatus, usuarioResponsavel: string, motivo: string): Promise<void> => {
     const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status').eq('id', id).single();
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: novoStatus,
-      ...(novoStatus === 'AGUARDANDO_LIBERACAO' ? { analista_atual: null, liberado_por: null } : {}),
+      ...(novoStatus === 'AGUARDANDO_LIBERACAO' ? { analista_atual: null, liberado_por: null, data_liberacao: null } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
@@ -466,6 +467,13 @@ export const GgconAnaliseService = {
   // tela reporta quantas deram certo e quantas falharam.
   liberarEmLote: async (ids: number[], analista: string, usuarioResponsavel: string): Promise<{ ok: number; falhas: number }> => {
     const resultados = await Promise.allSettled(ids.map(id => GgconAnaliseService.liberarParaAnalise(id, analista, usuarioResponsavel)));
+    const ok = resultados.filter(r => r.status === 'fulfilled').length;
+    return { ok, falhas: resultados.length - ok };
+  },
+
+  // Confirmação de assinatura em lote — mesmo padrão allSettled do liberarEmLote.
+  confirmarAssinaturaEmLote: async (ids: number[], usuarioResponsavel: string): Promise<{ ok: number; falhas: number }> => {
+    const resultados = await Promise.allSettled(ids.map(id => GgconAnaliseService.confirmarAssinatura(id, usuarioResponsavel)));
     const ok = resultados.filter(r => r.status === 'fulfilled').length;
     return { ok, falhas: resultados.length - ok };
   },
