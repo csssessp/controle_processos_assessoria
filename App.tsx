@@ -19,9 +19,27 @@ import { GgconProcessos } from './pages/GgconProcessos';
 import { GgconRelatorios } from './pages/GgconRelatorios';
 import { GgconAnalisePage } from './pages/GgconAnalise';
 
-/** Resolve a home page based on user areas */
+// Tela inicial escolhida pelo Administrador em Gerenciar Usuários (User.tela_inicial)
+// — cada chave só vale se o usuário ainda tiver a área correspondente; senão cai no
+// heurístico automático abaixo (nunca trava o login por causa de uma escolha desatualizada).
+const TELA_INICIAL_PATHS: Record<string, string> = {
+  dashboard: '/dashboard',
+  gpc: '/gpc',
+  ggcon: '/ggcon',
+  ggcon_analise: '/ggcon/analise',
+};
+
+/** Resolve a home page based on the user's chosen tela_inicial (if valid) or their areas */
 const getHomePath = (user: User | null): string => {
   if (!user) return '/login';
+  if (user.tela_inicial) {
+    switch (user.tela_inicial) {
+      case 'dashboard': if (userHasArea(user, 'assessoria')) return TELA_INICIAL_PATHS.dashboard; break;
+      case 'gpc': if (userHasArea(user, 'gpc')) return TELA_INICIAL_PATHS.gpc; break;
+      case 'ggcon': if (userHasArea(user, 'ggcon') && podeAcessarProcessosGgcon(user)) return TELA_INICIAL_PATHS.ggcon; break;
+      case 'ggcon_analise': if (userHasArea(user, 'ggcon')) return TELA_INICIAL_PATHS.ggcon_analise; break;
+    }
+  }
   if (userHasArea(user, 'assessoria')) return '/dashboard';
   if (userHasArea(user, 'gpc')) return '/gpc';
   if (userHasArea(user, 'ggcon')) return podeAcessarProcessosGgcon(user) ? '/ggcon' : '/ggcon/analise';

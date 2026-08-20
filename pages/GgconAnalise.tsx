@@ -258,8 +258,9 @@ const StatusBadge = ({ status }: { status: GgconAnaliseStatus }) => {
 // Etiqueta visual "Novo" — não é um status novo na máquina de estados (continua
 // AGUARDANDO_LIBERACAO como qualquer cadastro manual), só sinaliza que este
 // registro veio automaticamente de "Processos GGCON" (Tipo = Prestação de Contas)
-// e ainda ninguém liberou. Some sozinha quando o status deixa de ser Aguardando
-// Liberação — não precisa "desligar" o campo criado_automaticamente.
+// e ainda ninguém liberou. Controlada por `novo_destaque` (coluna própria de
+// destaque/ordenação — ver getFila em ggconAnaliseService.ts), que o service já
+// zera assim que alguém libera ou corrige o status manualmente.
 const NovoBadge = () => (
   <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap bg-cyan-50 text-cyan-700 border-cyan-200">
     Novo
@@ -1218,7 +1219,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
           </div>
           <div className="flex items-center gap-2">
             {analise && <StatusBadge status={analise.status}/>}
-            {analise && analise.status === 'AGUARDANDO_LIBERACAO' && analise.criado_automaticamente && <NovoBadge/>}
+            {analise && analise.novo_destaque && <NovoBadge/>}
             {analise && canManage && (
               <button
                 className={BTN_MUTED}
@@ -2038,7 +2039,7 @@ export const GgconAnalisePage = () => {
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <StatusBadge status={r.status}/>
-                          {r.status === 'AGUARDANDO_LIBERACAO' && r.criado_automaticamente && <NovoBadge/>}
+                          {r.novo_destaque && <NovoBadge/>}
                         </div>
                       </td>
                       <td className="px-3 py-3 text-sm text-slate-600 max-w-[120px] truncate">

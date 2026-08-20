@@ -112,6 +112,10 @@ export const GgconAnaliseService = {
     let query = supabase
       .from('cgof_ggcon_analises')
       .select('*', { count: 'exact' })
+      // Processos novos (criados automaticamente, ainda sem liberação) sempre no
+      // topo, independente da ordenação escolhida — mesmo padrão de `urgente` em
+      // cgof_ggcon_processos (ver GgconService.getProcessos).
+      .order('novo_destaque', { ascending: false })
       .order(sortBy, { ascending: sortOrder === 'asc', nullsFirst: false })
       .order('id', { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
@@ -220,6 +224,9 @@ export const GgconAnaliseService = {
       data_recebimento: payload.data_recebimento ?? hoje(),
       observacoes: payload.observacoes ?? null,
       criado_automaticamente: payload.criado_automaticamente ?? false,
+      // Destaque de ordenação (some assim que alguém liberar ou corrigir o status) —
+      // só faz sentido para quem já nasce automaticamente, o cadastro manual não precisa.
+      novo_destaque: payload.criado_automaticamente ?? false,
       created_by: criadoPor,
     };
 
@@ -278,6 +285,7 @@ export const GgconAnaliseService = {
       liberado_por: usuarioResponsavel,
       status: 'AGUARDANDO_ANALISE',
       data_liberacao: hoje(),
+      novo_destaque: false,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
@@ -453,6 +461,9 @@ export const GgconAnaliseService = {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: novoStatus,
       ...(novoStatus === 'AGUARDANDO_LIBERACAO' ? { analista_atual: null, liberado_por: null, data_liberacao: null } : {}),
+      // Correção manual de status = alguém já olhou o registro — não precisa mais
+      // do destaque de "novo/sem revisão" no topo da lista.
+      novo_destaque: false,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);

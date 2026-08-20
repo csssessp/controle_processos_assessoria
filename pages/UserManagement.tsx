@@ -6,7 +6,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { DbService } from '../services/dbService';
 import { generateUUID } from '../utils';
 import { User, UserRole, UserArea, USER_AREA_OPTIONS } from '../types';
-import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin, Eye, ClipboardCheck } from 'lucide-react';
+import { Plus, Trash2, Edit, Shield, Check, X as XIcon, Lock, AlertCircle, Loader2, MapPin, Eye, ClipboardCheck, Home } from 'lucide-react';
 
 // "GPC" (o nível, não a área) dá acesso ampliado dentro das telas de GPC (ver
 // isAdminView em GpcProcessos_v2.tsx) — é diferente de ter a Área GPC marcada,
@@ -95,6 +95,7 @@ export const UserManagement = () => {
       ggcon_libera_analise: formData.get('ggcon_libera_analise') === 'on',
       ggcon_assina: formData.get('ggcon_assina') === 'on',
       ggcon_restrito_analise: formData.get('ggcon_restrito_analise') === 'on',
+      tela_inicial: (formData.get('tela_inicial') as string) || null,
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
     };
@@ -318,6 +319,18 @@ export const UserManagement = () => {
                   </label>
                 </div>
                 <p className="text-[10px] text-slate-400">Selecione as áreas que o usuário terá acesso. Administradores têm acesso a todas as áreas automaticamente.</p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1"><Home size={12}/> Tela Inicial</label>
+                <select name="tela_inicial" defaultValue={editingUser?.tela_inicial ?? ''} className="w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none text-sm">
+                  <option value="">Automático (conforme as áreas marcadas)</option>
+                  <option value="dashboard">Dashboard (Assessoria)</option>
+                  <option value="gpc">Processos GPC</option>
+                  <option value="ggcon">Processos GGCON</option>
+                  <option value="ggcon_analise">Análise Processo GGCON</option>
+                </select>
+                <p className="text-[10px] text-slate-400">Tela em que o usuário cai ao entrar no sistema. Se a área correspondente não estiver marcada para ele, o sistema volta para a tela automática.</p>
               </div>
 
               <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">

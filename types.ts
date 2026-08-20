@@ -35,6 +35,7 @@ export interface User {
   ggcon_libera_analise?: boolean; // Pode liberar processos para a fila de Análise GGCON
   ggcon_assina?: boolean; // Pode confirmar a assinatura na etapa de Análise GGCON (ex.: Marilsa)
   ggcon_restrito_analise?: boolean; // Só enxerga "Análise Processo GGCON" — sem acesso a Processos/Relatórios GGCON
+  tela_inicial?: string | null; // Tela em que o usuário cai ao entrar — ver TELA_INICIAL_OPCOES em App.tsx
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
 }
@@ -522,6 +523,7 @@ export interface GgconAnalise {
   area_encaminhamento: string | null;
   observacoes: string | null;
   criado_automaticamente: boolean;
+  novo_destaque: boolean;
   created_by: string | null;
   created_at?: string;
   updated_at?: string;
