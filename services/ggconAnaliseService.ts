@@ -232,7 +232,9 @@ export const GgconAnaliseService = {
     return analise;
   },
 
-  // Edição do cabeçalho do despacho (liberador/admin) — não mexe em status/checklist.
+  // Edição do cabeçalho do despacho (liberador/admin, ou o próprio analista responsável
+  // pela análise) — não mexe em status/checklist. A tela trava Nº do Processo SEI sempre
+  // e a Data de Recebimento quando quem edita não pode liberar processos.
   atualizarCabecalho: async (id: number, payload: Partial<GgconAnalise>): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       convenio_numero: payload.convenio_numero ?? null,
@@ -332,8 +334,8 @@ export const GgconAnaliseService = {
   },
 
   // Nota de acompanhamento livre (campo "Observações" do cabeçalho) — editável a
-  // qualquer momento do fluxo pelo analista responsável ou por quem libera,
-  // diferente dos campos do despacho (que só quem libera edita via atualizarCabecalho).
+  // qualquer momento do fluxo pelo analista responsável ou por quem libera, com
+  // autosave no blur do textarea (sem precisar abrir o formulário de Editar Cadastro).
   atualizarObservacoes: async (id: number, observacoes: string | null): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       observacoes: observacoes?.trim() || null,

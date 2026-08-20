@@ -3,6 +3,7 @@ import {
   Search, Plus, X, Check, Loader2, AlertCircle, ClipboardCheck, Send, UserCog,
   History, ChevronLeft, ChevronRight, Lock, Trash2, MoreVertical, RotateCcw, Inbox,
   ArrowUp, ArrowDown, ArrowUpDown, RefreshCw, StickyNote, Download, Users, ExternalLink,
+  Pencil,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
@@ -381,10 +382,14 @@ const RowMenu = ({ items }: { items: { label: string; icon: any; onClick: () => 
 
 // ─── Formulário de Despacho (cadastro/edição do cabeçalho) ────────────────────
 
-const DespachoForm = ({ initial, onSave, onClose }: {
+const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
   initial?: Partial<GgconAnalise>;
   onSave: (p: Partial<GgconAnalise>) => Promise<void>;
   onClose: () => void;
+  // Analista responsável pode editar o cadastro a partir da tela de análise, mas não
+  // mexe no Nº do Processo SEI (já travado abaixo via isEdit) nem na Data de
+  // Recebimento (é o marco de entrada do processo, só quem libera corrige).
+  lockRecebimento?: boolean;
 }) => {
   const [form, setForm] = useState<Partial<GgconAnalise> & { termoAditivoTexto?: string }>({
     custeio: false, investimento: false, termo_retirratificacao: false, tipo_conveniada: 'ENTIDADE',
@@ -514,7 +519,8 @@ const DespachoForm = ({ initial, onSave, onClose }: {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={LABEL}>Data de Recebimento</label>
-          <input className={INPUT} type="date" value={form.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)}/>
+          <input className={INPUT} type="date" value={form.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)} disabled={lockRecebimento}/>
+          {lockRecebimento && <p className="text-[11px] text-slate-400 mt-1">Só quem libera processos para análise pode corrigir a data de recebimento.</p>}
         </div>
         <div className="sm:col-span-2">
           <label className={LABEL}>Observações</label>
@@ -963,6 +969,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [showModelos, setShowModelos] = useState(false);
   const [showAlterarStatus, setShowAlterarStatus] = useState(false);
   const [showLimparHistorico, setShowLimparHistorico] = useState(false);
+  const [showEditCadastro, setShowEditCadastro] = useState(false);
   const isAdmin = currentUser?.role === UserRole.ADMIN;
   const [resetMotivo, setResetMotivo] = useState('');
 
@@ -1078,6 +1085,14 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     toast('success', `Status alterado para ${GGCON_ANALISE_STATUS_LABELS[novoStatus]}.`);
   };
 
+  const handleSalvarCadastro = async (payload: Partial<GgconAnalise>) => {
+    if (!analise) return;
+    await GgconAnaliseService.atualizarCabecalho(analise.id, payload);
+    await load();
+    onChanged();
+    toast('success', 'Cadastro atualizado.');
+  };
+
   const handleLimparHistorico = async (password: string) => {
     if (!analise || !currentUser) return;
     const ok = await DbService.verifyPassword(currentUser.id, password);
@@ -1100,6 +1115,15 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
           </div>
           <div className="flex items-center gap-2">
             {analise && <StatusBadge status={analise.status}/>}
+            {analise && canManage && (
+              <button
+                className={BTN_MUTED}
+                title="Editar os dados do cadastro (convênio, interessado, vigência...)"
+                onClick={() => setShowEditCadastro(true)}
+              >
+                <Pencil size={12}/>Editar Cadastro
+              </button>
+            )}
             {analise && (
               <button
                 className={BTN_MUTED}
@@ -1348,6 +1372,17 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
           </div>
         )}
       </div>
+
+      {showEditCadastro && analise && (
+        <Modal title="Editar Cadastro" subtitle="Despacho — conferência de Prestação de Contas" onClose={() => setShowEditCadastro(false)} size="xl">
+          <DespachoForm
+            initial={analise}
+            lockRecebimento={!canLiberar}
+            onSave={handleSalvarCadastro}
+            onClose={() => setShowEditCadastro(false)}
+          />
+        </Modal>
+      )}
 
       {showReset && analise && (
         <PasswordConfirmModal
