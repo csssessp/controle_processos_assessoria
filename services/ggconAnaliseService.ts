@@ -162,6 +162,15 @@ export const GgconAnaliseService = {
     return data as GgconAnalise;
   },
 
+  // Usado pela tela "Processos GGCON" para não duplicar o registro de análise quando
+  // o mesmo processo (Tipo = Prestação de Contas) é salvo de novo depois de já ter
+  // criado uma análise correspondente.
+  existeParaProcesso: async (processoSei: string): Promise<boolean> => {
+    const { data, error } = await supabase.from('cgof_ggcon_analises').select('id').eq('processo_sei', processoSei).limit(1);
+    if (error) { console.error(error); return false; }
+    return !!data && data.length > 0;
+  },
+
   getItens: async (analiseId: number): Promise<GgconAnaliseItem[]> => {
     const { data, error } = await supabase
       .from('cgof_ggcon_analise_itens')
@@ -210,6 +219,7 @@ export const GgconAnaliseService = {
       status: 'AGUARDANDO_LIBERACAO' as GgconAnaliseStatus,
       data_recebimento: payload.data_recebimento ?? hoje(),
       observacoes: payload.observacoes ?? null,
+      criado_automaticamente: payload.criado_automaticamente ?? false,
       created_by: criadoPor,
     };
 

@@ -521,6 +521,7 @@ export interface GgconAnalise {
   data_encaminhamento: string | null;
   area_encaminhamento: string | null;
   observacoes: string | null;
+  criado_automaticamente: boolean;
   created_by: string | null;
   created_at?: string;
   updated_at?: string;

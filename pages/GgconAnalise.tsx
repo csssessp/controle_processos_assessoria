@@ -255,6 +255,17 @@ const StatusBadge = ({ status }: { status: GgconAnaliseStatus }) => {
   );
 };
 
+// Etiqueta visual "Novo" — não é um status novo na máquina de estados (continua
+// AGUARDANDO_LIBERACAO como qualquer cadastro manual), só sinaliza que este
+// registro veio automaticamente de "Processos GGCON" (Tipo = Prestação de Contas)
+// e ainda ninguém liberou. Some sozinha quando o status deixa de ser Aguardando
+// Liberação — não precisa "desligar" o campo criado_automaticamente.
+const NovoBadge = () => (
+  <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap bg-cyan-50 text-cyan-700 border-cyan-200">
+    Novo
+  </span>
+);
+
 const ProgressoChecklist = ({ respondidos, total }: { respondidos: number; total: number }) => {
   if (!total) return <span className="text-slate-300 text-xs">-</span>;
   const pct = Math.round((respondidos / total) * 100);
@@ -1207,6 +1218,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
           </div>
           <div className="flex items-center gap-2">
             {analise && <StatusBadge status={analise.status}/>}
+            {analise && analise.status === 'AGUARDANDO_LIBERACAO' && analise.criado_automaticamente && <NovoBadge/>}
             {analise && canManage && (
               <button
                 className={BTN_MUTED}
@@ -2023,7 +2035,12 @@ export const GgconAnalisePage = () => {
                       <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">{r.convenio_numero ?? '-'}</td>
                       <td className="px-3 py-3 text-sm text-slate-700 max-w-[200px] truncate" title={r.interessado ?? ''}>{r.interessado ?? '-'}</td>
                       <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">{GGCON_TIPO_CONVENIADA_LABELS[r.tipo_conveniada]}</td>
-                      <td className="px-3 py-3"><StatusBadge status={r.status}/></td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <StatusBadge status={r.status}/>
+                          {r.status === 'AGUARDANDO_LIBERACAO' && r.criado_automaticamente && <NovoBadge/>}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-sm text-slate-600 max-w-[120px] truncate">
                         {r.analista_atual ?? '-'}
                         {isMeu && <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold align-middle">VOCÊ</span>}

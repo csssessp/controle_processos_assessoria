@@ -6,14 +6,16 @@ import autoTable from 'jspdf-autotable';
 import {
   Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight,
   X, Check, Loader2, AlertCircle, Download, Scale, Activity, Lock, ArrowUp, ArrowDown, ArrowUpDown, Flag, MoreVertical, RotateCcw,
+  ClipboardCheck, Building2, Landmark,
 } from 'lucide-react';
 import { GgconService, GgconSortField, diasSemMovimentacao, alertaComiteGestor, deriveSituacaoFromEtapa } from '../services/ggconService';
+import { GgconAnaliseService } from '../services/ggconAnaliseService';
 import { MUNICIPIOS, buscarDRSPorMunicipio } from '../services/ggconMunicipios';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
-import { GgconProcesso } from '../types';
+import { GgconProcesso, GgconTipoConveniada } from '../types';
 
 // ─── listas de referência (extraídas da planilha produtividade_todos.xlsm, aba
 // Listas_Configuracoes) — combinadas com <datalist>, então o usuário pode
@@ -353,6 +355,60 @@ const GgconForm = ({ initial, tecnicos, onSave, onClose }: {
   );
 };
 
+// ─── Sugestão de registrar na Análise GGCON — aparece depois de salvar um processo
+// com Tipo = "Prestação de Contas" que ainda não tem análise correspondente. Só
+// pergunta Entidade/Prefeitura porque "Processos GGCON" não guarda essa distinção
+// (ver services/ggconAnaliseService.ts:existeParaProcesso para a checagem de duplicidade). ──
+
+const NovaAnaliseAutomaticaModal = ({ processo, onConfirm, onSkip }: {
+  processo: Partial<GgconProcesso>; onConfirm: (tipoConveniada: GgconTipoConveniada) => Promise<void>; onSkip: () => void;
+}) => {
+  const [busy, setBusy] = useState<GgconTipoConveniada | null>(null);
+  const [err, setErr] = useState('');
+
+  const escolher = async (tipo: GgconTipoConveniada) => {
+    setBusy(tipo); setErr('');
+    try { await onConfirm(tipo); }
+    catch (ex: any) { setErr(ex.message); setBusy(null); }
+  };
+
+  return (
+    <Modal title="Registrar na Análise GGCON?" subtitle={`Processo SEI ${processo.processo_sei} — Tipo "Prestação de Contas"`} onClose={onSkip} size="md">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600 flex items-start gap-2">
+          <ClipboardCheck size={16} className="text-blue-600 shrink-0 mt-0.5"/>
+          Este processo é do tipo "Prestação de Contas". Deseja já registrá-lo na tela
+          "Análise Processo GGCON" para conferência do checklist? A conveniada é Entidade ou Prefeitura?
+        </p>
+        {err && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16}/>{err}</div>}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={busy !== null}
+            onClick={() => escolher('ENTIDADE')}
+          >
+            {busy === 'ENTIDADE' ? <Loader2 size={22} className="animate-spin text-blue-600"/> : <Building2 size={22} className="text-blue-600"/>}
+            <span className="text-sm font-semibold text-slate-700">Entidade</span>
+          </button>
+          <button
+            type="button"
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={busy !== null}
+            onClick={() => escolher('PREFEITURA')}
+          >
+            {busy === 'PREFEITURA' ? <Loader2 size={22} className="animate-spin text-blue-600"/> : <Landmark size={22} className="text-blue-600"/>}
+            <span className="text-sm font-semibold text-slate-700">Prefeitura</span>
+          </button>
+        </div>
+        <button type="button" className="w-full text-center text-xs text-slate-400 hover:text-slate-600 transition-colors" disabled={busy !== null} onClick={onSkip}>
+          Agora não
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
 // ─── Etapa badge (heurística de cor por palavra-chave, mesma convenção "pílula
 // com borda" usada em GPC — não há um enum fixo de etapas, então a cor é
 // inferida do texto em vez de mapeada 1:1 como em GPC) ────────────────────────
@@ -648,6 +704,8 @@ export const GgconProcessos = () => {
   const { confirmAction } = useConfirm();
   const { currentUser } = useApp();
   const isViewOnly = currentUser?.view_only === true;
+  // Sugestão de criar a análise correspondente — ver NovaAnaliseAutomaticaModal.
+  const [sugestaoAnalise, setSugestaoAnalise] = useState<Partial<GgconProcesso> | null>(null);
   const [rows, setRows] = useState<GgconProcesso[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -743,6 +801,34 @@ export const GgconProcessos = () => {
   const refreshAfterChange = async () => {
     await load();
     if (overlay?.type === 'historico') await loadHistorico(overlay.processoSei);
+  };
+
+  // Depois de salvar um processo Tipo = "Prestação de Contas", sugere criar o
+  // registro correspondente na Análise GGCON — só se ainda não existir um (evita
+  // duplicar quando o mesmo processo é salvo de novo, ex.: editar outra movimentação).
+  const salvarProcessoEChecarAnalise = async (p: Partial<GgconProcesso>) => {
+    await GgconService.saveProcesso(p);
+    await refreshAfterChange();
+    if (p.tipo === 'Prestação de Contas' && p.processo_sei) {
+      const jaExiste = await GgconAnaliseService.existeParaProcesso(p.processo_sei);
+      if (!jaExiste) setSugestaoAnalise(p);
+    }
+  };
+
+  const confirmarNovaAnalise = async (tipoConveniada: GgconTipoConveniada) => {
+    if (!sugestaoAnalise?.processo_sei || !currentUser) return;
+    await GgconAnaliseService.criarAnalise({
+      processo_sei: sugestaoAnalise.processo_sei,
+      interessado: sugestaoAnalise.interessado ?? null,
+      objeto: sugestaoAnalise.assunto ?? null,
+      municipio: sugestaoAnalise.municipio ?? null,
+      drs_unidade: sugestaoAnalise.drs_unidade ?? null,
+      data_recebimento: sugestaoAnalise.data_recebimento ?? null,
+      tipo_conveniada: tipoConveniada,
+      criado_automaticamente: true,
+    }, currentUser.name);
+    setSugestaoAnalise(null);
+    toast('success', 'Processo registrado na Análise GGCON.');
   };
 
   const requestDeleteMovimentacao = async (codigo: number) => {
@@ -989,10 +1075,18 @@ export const GgconProcessos = () => {
           <GgconForm
             initial={overlay.data}
             tecnicos={tecnicos}
-            onSave={async (p) => { await GgconService.saveProcesso(p); await refreshAfterChange(); }}
+            onSave={salvarProcessoEChecarAnalise}
             onClose={fecharModalForm}
           />
         </Modal>
+      )}
+
+      {sugestaoAnalise && (
+        <NovaAnaliseAutomaticaModal
+          processo={sugestaoAnalise}
+          onConfirm={confirmarNovaAnalise}
+          onSkip={() => setSugestaoAnalise(null)}
+        />
       )}
 
       {/* Histórico do fluxo */}
