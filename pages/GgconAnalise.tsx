@@ -48,6 +48,27 @@ const RESPOSTA_LABEL: Record<string, string> = { SIM: 'SIM', NAO: 'NÃO', NAO_SE
 const toLinks = (raw: string[] | string | null | undefined): string[] =>
   Array.isArray(raw) ? raw : raw ? [raw] : [];
 
+// Cada item de documento_sei continua sendo uma string (sem alterar o schema/tipo da
+// coluna) — quando tem número de página, vira um JSON `{url, pagina}`; quando não tem,
+// continua sendo a URL pura (formato legado, inclusive dos links já salvos antes desta
+// funcionalidade existir). parseLink faz o parse tolerante dos dois formatos.
+interface DocSeiLink { url: string; pagina?: string }
+
+const parseLink = (raw: string): DocSeiLink => {
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.url === 'string') {
+        return { url: parsed.url, pagina: parsed.pagina || undefined };
+      }
+    } catch { /* não era JSON — trata como link puro mesmo começando com "{" */ }
+  }
+  return { url: raw };
+};
+
+const serializeLink = (link: DocSeiLink): string =>
+  link.pagina?.trim() ? JSON.stringify({ url: link.url, pagina: link.pagina.trim() }) : link.url;
+
 // Brasão de SP carregado uma vez e cacheado em base64 (jsPDF.addImage precisa de
 // dados da imagem, não só a URL do asset) — mesmo brasão usado no cabeçalho dos
 // PDFs oficiais "Check Entidade"/"Check List Prefeitura".
@@ -130,8 +151,8 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI']],
     body: itens.map(i => {
       const dica = CHECKLISTS[analise.tipo_conveniada].find(t => t.numero === i.item_numero)?.dica;
-      const links = toLinks(i.documento_sei);
-      const docCell = links.length ? links.join('\n') : (dica || '-');
+      const links = toLinks(i.documento_sei).map(parseLink);
+      const docCell = links.length ? links.map(l => l.pagina ? `${l.url} (pág. ${l.pagina})` : l.url).join('\n') : (dica || '-');
       return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell];
     }),
     didParseCell: (data) => {
@@ -142,10 +163,10 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     },
     didDrawCell: (data) => {
       if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
-        const links = toLinks(itens[data.row.index]?.documento_sei);
+        const links = toLinks(itens[data.row.index]?.documento_sei).map(parseLink);
         if (links.length) {
           const lineHeight = data.cell.height / links.length;
-          links.forEach((url, idx) => {
+          links.forEach(({ url }, idx) => {
             doc.link(data.cell.x, data.cell.y + idx * lineHeight, data.cell.width, lineHeight, { url });
           });
         }
@@ -877,13 +898,15 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
   item: GgconAnaliseItem; dica?: string; readOnly: boolean; onChange: (patch: Partial<GgconAnaliseItem>) => void;
 }) => {
   const [novoLink, setNovoLink] = useState('');
+  const [novaPagina, setNovaPagina] = useState('');
   const links = toLinks(item.documento_sei);
 
   const addLink = () => {
     const v = novoLink.trim();
     if (!v) return;
-    onChange({ documento_sei: [...links, v] });
+    onChange({ documento_sei: [...links, serializeLink({ url: v, pagina: novaPagina })] });
     setNovoLink('');
+    setNovaPagina('');
   };
   const removeLink = (idx: number) => {
     const next = links.filter((_, i) => i !== idx);
@@ -922,19 +945,27 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
       {/* Documento(s) SEI — um item pode ter mais de um link comprobatório; cada link
           fica clicável aqui (abre em nova aba) e também vira hyperlink no PDF exportado. */}
       <div className="pl-9 mt-2 space-y-1.5">
-        {links.map((link, idx) => (
-          <div key={idx} className="flex items-center gap-1.5 bg-blue-50/70 border border-blue-100 rounded-lg px-2 py-1">
-            <ExternalLink size={11} className="text-blue-500 shrink-0"/>
-            <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 hover:underline truncate flex-1" title={link}>
-              {link}
-            </a>
-            {!readOnly && (
-              <button type="button" onClick={() => removeLink(idx)} className="text-slate-400 hover:text-red-600 shrink-0" title="Remover link">
-                <X size={12}/>
-              </button>
-            )}
-          </div>
-        ))}
+        {links.map((raw, idx) => {
+          const { url, pagina } = parseLink(raw);
+          return (
+            <div key={idx} className="flex items-center gap-1.5 bg-blue-50/70 border border-blue-100 rounded-lg px-2 py-1">
+              <ExternalLink size={11} className="text-blue-500 shrink-0"/>
+              <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 hover:underline truncate flex-1" title={url}>
+                {url}
+              </a>
+              {pagina && (
+                <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 shrink-0">
+                  pág. {pagina}
+                </span>
+              )}
+              {!readOnly && (
+                <button type="button" onClick={() => removeLink(idx)} className="text-slate-400 hover:text-red-600 shrink-0" title="Remover link">
+                  <X size={12}/>
+                </button>
+              )}
+            </div>
+          );
+        })}
         {!readOnly ? (
           <div className="flex gap-1.5">
             <input
@@ -942,6 +973,14 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
               placeholder={dica ? `Colar link do Documento SEI... (${dica})` : 'Colar link do Documento SEI...'}
               value={novoLink}
               onChange={e => setNovoLink(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addLink(); } }}
+            />
+            <input
+              className="w-20 shrink-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              placeholder="Pág."
+              title="Número da página do documento SEI onde a informação está"
+              value={novaPagina}
+              onChange={e => setNovaPagina(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addLink(); } }}
             />
             <button
