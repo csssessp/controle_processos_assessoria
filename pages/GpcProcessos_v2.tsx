@@ -1790,7 +1790,13 @@ const FluxoTecnicoFormInline = ({ registroId, exercicioId, posicoes, numPaginas,
 
               <option value="">— selecione —</option>
 
-              {posicoes.map(p => <option key={p.codigo} value={p.codigo}>{p.posicao}</option>)}
+              {posicoes.map(p => {
+                // Fora de parcelamento, o fluxo técnico só deve levar a "Exercício
+                // Concluído" — as demais posições ficam desabilitadas (não removidas,
+                // podem voltar a ser usadas no futuro).
+                const disabled = !hasParcs && p.posicao !== 'Exercício Concluído';
+                return <option key={p.codigo} value={p.codigo} disabled={disabled}>{p.posicao}</option>;
+              })}
 
             </select>
 
@@ -1806,7 +1812,13 @@ const FluxoTecnicoFormInline = ({ registroId, exercicioId, posicoes, numPaginas,
             <option value="">— selecione —</option>
 
             <optgroup label="Movimentos do Processo">
-              {MOVIMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+              {MOVIMENTOS.map(m => {
+                // Fora de parcelamento, o fluxo técnico só deve levar a "ENCAMINHADO AO
+                // GGCON" — os demais movimentos ficam desabilitados (não removidos,
+                // podem voltar a ser usadas no futuro).
+                const disabled = !hasParcs && m !== 'ENCAMINHADO AO GGCON';
+                return <option key={m} value={m} disabled={disabled}>{m}</option>;
+              })}
             </optgroup>
 
             {hasParcs && parcelamentos!.map(parc => {
@@ -3647,7 +3659,7 @@ const AssinaturaResponsavelSection = ({ registroId, exercicioId, signatoryUsers,
 // nada do registro nem de outro exercício. É o único lugar de trabalho para um exercício: dados
 // financeiros, análise, situação/julgamento, correção documental e fluxo, tudo nesta aba.
 
-const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2, isParcelamento, parcelamentoLabel }: {
+const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signatoryUsers, currentUserName, onOpenExercicioForm, focusExercicioId, onSynced, onDeleted, fallbackResponsavelAssinatura, fallbackResponsavelAssinatura2, isParcelamento, parcelamentoLabel, parcelamentos, onSaveParc }: {
   registroId: number;
   exercicios: GpcExercicio[];
   posicoes: GpcPosicao[];
@@ -3669,6 +3681,11 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
   // cobrir vários exercícios), então a Análise também é única, não por exercício.
   isParcelamento?: boolean;
   parcelamentoLabel?: string; // 'Parcelamento' ou 'Reparcelamento', usado nos títulos no lugar de "Exercício X"
+  // Parcelamentos ativos do processo (não deste sub-registro de parcelamento) — usado pelo
+  // Fluxo Técnico pra saber se deve liberar todas as opções de Posição/Movimento ou restringir
+  // a "Exercício Concluído"/"ENCAMINHADO AO GGCON".
+  parcelamentos?: GpcParcelamento[] | null;
+  onSaveParc?: (updated: GpcParcelamento) => Promise<void>;
 }) => {
   const { toast } = useToast();
   const { currentUser } = useApp();
@@ -4238,6 +4255,8 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
               signatoryUsers={signatoryUsers}
               hideAssinatura
               currentUserName={currentUserName}
+              parcelamentos={parcelamentos}
+              onSaveParc={onSaveParc}
             />
           </CollapsibleSection>
 
@@ -5330,6 +5349,8 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
                 fallbackResponsavelAssinatura2={liveRecord?.responsavel_assinatura_2}
                 isParcelamento={tipoParc !== ''}
                 parcelamentoLabel={tipoParc === 'REPARCELAMENTO' ? 'Reparcelamento' : 'Parcelamento'}
+                parcelamentos={full?.parcelamentos}
+                onSaveParc={async p => { await GpcService.saveParcelamento(p); await refreshFull(); }}
               />
 
               {tipoParc === '' && <ObjetosTasSections />}
