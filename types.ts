@@ -486,7 +486,7 @@ export const GGCON_ANALISE_STATUS_LABELS: Record<GgconAnaliseStatus, string> = {
   CONCLUIDA: 'Concluída',
 };
 
-export type GgconAnaliseResposta = 'SIM' | 'NAO' | 'NAO_SE_APLICA';
+export type GgconAnaliseResposta = 'SIM' | 'NAO' | 'NAO_SE_APLICA' | 'OUTROS';
 
 export interface GgconAnalise {
   id: number;

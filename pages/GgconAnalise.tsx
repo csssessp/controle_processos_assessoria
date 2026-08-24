@@ -40,7 +40,7 @@ const fmtDate = (d: string | null | undefined) => {
 const fmtBRL = (v: number | null | undefined) =>
   v == null ? '-' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const RESPOSTA_LABEL: Record<string, string> = { SIM: 'SIM', NAO: 'NÃO', NAO_SE_APLICA: 'N/A' };
+const RESPOSTA_LABEL: Record<string, string> = { SIM: 'SIM', NAO: 'NÃO', NAO_SE_APLICA: 'N/A', OUTROS: 'OUTROS' };
 
 // Normaliza documento_sei para array — blindagem contra a coluna ainda estar no tipo
 // antigo (TEXT, uma string só) num banco onde a migration parte_66 não tiver rodado
@@ -892,6 +892,7 @@ const RESPOSTA_OPCOES: { value: GgconAnaliseResposta; label: string; on: string;
   { value: 'SIM', label: 'Sim', on: 'bg-green-600 text-white border-green-600', off: 'bg-white text-slate-500 border-slate-200 hover:border-green-300' },
   { value: 'NAO', label: 'Não', on: 'bg-red-600 text-white border-red-600', off: 'bg-white text-slate-500 border-slate-200 hover:border-red-300' },
   { value: 'NAO_SE_APLICA', label: 'Não se aplica', on: 'bg-slate-500 text-white border-slate-500', off: 'bg-white text-slate-500 border-slate-200 hover:border-slate-400' },
+  { value: 'OUTROS', label: 'Outros', on: 'bg-amber-500 text-white border-amber-500', off: 'bg-white text-slate-500 border-slate-200 hover:border-amber-300' },
 ];
 
 const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
