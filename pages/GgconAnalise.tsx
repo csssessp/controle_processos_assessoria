@@ -147,13 +147,13 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     startY: y + 5,
     styles: { fontSize: 7, cellPadding: 1.3, valign: 'middle' },
     headStyles: { fillColor: [30, 64, 175] },
-    columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 165 }, 2: { cellWidth: 20, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 65, fontSize: 6 } },
-    head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI']],
+    columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 55, fontSize: 6 }, 4: { cellWidth: 40, fontSize: 6.5 } },
+    head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI', 'Observação']],
     body: itens.map(i => {
       const dica = CHECKLISTS[analise.tipo_conveniada].find(t => t.numero === i.item_numero)?.dica;
       const links = toLinks(i.documento_sei).map(parseLink);
       const docCell = links.length ? links.map(l => l.pagina ? `${l.url} (pág. ${l.pagina})` : l.url).join('\n') : (dica || '-');
-      return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell];
+      return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell, i.observacao ?? '-'];
     }),
     didParseCell: (data) => {
       if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
