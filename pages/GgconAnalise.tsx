@@ -1526,8 +1526,9 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
                 {/* Resetar — apaga o checklist preenchido e as datas de análise/encaminhamento,
                     devolvendo o processo para a fila do mesmo analista. Ação sensível, por isso
-                    exige senha (mesmo padrão de exclusão) e fica registrada no histórico. */}
-                {canLiberar && analise.status !== 'AGUARDANDO_LIBERACAO' && (
+                    exige senha (mesmo padrão de exclusão), fica registrada no histórico, e desde
+                    2026-08-21 é restrita a Administrador (mesmo padrão de Alterar Status). */}
+                {isAdmin && analise.status !== 'AGUARDANDO_LIBERACAO' && (
                   <div className="bg-white rounded-xl border border-amber-200 bg-amber-50/30 p-4 space-y-2">
                     <h4 className="text-sm font-bold text-amber-800 flex items-center gap-1.5"><RefreshCw size={14}/>Resetar Análise</h4>
                     <p className="text-[11px] text-amber-700/80">Apaga todas as respostas do checklist, a pendência registrada e as datas de análise/assinatura/encaminhamento. O analista responsável é mantido.</p>
@@ -1870,8 +1871,11 @@ export const GgconAnalisePage = () => {
       )}
 
       {/* Destaque — processos aguardando a assinatura de quem tem a permissão
-          ggcon_assina (ex.: Marilsa), visível assim que ela entra na tela. */}
-      {currentUser && podeAssinarGgcon(currentUser) && resumo.aguardandoAssinatura > 0 && (
+          ggcon_assina (ex.: Marilsa), visível assim que ela entra na tela. Checa o
+          campo diretamente (não podeAssinarGgcon, que também libera Admin por poder
+          agir como assinante de emergência) — Admin não deve ver esse aviso a menos
+          que também tenha ggcon_assina configurado de propósito. */}
+      {currentUser?.ggcon_assina === true && resumo.aguardandoAssinatura > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 rounded-2xl bg-purple-600 text-white shadow-sm">
           <FileSignature size={20} className="shrink-0"/>
           <p className="text-sm font-medium flex-1">
@@ -2012,7 +2016,7 @@ export const GgconAnalisePage = () => {
                       ...(r.status === 'AGUARDANDO_LIBERACAO' ? [{ label: 'Liberar para Análise', icon: Send, onClick: () => setOverlay({ type: 'liberar', analise: r }) }] : []),
                       ...(r.status !== 'AGUARDANDO_LIBERACAO' && r.status !== 'CONCLUIDA' ? [{ label: 'Reatribuir Analista', icon: UserCog, onClick: () => setOverlay({ type: 'reatribuir', analise: r }) }] : []),
                       ...(isAdmin ? [{ label: 'Alterar Status', icon: RefreshCw, onClick: () => setOverlay({ type: 'alterarStatus', analise: r }) }] : []),
-                      ...(r.status !== 'AGUARDANDO_LIBERACAO' ? [{ label: 'Resetar Análise', icon: RefreshCw, onClick: () => setResetRequest(r) }] : []),
+                      ...(isAdmin && r.status !== 'AGUARDANDO_LIBERACAO' ? [{ label: 'Resetar Análise', icon: RefreshCw, onClick: () => setResetRequest(r) }] : []),
                       { label: 'Excluir', icon: Trash2, danger: true, onClick: () => setDeleteId(r.id) },
                     ] : []),
                   ];

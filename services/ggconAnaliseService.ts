@@ -3,7 +3,7 @@ import { emitError } from './errorBus';
 import { DbService } from './dbService';
 import {
   GgconAnalise, GgconAnaliseItem, GgconAnaliseHistorico, GgconAnaliseStatus,
-  GgconAnaliseResposta, GgconTipoConveniada, userHasArea,
+  GgconAnaliseResposta, GgconTipoConveniada, userHasArea, UserRole,
 } from '../types';
 import { CHECKLISTS } from './ggconAnaliseChecklists';
 
@@ -155,7 +155,8 @@ export const GgconAnaliseService = {
   getAnalistas: async (): Promise<string[]> => {
     const users = await DbService.getUsers();
     return users
-      .filter(u => u.active && userHasArea(u, 'ggcon'))
+      // Admin administra a fila, não é analista — não deve aparecer na distribuição.
+      .filter(u => u.active && u.role !== UserRole.ADMIN && userHasArea(u, 'ggcon'))
       .map(u => u.name)
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
   },
