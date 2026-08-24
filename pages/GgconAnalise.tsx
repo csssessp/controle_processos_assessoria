@@ -913,6 +913,17 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
     onChange({ documento_sei: next.length ? next : null });
   };
 
+  // Observação do item — igual ao padrão do campo "Observações" do processo: estado
+  // local pra digitação fluida, só salva no blur (evita 1 request por tecla). Ressincroniza
+  // se item.observacao mudar por fora (ex.: Resetar Análise), sem apagar o que o usuário
+  // está digitando no meio de uma edição.
+  const [obsTexto, setObsTexto] = useState(item.observacao ?? '');
+  useEffect(() => { setObsTexto(item.observacao ?? ''); }, [item.observacao]);
+  const salvarObs = () => {
+    const v = obsTexto.trim() || null;
+    if (v !== item.observacao) onChange({ observacao: v });
+  };
+
   return (
     <div className={`p-3.5 rounded-xl border ${item.resposta ? 'bg-white border-slate-200' : 'bg-amber-50/40 border-amber-100'}`}>
       <div className="flex gap-3">
@@ -995,6 +1006,23 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
         ) : !links.length && (
           <p className="text-xs text-slate-300 italic">Nenhum documento vinculado.</p>
         )}
+      </div>
+
+      {/* Observação do item — nota livre do analista (ex.: justificativa de divergência,
+          contexto da resposta), salva no blur assim como o campo "Observações" do processo. */}
+      <div className="pl-9 mt-2">
+        {!readOnly ? (
+          <textarea
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+            rows={2}
+            placeholder="Observação sobre este item (opcional)..."
+            value={obsTexto}
+            onChange={e => setObsTexto(e.target.value)}
+            onBlur={salvarObs}
+          />
+        ) : item.observacao ? (
+          <p className="text-xs text-slate-500 italic whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5">{item.observacao}</p>
+        ) : null}
       </div>
     </div>
   );
