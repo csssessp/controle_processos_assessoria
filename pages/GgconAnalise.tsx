@@ -97,6 +97,9 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   if (brasao) {
     try { doc.addImage(brasao, 'PNG', 14, 6, 14, 16); } catch { /* segue sem o brasão se a imagem falhar */ }
   }
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 14;
+
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('SECRETARIA DA SAÚDE', textX, 11);
@@ -110,33 +113,53 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
       : 'GRUPO DE GESTÃO DE CONVÊNIOS — PRESTAÇÃO DE CONTAS (Prefeituras)',
     textX, 21,
   );
-  doc.setFontSize(13);
-  doc.text('DESPACHO', 148.5, 28, { align: 'center' });
 
-  let y = 36;
+  doc.setDrawColor(30, 64, 175);
+  doc.setLineWidth(0.6);
+  doc.line(marginX, 25, pageWidth - marginX, 25);
+
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DESPACHO', pageWidth / 2, 33, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+
+  // Rótulo em negrito seguido do valor em fonte normal, na mesma linha — mais legível
+  // que a versão anterior "Rótulo: valor" toda no mesmo peso de fonte.
+  let y = 42;
   doc.setFontSize(9);
-  const col1 = 14, col2 = 150;
-  const field = (x: number, label: string, value: string) => doc.text(`${label}: ${value || '-'}`, x, y);
-  field(col1, 'Convênio Nº', `${analise.convenio_numero ?? '-'}${analise.exercicio ? ` — Exercício ${analise.exercicio}` : ''}`);
+  const col1 = marginX, col2 = pageWidth / 2 + 8;
+  const field = (x: number, label: string, value: string) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${label}:`, x, y);
+    const labelWidth = doc.getTextWidth(`${label}:`) + 1.5;
+    doc.setFont('helvetica', 'normal');
+    doc.text(value || '-', x + labelWidth, y);
+  };
+  field(col1, 'Convênio Nº', `${analise.convenio_numero ?? '-'}${analise.exercicio ? `   |   Exercício ${analise.exercicio}` : ''}`);
   field(col2, 'Processo SEI', analise.processo_sei);
-  y += 5;
+  y += 6;
   field(col1, 'CNPJ', analise.cnpj ?? '-');
   field(col2, 'Tipo', GGCON_TIPO_CONVENIADA_LABELS[analise.tipo_conveniada]);
-  y += 5;
+  y += 6;
   field(col1, 'Interessado', analise.interessado ?? '-');
-  y += 5;
+  y += 6;
   field(col1, 'Objeto do Convênio', analise.objeto ?? '-');
-  y += 5;
+  y += 6;
   field(col1, 'Custeio/Investimento', [analise.custeio ? 'Custeio' : null, analise.investimento ? 'Investimento' : null].filter(Boolean).join(' + ') || '-');
   field(col2, 'Valor Total do Repasse', fmtBRL(analise.valor_repasse));
-  y += 5;
+  y += 6;
   field(col1, 'Vigência', `${fmtDate(analise.vigencia_inicio)} a ${fmtDate(analise.vigencia_termino)}${analise.vigencia_prorrogado_ate ? ` (prorrogado até ${fmtDate(analise.vigencia_prorrogado_ate)})` : ''}`);
-  y += 5;
+  y += 6;
   field(col1, 'Termo(s) Aditivo(s)', analise.termo_aditivo_numeros?.join(', ') || '-');
   field(col2, 'Resolução Nº', analise.resolucao_numero ?? '-');
-  y += 5;
+  y += 6;
   field(col1, 'Retirratificação', analise.termo_retirratificacao ? 'Sim' : 'Não');
   field(col2, 'Município/DRS', [analise.municipio, analise.drs_unidade].filter(Boolean).join(' — ') || '-');
+
+  y += 5;
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, y, pageWidth - marginX, y);
 
   // Coluna "Documento SEI": quando o item tem link(s) colados pelo analista, o texto
   // vira hyperlink clicável (azul + doc.link sobrepondo a linha renderizada) em vez de
