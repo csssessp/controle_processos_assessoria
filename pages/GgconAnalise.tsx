@@ -127,7 +127,8 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   // que a versão anterior "Rótulo: valor" toda no mesmo peso de fonte.
   let y = 42;
   doc.setFontSize(9);
-  const col1 = marginX, col2 = pageWidth / 2 + 8;
+  const col1 = marginX, col2 = 195;
+  const rowWidth = pageWidth - marginX * 2;
   const field = (x: number, label: string, value: string) => {
     doc.setFont('helvetica', 'bold');
     doc.text(`${label}:`, x, y);
@@ -135,16 +136,27 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     doc.setFont('helvetica', 'normal');
     doc.text(value || '-', x + labelWidth, y);
   };
+  // Campos que podem vir com texto longo (nome de conveniada, objeto do convênio)
+  // quebram linha dentro da largura da linha inteira — sem isso, texto comprido
+  // estourava a margem direita da página. Retorna a quantidade de linhas usadas
+  // para o chamador ajustar o próximo "y".
+  const fieldWrapped = (x: number, label: string, value: string, maxWidth: number): number => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${label}:`, x, y);
+    const labelWidth = doc.getTextWidth(`${label}:`) + 1.5;
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(value || '-', maxWidth - labelWidth);
+    doc.text(lines, x + labelWidth, y);
+    return lines.length;
+  };
   field(col1, 'Convênio Nº', `${analise.convenio_numero ?? '-'}${analise.exercicio ? `   |   Exercício ${analise.exercicio}` : ''}`);
   field(col2, 'Processo SEI', analise.processo_sei);
   y += 6;
   field(col1, 'CNPJ', analise.cnpj ?? '-');
   field(col2, 'Tipo', GGCON_TIPO_CONVENIADA_LABELS[analise.tipo_conveniada]);
   y += 6;
-  field(col1, 'Interessado', analise.interessado ?? '-');
-  y += 6;
-  field(col1, 'Objeto do Convênio', analise.objeto ?? '-');
-  y += 6;
+  y += fieldWrapped(col1, 'Interessado', analise.interessado ?? '-', rowWidth) * 5;
+  y += fieldWrapped(col1, 'Objeto do Convênio', analise.objeto ?? '-', rowWidth) * 5 + 1;
   field(col1, 'Custeio/Investimento', [analise.custeio ? 'Custeio' : null, analise.investimento ? 'Investimento' : null].filter(Boolean).join(' + ') || '-');
   field(col2, 'Valor Total do Repasse', fmtBRL(analise.valor_repasse));
   y += 6;
