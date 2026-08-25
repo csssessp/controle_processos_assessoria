@@ -504,6 +504,7 @@ export interface GgconAnalise {
   termo_aditivo_numeros: string[] | null;
   termo_retirratificacao: boolean;
   resolucao_numero: string | null;
+  exercicio: number | null;
   tipo_conveniada: GgconTipoConveniada;
   municipio: string | null;
   drs_unidade: string | null;

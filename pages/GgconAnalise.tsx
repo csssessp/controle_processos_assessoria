@@ -551,6 +551,20 @@ const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
           <label className={LABEL}>Resolução Nº</label>
           <input className={INPUT} value={form.resolucao_numero ?? ''} onChange={e => set('resolucao_numero', e.target.value)}/>
         </div>
+        <div>
+          <label className={LABEL}>Exercício</label>
+          <input
+            className={INPUT}
+            type="number"
+            inputMode="numeric"
+            min={2000}
+            max={2100}
+            step={1}
+            placeholder="2025"
+            value={form.exercicio ?? ''}
+            onChange={e => set('exercicio', e.target.value ? Number(e.target.value) : null)}
+          />
+        </div>
         <label className="sm:col-span-3 flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer w-fit">
           <input type="checkbox" checked={form.termo_retirratificacao ?? false} onChange={e => set('termo_retirratificacao', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded"/>
           <span className="text-sm font-medium text-slate-700">Termo de Retirratificação</span>
