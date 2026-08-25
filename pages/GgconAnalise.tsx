@@ -117,7 +117,7 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   doc.setFontSize(9);
   const col1 = 14, col2 = 150;
   const field = (x: number, label: string, value: string) => doc.text(`${label}: ${value || '-'}`, x, y);
-  field(col1, 'Convênio Nº', analise.convenio_numero ?? '-');
+  field(col1, 'Convênio Nº', `${analise.convenio_numero ?? '-'}${analise.exercicio ? ` — Exercício ${analise.exercicio}` : ''}`);
   field(col2, 'Processo SEI', analise.processo_sei);
   y += 5;
   field(col1, 'CNPJ', analise.cnpj ?? '-');
@@ -467,9 +467,25 @@ const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
           <label className={LABEL}>Nº do Processo SEI *</label>
           <input className={INPUT} value={form.processo_sei ?? ''} onChange={e => set('processo_sei', e.target.value)} placeholder="000.00000000/0000-00" required disabled={isEdit}/>
         </div>
-        <div>
-          <label className={LABEL}>Nº do Convênio</label>
-          <input className={INPUT} value={form.convenio_numero ?? ''} onChange={e => set('convenio_numero', e.target.value)}/>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2">
+            <label className={LABEL}>Nº do Convênio</label>
+            <input className={INPUT} value={form.convenio_numero ?? ''} onChange={e => set('convenio_numero', e.target.value)}/>
+          </div>
+          <div>
+            <label className={LABEL}>Exercício</label>
+            <input
+              className={INPUT}
+              type="number"
+              inputMode="numeric"
+              min={2000}
+              max={2100}
+              step={1}
+              placeholder="2025"
+              value={form.exercicio ?? ''}
+              onChange={e => set('exercicio', e.target.value ? Number(e.target.value) : null)}
+            />
+          </div>
         </div>
         <div>
           <label className={LABEL}>CNPJ</label>
@@ -550,20 +566,6 @@ const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
         <div>
           <label className={LABEL}>Resolução Nº</label>
           <input className={INPUT} value={form.resolucao_numero ?? ''} onChange={e => set('resolucao_numero', e.target.value)}/>
-        </div>
-        <div>
-          <label className={LABEL}>Exercício</label>
-          <input
-            className={INPUT}
-            type="number"
-            inputMode="numeric"
-            min={2000}
-            max={2100}
-            step={1}
-            placeholder="2025"
-            value={form.exercicio ?? ''}
-            onChange={e => set('exercicio', e.target.value ? Number(e.target.value) : null)}
-          />
         </div>
         <label className="sm:col-span-3 flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer w-fit">
           <input type="checkbox" checked={form.termo_retirratificacao ?? false} onChange={e => set('termo_retirratificacao', e.target.checked)} className="w-4 h-4 accent-blue-600 rounded"/>
