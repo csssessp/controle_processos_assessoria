@@ -369,14 +369,20 @@ const GgconForm = ({ initial, tecnicos, onSave, onClose }: {
 // (ver services/ggconAnaliseService.ts:existeParaProcesso para a checagem de duplicidade). ──
 
 const NovaAnaliseAutomaticaModal = ({ processo, onConfirm, onSkip }: {
-  processo: Partial<GgconProcesso>; onConfirm: (tipoConveniada: GgconTipoConveniada) => Promise<void>; onSkip: () => void;
+  processo: Partial<GgconProcesso>; onConfirm: (tipoConveniada: GgconTipoConveniada, exercicios: number[]) => Promise<void>; onSkip: () => void;
 }) => {
   const [busy, setBusy] = useState<GgconTipoConveniada | null>(null);
   const [err, setErr] = useState('');
+  const [exerciciosTexto, setExerciciosTexto] = useState('');
+
+  const exercicios = Array.from(new Set(
+    exerciciosTexto.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n)),
+  ));
 
   const escolher = async (tipo: GgconTipoConveniada) => {
+    if (!exercicios.length) { setErr('Informe ao menos um exercício.'); return; }
     setBusy(tipo); setErr('');
-    try { await onConfirm(tipo); }
+    try { await onConfirm(tipo, exercicios); }
     catch (ex: any) { setErr(ex.message); setBusy(null); }
   };
 
@@ -388,12 +394,17 @@ const NovaAnaliseAutomaticaModal = ({ processo, onConfirm, onSkip }: {
           Este processo é do tipo "Prestação de Contas". Deseja já registrá-lo na tela
           "Análise Processo GGCON" para conferência do checklist? A conveniada é Entidade ou Prefeitura?
         </p>
+        <div>
+          <label className={LABEL}>Exercício(s) *</label>
+          <input className={INPUT} value={exerciciosTexto} onChange={e => setExerciciosTexto(e.target.value)} placeholder="2024, 2025"/>
+          <p className="text-[11px] text-slate-400 mt-1">Um checklist será criado para cada exercício informado.</p>
+        </div>
         {err && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16}/>{err}</div>}
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={busy !== null}
+            disabled={busy !== null || exercicios.length === 0}
             onClick={() => escolher('ENTIDADE')}
           >
             {busy === 'ENTIDADE' ? <Loader2 size={22} className="animate-spin text-blue-600"/> : <Building2 size={22} className="text-blue-600"/>}
@@ -402,7 +413,7 @@ const NovaAnaliseAutomaticaModal = ({ processo, onConfirm, onSkip }: {
           <button
             type="button"
             className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={busy !== null}
+            disabled={busy !== null || exercicios.length === 0}
             onClick={() => escolher('PREFEITURA')}
           >
             {busy === 'PREFEITURA' ? <Loader2 size={22} className="animate-spin text-blue-600"/> : <Landmark size={22} className="text-blue-600"/>}
@@ -827,7 +838,7 @@ export const GgconProcessos = () => {
     }
   };
 
-  const confirmarNovaAnalise = async (tipoConveniada: GgconTipoConveniada) => {
+  const confirmarNovaAnalise = async (tipoConveniada: GgconTipoConveniada, exercicios: number[]) => {
     if (!sugestaoAnalise?.processo_sei || !currentUser) return;
     await GgconAnaliseService.criarAnalise({
       processo_sei: sugestaoAnalise.processo_sei,
@@ -838,6 +849,7 @@ export const GgconProcessos = () => {
       data_recebimento: sugestaoAnalise.data_recebimento ?? null,
       tipo_conveniada: tipoConveniada,
       criado_automaticamente: true,
+      exercicios,
     }, currentUser.name);
     setSugestaoAnalise(null);
     toast('success', 'Processo registrado na Análise GGCON.');

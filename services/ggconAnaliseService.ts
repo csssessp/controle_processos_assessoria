@@ -3,7 +3,7 @@ import { emitError } from './errorBus';
 import { DbService } from './dbService';
 import { GgconService } from './ggconService';
 import {
-  GgconAnalise, GgconAnaliseItem, GgconAnaliseHistorico, GgconAnaliseStatus,
+  GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
   GgconAnaliseResposta, GgconTipoConveniada, userHasArea, UserRole,
 } from '../types';
 import { CHECKLISTS } from './ggconAnaliseChecklists';
@@ -177,6 +177,68 @@ export const GgconAnaliseService = {
     return !!data && data.length > 0;
   },
 
+  getExercicios: async (analiseId: number): Promise<GgconAnaliseExercicio[]> => {
+    const { data, error } = await supabase
+      .from('cgof_ggcon_analise_exercicios')
+      .select('*')
+      .eq('analise_id', analiseId)
+      .order('exercicio', { ascending: true, nullsFirst: true });
+    if (error) { console.error(error); notifyFetchError(); return []; }
+    return (data ?? []) as GgconAnaliseExercicio[];
+  },
+
+  // Adiciona um novo exercício à análise, já com o checklist completo do template
+  // (Entidade/Prefeitura) — cada exercício responde ao seu próprio checklist,
+  // independente dos demais.
+  adicionarExercicio: async (analiseId: number, exercicio: number | null, tipoConveniada: GgconTipoConveniada, criadoPor: string): Promise<GgconAnaliseExercicio> => {
+    const { data: exercicioRow, error: exercicioError } = await supabase
+      .from('cgof_ggcon_analise_exercicios')
+      .insert({ analise_id: analiseId, exercicio, created_by: criadoPor })
+      .select().single();
+    if (exercicioError) {
+      if ((exercicioError as any).code === '23505') throw new Error('Este exercício já foi adicionado a esta análise.');
+      throw new Error(exercicioError.message);
+    }
+
+    const template = CHECKLISTS[tipoConveniada];
+    const itens = template.map(t => ({
+      analise_id: analiseId,
+      exercicio_id: exercicioRow.id,
+      item_numero: t.numero,
+      item_descricao: t.descricao,
+    }));
+    const { error: itensError } = await supabase.from('cgof_ggcon_analise_itens').insert(itens);
+    if (itensError) {
+      await supabase.from('cgof_ggcon_analise_exercicios').delete().eq('id', exercicioRow.id);
+      throw new Error(itensError.message);
+    }
+
+    return exercicioRow as GgconAnaliseExercicio;
+  },
+
+  // Corrige/preenche o ano de um exercício já criado (inclusive o "não especificado"
+  // herdado da migração de análises antigas com um único checklist).
+  atualizarExercicio: async (exercicioId: number, exercicio: number | null): Promise<void> => {
+    const { error } = await supabase.from('cgof_ggcon_analise_exercicios').update({ exercicio }).eq('id', exercicioId);
+    if (error) {
+      if ((error as any).code === '23505') throw new Error('Este exercício já foi adicionado a esta análise.');
+      throw new Error(error.message);
+    }
+  },
+
+  // Remove um exercício e o checklist dele (cascata). Nunca deixa a análise sem
+  // nenhum exercício — sempre precisa sobrar pelo menos 1.
+  removerExercicio: async (analiseId: number, exercicioId: number): Promise<void> => {
+    const { count, error: countError } = await supabase
+      .from('cgof_ggcon_analise_exercicios')
+      .select('id', { count: 'exact', head: true })
+      .eq('analise_id', analiseId);
+    if (countError) throw new Error(countError.message);
+    if ((count ?? 0) <= 1) throw new Error('A análise precisa ter ao menos um exercício.');
+    const { error } = await supabase.from('cgof_ggcon_analise_exercicios').delete().eq('id', exercicioId);
+    if (error) throw new Error(error.message);
+  },
+
   getItens: async (analiseId: number): Promise<GgconAnaliseItem[]> => {
     const { data, error } = await supabase
       .from('cgof_ggcon_analise_itens')
@@ -200,9 +262,10 @@ export const GgconAnaliseService = {
   // Cadastro do despacho — cria o cabeçalho e, em seguida, os itens do checklist
   // (a partir do template fixo de ggconAnaliseChecklists.ts) já como status inicial
   // AGUARDANDO_LIBERACAO.
-  criarAnalise: async (payload: Partial<GgconAnalise>, criadoPor: string): Promise<GgconAnalise> => {
+  criarAnalise: async (payload: Partial<GgconAnalise> & { exercicios?: number[] }, criadoPor: string): Promise<GgconAnalise> => {
     if (!payload.processo_sei?.trim()) throw new Error('Informe o número do processo SEI.');
     if (!payload.tipo_conveniada) throw new Error('Informe o tipo de conveniada (Entidade ou Prefeitura).');
+    if (!payload.exercicios?.length) throw new Error('Informe ao menos um exercício.');
 
     const header = {
       processo_sei: payload.processo_sei,
@@ -219,7 +282,6 @@ export const GgconAnaliseService = {
       termo_aditivo_numeros: payload.termo_aditivo_numeros?.length ? payload.termo_aditivo_numeros : null,
       termo_retirratificacao: payload.termo_retirratificacao ?? false,
       resolucao_numero: payload.resolucao_numero ?? null,
-      exercicio: payload.exercicio ?? null,
       tipo_conveniada: payload.tipo_conveniada,
       municipio: payload.municipio ?? null,
       drs_unidade: payload.drs_unidade ?? null,
@@ -237,18 +299,17 @@ export const GgconAnaliseService = {
     if (error) throw new Error(error.message);
     const analise = data as GgconAnalise;
 
-    const template = CHECKLISTS[payload.tipo_conveniada];
-    const itens = template.map(t => ({
-      analise_id: analise.id,
-      item_numero: t.numero,
-      item_descricao: t.descricao,
-    }));
-    const { error: itensError } = await supabase.from('cgof_ggcon_analise_itens').insert(itens);
-    if (itensError) {
-      // Sem isso, uma falha aqui deixaria um cabeçalho "fantasma" sem nenhum item —
-      // apareceria na fila com progresso 0/0, sem checklist, sem como concluir nunca.
-      await supabase.from('cgof_ggcon_analises').delete().eq('id', analise.id);
-      throw new Error(itensError.message);
+    // Toda análise nasce com pelo menos 1 exercício, cada um com seu checklist
+    // completo (reaproveita adicionarExercicio) — os "Exercício(s)" informados no
+    // cadastro. Falha em qualquer um deles desfaz o cabeçalho inteiro (sem isso
+    // sobraria um cabeçalho "fantasma" com checklist parcial/nenhum).
+    for (const exercicio of payload.exercicios) {
+      try {
+        await GgconAnaliseService.adicionarExercicio(analise.id, exercicio, payload.tipo_conveniada, criadoPor);
+      } catch (ex: any) {
+        await supabase.from('cgof_ggcon_analises').delete().eq('id', analise.id);
+        throw ex;
+      }
     }
 
     return analise;
@@ -272,7 +333,6 @@ export const GgconAnaliseService = {
       termo_aditivo_numeros: payload.termo_aditivo_numeros?.length ? payload.termo_aditivo_numeros : null,
       termo_retirratificacao: payload.termo_retirratificacao ?? false,
       resolucao_numero: payload.resolucao_numero ?? null,
-      exercicio: payload.exercicio ?? null,
       municipio: payload.municipio ?? null,
       drs_unidade: payload.drs_unidade ?? null,
       data_recebimento: payload.data_recebimento ?? null,

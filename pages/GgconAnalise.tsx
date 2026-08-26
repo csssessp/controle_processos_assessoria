@@ -16,7 +16,7 @@ import { useToast } from '../context/ToastContext';
 import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import {
-  GgconAnalise, GgconAnaliseItem, GgconAnaliseHistorico, GgconAnaliseStatus,
+  GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
   GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, User, UserRole,
 } from '../types';
 
@@ -90,7 +90,7 @@ async function getBrasaoDataUrl(): Promise<string | null> {
 
 // ─── exportação PDF da ficha preenchida (despacho + checklist) — mesmo padrão
 // jsPDF + autoTable usado em GgconProcessos.tsx/ProcessManager.tsx ───────────
-const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseItem[]) => {
+const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseItem[], exercicios: GgconAnaliseExercicio[]) => {
   const doc = new jsPDF({ orientation: 'landscape' });
   const brasao = await getBrasaoDataUrl();
   const textX = brasao ? 32 : 14;
@@ -149,8 +149,10 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     doc.text(lines, x + labelWidth, y);
     return lines.length;
   };
-  field(col1, 'Convênio Nº', `${analise.convenio_numero ?? '-'}${analise.exercicio ? `   |   Exercício ${analise.exercicio}` : ''}`);
+  field(col1, 'Convênio Nº', analise.convenio_numero ?? '-');
   field(col2, 'Processo SEI', analise.processo_sei);
+  y += 6;
+  field(col1, 'Exercício(s)', exercicios.map(e => e.exercicio != null ? String(e.exercicio) : 'Não especificado').join(', ') || '-');
   y += 6;
   field(col1, 'CNPJ', analise.cnpj ?? '-');
   field(col2, 'Tipo', GGCON_TIPO_CONVENIADA_LABELS[analise.tipo_conveniada]);
@@ -178,38 +180,50 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   // texto solto — reaproveita a quebra de linha nativa do autoTable (um link por linha,
   // igual ao \n já usado nas sublistas a)/b)/c) da descrição).
   const DOCUMENTO_SEI_COL = 3;
-  autoTable(doc, {
-    startY: y + 5,
-    styles: { fontSize: 7, cellPadding: 1.3, valign: 'middle' },
-    headStyles: { fillColor: [30, 64, 175] },
-    columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 55, fontSize: 6 }, 4: { cellWidth: 40, fontSize: 6.5 } },
-    head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI', 'Observação']],
-    body: itens.map(i => {
-      const dica = CHECKLISTS[analise.tipo_conveniada].find(t => t.numero === i.item_numero)?.dica;
-      const links = toLinks(i.documento_sei).map(parseLink);
-      const docCell = links.length ? links.map(l => l.pagina ? `${l.url} (pág. ${l.pagina})` : l.url).join('\n') : (dica || '-');
-      return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell, i.observacao ?? '-'];
-    }),
-    didParseCell: (data) => {
-      if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
-        const links = toLinks(itens[data.row.index]?.documento_sei);
-        if (links.length) data.cell.styles.textColor = [37, 99, 235];
-      }
-    },
-    didDrawCell: (data) => {
-      if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
-        const links = toLinks(itens[data.row.index]?.documento_sei).map(parseLink);
-        if (links.length) {
-          const lineHeight = data.cell.height / links.length;
-          links.forEach(({ url }, idx) => {
-            doc.link(data.cell.x, data.cell.y + idx * lineHeight, data.cell.width, lineHeight, { url });
-          });
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let cursorY = y + 5;
+  const gruposExercicio = exercicios.length ? exercicios : [{ id: -1, analise_id: analise.id, exercicio: null } as GgconAnaliseExercicio];
+  gruposExercicio.forEach(ex => {
+    const itensEx = exercicios.length ? itens.filter(i => i.exercicio_id === ex.id) : itens;
+    if (cursorY > pageHeight - 25) { doc.addPage(); cursorY = 14; }
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Checklist — Exercício ${ex.exercicio != null ? ex.exercicio : 'Não especificado'}`, marginX, cursorY);
+    doc.setFont('helvetica', 'normal');
+    autoTable(doc, {
+      startY: cursorY + 3,
+      styles: { fontSize: 7, cellPadding: 1.3, valign: 'middle' },
+      headStyles: { fillColor: [30, 64, 175] },
+      columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 55, fontSize: 6 }, 4: { cellWidth: 40, fontSize: 6.5 } },
+      head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI', 'Observação']],
+      body: itensEx.map(i => {
+        const dica = CHECKLISTS[analise.tipo_conveniada].find(t => t.numero === i.item_numero)?.dica;
+        const links = toLinks(i.documento_sei).map(parseLink);
+        const docCell = links.length ? links.map(l => l.pagina ? `${l.url} (pág. ${l.pagina})` : l.url).join('\n') : (dica || '-');
+        return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell, i.observacao ?? '-'];
+      }),
+      didParseCell: (data) => {
+        if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
+          const links = toLinks(itensEx[data.row.index]?.documento_sei);
+          if (links.length) data.cell.styles.textColor = [37, 99, 235];
         }
-      }
-    },
+      },
+      didDrawCell: (data) => {
+        if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
+          const links = toLinks(itensEx[data.row.index]?.documento_sei).map(parseLink);
+          if (links.length) {
+            const lineHeight = data.cell.height / links.length;
+            links.forEach(({ url }, idx) => {
+              doc.link(data.cell.x, data.cell.y + idx * lineHeight, data.cell.width, lineHeight, { url });
+            });
+          }
+        }
+      },
+    });
+    cursorY = (doc as any).lastAutoTable.finalY + 8;
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  const finalY = cursorY;
   doc.setFontSize(9);
   doc.text(
     `Analista Responsável: ${analise.analista_atual ?? '-'}      Status: ${GGCON_ANALISE_STATUS_LABELS[analise.status]}`,
@@ -457,18 +471,144 @@ const RowMenu = ({ items }: { items: { label: string; icon: any; onClick: () => 
   );
 };
 
+// ─── Barra de gestão de exercícios (usada no formulário de cadastro e na tela de
+// detalhe) — cada exercício tem seu próprio checklist. `itens`/`onSelect` são
+// opcionais: quando ausentes (uso no formulário de cadastro), a barra vira só
+// gestão estrutural (adicionar/renomear/remover), sem badge de progresso nem
+// seleção de aba — quem responde o checklist é sempre a tela "Abrir Análise".
+const ExerciciosBar = ({ exercicios, itens, activeId, onSelect, analiseId, tipoConveniada, criadoPor, canManage, onChanged }: {
+  exercicios: GgconAnaliseExercicio[];
+  itens?: GgconAnaliseItem[];
+  activeId?: number | null;
+  onSelect?: (id: number) => void;
+  analiseId: number;
+  tipoConveniada: GgconTipoConveniada;
+  criadoPor: string;
+  canManage: boolean;
+  onChanged: () => void | Promise<void>;
+}) => {
+  const { toast } = useToast();
+  const [novoAno, setNovoAno] = useState('');
+  const [showNovo, setShowNovo] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+
+  // Um exercício sem ano definido (herdado de análises antigas, de antes do ano
+  // virar obrigatório) não é exibido como opção válida — some da lista assim que o
+  // técnico define o ano dele. Quando é o único exercício da análise, "Adicionar"
+  // corrige o ano desse mesmo registro (preservando o checklist já existente) em
+  // vez de criar um segundo, que deixaria o placeholder vazio pra trás.
+  const semAnoUnico = exercicios.length === 1 && exercicios[0].exercicio == null ? exercicios[0] : null;
+
+  const adicionar = async () => {
+    if (!novoAno.trim()) { toast('error', 'Informe o ano do exercício.'); return; }
+    const ano = Number(novoAno.trim());
+    try {
+      if (semAnoUnico) await GgconAnaliseService.atualizarExercicio(semAnoUnico.id, ano);
+      else await GgconAnaliseService.adicionarExercicio(analiseId, ano, tipoConveniada, criadoPor);
+      setNovoAno('');
+      setShowNovo(false);
+      await onChanged();
+      toast('success', 'Exercício adicionado.');
+    } catch (ex: any) { toast('error', ex.message); }
+  };
+
+  const renomear = async (id: number, valor: string) => {
+    setEditandoId(null);
+    const ano = valor.trim() ? Number(valor.trim()) : null;
+    try { await GgconAnaliseService.atualizarExercicio(id, ano); await onChanged(); }
+    catch (ex: any) { toast('error', ex.message); }
+  };
+
+  const remover = async (ex: GgconAnaliseExercicio) => {
+    const itensEx = itens?.filter(i => i.exercicio_id === ex.id);
+    const rotulo = ex.exercicio != null ? String(ex.exercicio) : 'sem ano definido';
+    const aviso = itensEx ? ` O checklist dele (${itensEx.filter(i => i.resposta).length}/${itensEx.length} itens respondidos) será perdido.` : ' O checklist dele será perdido.';
+    if (!window.confirm(`Remover o exercício ${rotulo}?${aviso}`)) return;
+    try {
+      await GgconAnaliseService.removerExercicio(analiseId, ex.id);
+      await onChanged();
+      toast('success', 'Exercício removido.');
+    } catch (ex2: any) { toast('error', ex2.message); }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {exercicios.filter(ex => ex.exercicio != null).map(ex => {
+        const itensEx = itens?.filter(i => i.exercicio_id === ex.id);
+        const isActive = !!onSelect && ex.id === activeId;
+        const isEditing = editandoId === ex.id;
+        return (
+          <div
+            key={ex.id}
+            className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${isActive ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+          >
+            {isEditing ? (
+              <input
+                autoFocus
+                type="number"
+                className="w-16 border border-slate-200 rounded px-1 py-0.5 text-xs"
+                defaultValue={ex.exercicio ?? ''}
+                onBlur={e => renomear(ex.id, e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditandoId(null); }}
+              />
+            ) : (
+              <button
+                type="button"
+                className="font-medium"
+                onClick={() => onSelect?.(ex.id)}
+                onDoubleClick={() => canManage && setEditandoId(ex.id)}
+                title={canManage ? (onSelect ? 'Clique para selecionar · duplo clique para editar o ano' : 'Duplo clique para editar o ano') : undefined}
+              >
+                Exercício {ex.exercicio}
+              </button>
+            )}
+            {itensEx && <span className="text-[10px] opacity-70">{itensEx.filter(i => i.resposta).length}/{itensEx.length}</span>}
+            {canManage && (
+              <button type="button" title="Remover este exercício" className="text-slate-300 hover:text-red-500" onClick={() => remover(ex)}>
+                <X size={11}/>
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {canManage && (
+        showNovo ? (
+          <div className="flex items-center gap-1">
+            <input
+              autoFocus
+              type="number"
+              placeholder="Ano"
+              className="w-16 border border-slate-200 rounded px-1 py-0.5 text-xs"
+              value={novoAno}
+              onChange={e => setNovoAno(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); adicionar(); } if (e.key === 'Escape') setShowNovo(false); }}
+            />
+            <button type="button" title="Confirmar" className="text-blue-600 hover:text-blue-800" onClick={adicionar}><Check size={13}/></button>
+            <button type="button" title="Cancelar" className="text-slate-400 hover:text-slate-600" onClick={() => { setShowNovo(false); setNovoAno(''); }}><X size={13}/></button>
+          </div>
+        ) : (
+          <button type="button" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 px-1.5 py-1" onClick={() => setShowNovo(true)}>
+            <Plus size={12}/>Adicionar Exercício
+          </button>
+        )
+      )}
+    </div>
+  );
+};
+
 // ─── Formulário de Despacho (cadastro/edição do cabeçalho) ────────────────────
 
 const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
   initial?: Partial<GgconAnalise>;
-  onSave: (p: Partial<GgconAnalise>) => Promise<void>;
+  onSave: (p: Partial<GgconAnalise> & { exercicios?: number[] }) => Promise<void>;
   onClose: () => void;
   // Analista responsável pode editar o cadastro a partir da tela de análise, mas não
   // mexe no Nº do Processo SEI (já travado abaixo via isEdit) nem na Data de
   // Recebimento (é o marco de entrada do processo, só quem libera corrige).
   lockRecebimento?: boolean;
 }) => {
-  const [form, setForm] = useState<Partial<GgconAnalise> & { termoAditivoTexto?: string }>({
+  const { currentUser } = useApp();
+  const [form, setForm] = useState<Partial<GgconAnalise> & { termoAditivoTexto?: string; exerciciosTexto?: string }>({
     custeio: false, investimento: false, termo_retirratificacao: false, tipo_conveniada: 'ENTIDADE',
     data_recebimento: new Date().toISOString().slice(0, 10),
     ...initial,
@@ -479,14 +619,35 @@ const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
   const isEdit = !!initial?.id;
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  // Exercícios de uma análise já existente — geridos aqui direto (add/renomear/
+  // remover já persistem na hora, fora do submit do formulário), já que processos
+  // já cadastrados também precisam continuar acessíveis para isso mesmo fora da
+  // tela "Abrir Análise" (ex.: "Editar Cadastro" a partir da listagem).
+  const [exerciciosExistentes, setExerciciosExistentes] = useState<GgconAnaliseExercicio[]>([]);
+  const [loadingExercicios, setLoadingExercicios] = useState(isEdit);
+  const reloadExercicios = useCallback(async () => {
+    if (!initial?.id) return;
+    setExerciciosExistentes(await GgconAnaliseService.getExercicios(initial.id));
+  }, [initial?.id]);
+  useEffect(() => {
+    if (!isEdit) return;
+    reloadExercicios().finally(() => setLoadingExercicios(false));
+  }, [isEdit, reloadExercicios]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.processo_sei?.trim()) { setErr('Informe o número do processo SEI.'); return; }
     if (!form.tipo_conveniada) { setErr('Informe o tipo de conveniada.'); return; }
+    // Toda análise precisa nascer com pelo menos 1 exercício (cada um com seu
+    // próprio checklist) — ver AnaliseDetalheOverlay para adicionar mais depois.
+    const exercicios = Array.from(new Set(
+      (form.exerciciosTexto ?? '').split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n)),
+    ));
+    if (!isEdit && exercicios.length === 0) { setErr('Informe ao menos um exercício.'); return; }
     setSaving(true); setErr('');
     try {
       const termoAditivoNumeros = (form.termoAditivoTexto ?? '').split(',').map(s => s.trim()).filter(Boolean);
-      await onSave({ ...form, termo_aditivo_numeros: termoAditivoNumeros });
+      await onSave({ ...form, termo_aditivo_numeros: termoAditivoNumeros, exercicios });
       onClose();
     } catch (ex: any) { setErr(ex.message); }
     finally { setSaving(false); }
@@ -502,26 +663,43 @@ const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
           <label className={LABEL}>Nº do Processo SEI *</label>
           <input className={INPUT} value={form.processo_sei ?? ''} onChange={e => set('processo_sei', e.target.value)} placeholder="000.00000000/0000-00" required disabled={isEdit}/>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="col-span-2">
+        <div className={isEdit ? '' : 'grid grid-cols-3 gap-2'}>
+          <div className={isEdit ? '' : 'col-span-2'}>
             <label className={LABEL}>Nº do Convênio</label>
             <input className={INPUT} value={form.convenio_numero ?? ''} onChange={e => set('convenio_numero', e.target.value)}/>
           </div>
-          <div>
-            <label className={LABEL}>Exercício</label>
-            <input
-              className={INPUT}
-              type="number"
-              inputMode="numeric"
-              min={2000}
-              max={2100}
-              step={1}
-              placeholder="2025"
-              value={form.exercicio ?? ''}
-              onChange={e => set('exercicio', e.target.value ? Number(e.target.value) : null)}
-            />
-          </div>
+          {!isEdit && (
+            <div>
+              <label className={LABEL}>Exercício(s) *</label>
+              <input
+                className={INPUT}
+                value={form.exerciciosTexto ?? ''}
+                onChange={e => set('exerciciosTexto', e.target.value)}
+                placeholder="2024, 2025"
+                required
+              />
+              <p className="text-[11px] text-slate-400 mt-1">Um checklist será criado para cada exercício informado. Mais podem ser adicionados depois.</p>
+            </div>
+          )}
         </div>
+        {isEdit && initial?.id && (
+          <div className="sm:col-span-2">
+            <label className={LABEL}>Exercício(s)</label>
+            {loadingExercicios ? (
+              <p className="text-xs text-slate-400 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin"/>Carregando…</p>
+            ) : (
+              <ExerciciosBar
+                exercicios={exerciciosExistentes}
+                analiseId={initial.id}
+                tipoConveniada={form.tipo_conveniada ?? 'ENTIDADE'}
+                criadoPor={currentUser?.name ?? ''}
+                canManage
+                onChanged={reloadExercicios}
+              />
+            )}
+            <p className="text-[11px] text-slate-400 mt-1">Cada exercício tem seu próprio checklist — respondido em "Abrir Análise".</p>
+          </div>
+        )}
         <div>
           <label className={LABEL}>CNPJ</label>
           <input className={INPUT} value={form.cnpj ?? ''} onChange={e => set('cnpj', e.target.value)}/>
@@ -1131,6 +1309,9 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const currentUserName = currentUser?.name;
   const [analise, setAnalise] = useState<GgconAnalise | null>(null);
   const [itens, setItens] = useState<GgconAnaliseItem[]>([]);
+  const [exercicios, setExercicios] = useState<GgconAnaliseExercicio[]>([]);
+  const [activeExercicioId, setActiveExercicioId] = useState<number | null>(null);
+  const [showEscolherExercicioPdf, setShowEscolherExercicioPdf] = useState(false);
   const [historico, setHistorico] = useState<GgconAnaliseHistorico[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -1149,13 +1330,20 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [a, i, h] = await Promise.all([
+    const [a, i, ex, h] = await Promise.all([
       GgconAnaliseService.getById(analiseId),
       GgconAnaliseService.getItens(analiseId),
+      GgconAnaliseService.getExercicios(analiseId),
       GgconAnaliseService.getHistorico(analiseId),
     ]);
     setAnalise(a);
     setItens(i);
+    setExercicios(ex);
+    // Prefere manter/cair num exercício com ano definido — o "sem ano" (placeholder
+    // herdado de análises antigas) não é uma aba selecionável de verdade.
+    setActiveExercicioId(prev => (prev && ex.some(e => e.id === prev))
+      ? prev
+      : (ex.find(e => e.exercicio != null)?.id ?? ex[0]?.id ?? null));
     setHistorico(h);
     setObservacoesTexto(a?.observacoes ?? '');
     setAreaEncaminhamento(a?.area_encaminhamento ?? '');
@@ -1186,9 +1374,27 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const canManage = isDono || canLiberar;
   // Quem confirma a assinatura (ex.: Marilsa) — ver podeAssinarGgcon em types.ts.
   const podeAssinar = podeAssinarGgcon(currentUser);
-  const respondidos = itens.filter(i => i.resposta).length;
-  const total = itens.length;
-  const completo = total > 0 && respondidos === total;
+  // Um exercício sem ano definido (herdado de análises antigas) não conta como
+  // exercício de verdade — o técnico precisa definir o ano antes de poder
+  // preencher/concluir o checklist (ver ExerciciosBar). Progresso/conclusão só
+  // olham para exercícios válidos.
+  const exerciciosValidos = exercicios.filter(ex => ex.exercicio != null);
+  const temExercicioValido = exerciciosValidos.length > 0;
+  const idsExerciciosValidos = new Set(exerciciosValidos.map(ex => ex.id));
+  const itensValidos = itens.filter(i => idsExerciciosValidos.has(i.exercicio_id));
+  const respondidos = itensValidos.filter(i => i.resposta).length;
+  const total = itensValidos.length;
+  // "Completo" exige 100% em TODOS os exercícios válidos da análise, não só no que
+  // está sendo exibido no momento — cada exercício tem seu próprio checklist
+  // independente.
+  const completo = temExercicioValido && exerciciosValidos.every(ex => {
+    const itensEx = itens.filter(i => i.exercicio_id === ex.id);
+    return itensEx.length > 0 && itensEx.every(i => !!i.resposta);
+  });
+  const itensExercicioAtivo = useMemo(
+    () => itens.filter(i => i.exercicio_id === activeExercicioId),
+    [itens, activeExercicioId],
+  );
   // Encaminhar só libera depois da assinatura confirmada, OU se a conferência foi
   // concluída com pendência (pula a assinatura de propósito), OU se já estava
   // Concluída, pra permitir corrigir área/data de um encaminhamento existente.
@@ -1352,7 +1558,10 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
               <button
                 className={BTN_MUTED}
                 title="Baixar a ficha preenchida (despacho + checklist) em PDF"
-                onClick={() => exportAnaliseFichaPDF(analise, itens)}
+                onClick={() => {
+                  if (exercicios.length > 1) setShowEscolherExercicioPdf(true);
+                  else exportAnaliseFichaPDF(analise, itens, exercicios);
+                }}
               >
                 <Download size={12}/>PDF
               </button>
@@ -1375,12 +1584,38 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                     </h4>
                     <ProgressoChecklist respondidos={respondidos} total={total}/>
                   </div>
-                  <p className="text-[11px] text-slate-400 italic mb-2.5">Todas as documentações devem estar atualizadas e assinadas.</p>
-                  <div className="space-y-2.5 max-h-[64vh] overflow-y-auto pr-1">
-                    {itens.map(item => (
-                      <ChecklistItemRow key={item.id} item={item} dica={dicaPorItem.get(item.item_numero)} readOnly={!canEdit} onChange={patch => handleItemChange(item, patch)}/>
-                    ))}
+
+                  {/* Um processo pode abranger vários exercícios financeiros — cada um com
+                      seu próprio checklist, respondido de forma independente. */}
+                  <div className="mb-2.5">
+                    <ExerciciosBar
+                      exercicios={exercicios}
+                      itens={itens}
+                      activeId={activeExercicioId}
+                      onSelect={setActiveExercicioId}
+                      analiseId={analise.id}
+                      tipoConveniada={analise.tipo_conveniada}
+                      criadoPor={currentUserName ?? ''}
+                      canManage={canManage}
+                      onChanged={async () => { await load(); }}
+                    />
                   </div>
+
+                  {temExercicioValido ? (
+                    <>
+                      <p className="text-[11px] text-slate-400 italic mb-2.5">Todas as documentações devem estar atualizadas e assinadas.</p>
+                      <div className="space-y-2.5 max-h-[64vh] overflow-y-auto pr-1">
+                        {itensExercicioAtivo.map(item => (
+                          <ChecklistItemRow key={item.id} item={item} dica={dicaPorItem.get(item.item_numero)} readOnly={!canEdit} onChange={patch => handleItemChange(item, patch)}/>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-10 px-4">
+                      <p className="text-sm text-slate-500 mb-1">Nenhum exercício cadastrado ainda.</p>
+                      <p className="text-xs text-slate-400">Adicione um exercício (o ano do exercício financeiro) acima para começar a preencher o checklist.</p>
+                    </div>
+                  )}
                 </div>
 
                 {analise.investimento && (
@@ -1726,6 +1961,33 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
           onConfirm={handleLimparHistorico}
         />
       )}
+
+      {showEscolherExercicioPdf && analise && (
+        <Modal
+          title="Exportar PDF"
+          subtitle="Este processo tem mais de um exercício — escolha qual checklist exportar."
+          onClose={() => setShowEscolherExercicioPdf(false)}
+          size="md"
+        >
+          <div className="space-y-2">
+            {exercicios.map(ex => {
+              const itensEx = itens.filter(i => i.exercicio_id === ex.id);
+              const respEx = itensEx.filter(i => i.resposta).length;
+              return (
+                <button
+                  key={ex.id}
+                  type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all text-left"
+                  onClick={() => { exportAnaliseFichaPDF(analise, itens, [ex]); setShowEscolherExercicioPdf(false); }}
+                >
+                  <span className="text-sm font-semibold text-slate-700">{ex.exercicio != null ? `Exercício ${ex.exercicio}` : 'Sem exercício'}</span>
+                  <span className="text-xs text-slate-400">{respEx}/{itensEx.length} respondidos</span>
+                </button>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -1883,7 +2145,7 @@ export const GgconAnalisePage = () => {
 
   const totalPages = Math.ceil(count / PAGE_SIZE);
 
-  const criarAnalise = async (payload: Partial<GgconAnalise>) => {
+  const criarAnalise = async (payload: Partial<GgconAnalise> & { exercicios?: number[] }) => {
     if (!currentUser) return;
     await GgconAnaliseService.criarAnalise(payload, currentUser.name);
     await refresh();
@@ -2151,7 +2413,7 @@ export const GgconAnalisePage = () => {
                           />
                         </td>
                       )}
-                      <td className="px-3 py-3 text-sm max-w-[150px] truncate">
+                      <td className="px-3 py-3 text-xs max-w-[150px] truncate" title={r.processo_sei}>
                         <button className="font-medium text-blue-700 hover:text-blue-900 hover:underline transition-colors" onClick={() => setOverlay({ type: 'detalhe', id: r.id })}>
                           {r.processo_sei}
                         </button>

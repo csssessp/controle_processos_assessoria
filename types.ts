@@ -504,7 +504,6 @@ export interface GgconAnalise {
   termo_aditivo_numeros: string[] | null;
   termo_retirratificacao: boolean;
   resolucao_numero: string | null;
-  exercicio: number | null;
   tipo_conveniada: GgconTipoConveniada;
   municipio: string | null;
   drs_unidade: string | null;
@@ -533,9 +532,21 @@ export interface GgconAnalise {
   itens_respondidos?: number;
 }
 
+export interface GgconAnaliseExercicio {
+  id: number;
+  analise_id: number;
+  exercicio: number | null;
+  created_at?: string;
+  created_by: string | null;
+  // agregados calculados no service, não persistidos
+  itens_total?: number;
+  itens_respondidos?: number;
+}
+
 export interface GgconAnaliseItem {
   id: number;
   analise_id: number;
+  exercicio_id: number;
   item_numero: number;
   item_descricao: string;
   resposta: GgconAnaliseResposta | null;
