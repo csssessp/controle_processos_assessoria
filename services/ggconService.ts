@@ -206,6 +206,30 @@ export const GgconService = {
     if (error) throw new Error(error.message);
   },
 
+  // Espelha o analista atual da Análise GGCON (pages/GgconAnalise.tsx) no Técnico
+  // Responsável de Processos GGCON para o mesmo processo_sei — chamado por
+  // GgconAnaliseService ao liberar/reatribuir o analista. cgof_ggcon_processos guarda
+  // uma linha por movimentação (histórico), então atualiza só a mais recente (maior
+  // codigo), a mesma que a view cgof_ggcon_processos_atual expõe como "situação atual".
+  // Se o processo ainda não tem nenhuma movimentação cadastrada em Processos GGCON,
+  // não faz nada silenciosamente (nada para sincronizar ainda).
+  setTecnicoNaMovimentacaoAtual: async (processoSei: string, tecnico: string): Promise<void> => {
+    const { data, error } = await supabase
+      .from('cgof_ggcon_processos')
+      .select('codigo')
+      .eq('processo_sei', processoSei)
+      .order('codigo', { ascending: false })
+      .limit(1);
+    if (error) { console.error(error); return; }
+    const codigo = data?.[0]?.codigo;
+    if (codigo == null) return;
+    const { error: updError } = await supabase
+      .from('cgof_ggcon_processos')
+      .update({ tecnico_responsavel: tecnico })
+      .eq('codigo', codigo);
+    if (updError) console.error(updError);
+  },
+
   // Exclui TODAS as movimentações de um processo (o "fluxo" inteiro), não só uma linha.
   deleteFluxo: async (processoSei: string): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_processos').delete().eq('processo_sei', processoSei);

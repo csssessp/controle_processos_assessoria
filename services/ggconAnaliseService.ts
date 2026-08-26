@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { emitError } from './errorBus';
 import { DbService } from './dbService';
+import { GgconService } from './ggconService';
 import {
   GgconAnalise, GgconAnaliseItem, GgconAnaliseHistorico, GgconAnaliseStatus,
   GgconAnaliseResposta, GgconTipoConveniada, userHasArea, UserRole,
@@ -283,29 +284,33 @@ export const GgconAnaliseService = {
 
   // Libera o processo para a fila, já atribuindo o analista responsável.
   liberarParaAnalise: async (id: number, analista: string, usuarioResponsavel: string): Promise<void> => {
-    const { error } = await supabase.from('cgof_ggcon_analises').update({
+    const { data, error } = await supabase.from('cgof_ggcon_analises').update({
       analista_atual: analista,
       liberado_por: usuarioResponsavel,
       status: 'AGUARDANDO_ANALISE',
       data_liberacao: hoje(),
       novo_destaque: false,
       updated_at: new Date().toISOString(),
-    }).eq('id', id);
+    }).eq('id', id).select('processo_sei').single();
     if (error) throw new Error(error.message);
     await registrarEvento(id, 'LIBERADA', { analistaNovo: analista, usuarioResponsavel });
+    // Espelha o analista no Técnico Responsável de Processos GGCON (mesmo processo_sei).
+    if (data?.processo_sei) await GgconService.setTecnicoNaMovimentacaoAtual(data.processo_sei, analista);
   },
 
   // Troca o analista responsável a qualquer momento do fluxo — sempre grava no
   // histórico quem era o analista anterior e quem passou a ser o novo.
   reatribuirAnalista: async (id: number, analistaAnterior: string | null, novoAnalista: string, usuarioResponsavel: string, motivo?: string): Promise<void> => {
-    const { error } = await supabase.from('cgof_ggcon_analises').update({
+    const { data, error } = await supabase.from('cgof_ggcon_analises').update({
       analista_atual: novoAnalista,
       updated_at: new Date().toISOString(),
-    }).eq('id', id);
+    }).eq('id', id).select('processo_sei').single();
     if (error) throw new Error(error.message);
     await registrarEvento(id, 'REATRIBUIDA', {
       analistaAnterior, analistaNovo: novoAnalista, usuarioResponsavel, observacao: motivo ?? null,
     });
+    // Espelha o analista no Técnico Responsável de Processos GGCON (mesmo processo_sei).
+    if (data?.processo_sei) await GgconService.setTecnicoNaMovimentacaoAtual(data.processo_sei, novoAnalista);
   },
 
   // Primeira abertura do checklist pelo analista responsável.
