@@ -430,7 +430,40 @@ export const GpcRelatorios = () => {
         };
       }),
     }));
-    await exportXLSX(sheets, `gpc_registros_por_drs_${todayStr()}.xlsx`);
+
+    // Aba extra: processos julgados IRREGULAR e classificados como Contencioso e/ou
+    // Cadin (irregular_tipos) — destino é a Procuradoria Geral do Estado para cobrança
+    // judicial/inscrição em Dívida Ativa. Junta registros de todas as DRS — por isso
+    // tem coluna própria "DRS_Origem".
+    const registrosPge = rows.filter(r =>
+      r.situacao === 'IRREGULAR' &&
+      (r.irregular_tipos?.includes('CONTENCIOSO') || r.irregular_tipos?.includes('CADIN')),
+    );
+    const sheetPge = {
+      name: 'PGE CONTENCIOSO E DIVIDA ATIVA',
+      rows: registrosPge.map(r => {
+        const datas = (datasPorRegistro.get(r.codigo) ?? []).slice().sort();
+        return {
+          'Código': r.codigo,
+          'Numero_Processo': r.processo ?? '',
+          'Convênio': r.convenio ?? '',
+          'Valor do convênio (R$)': r.valor_convenio ?? 0,
+          'Nome do interessado': r.entidade ?? '',
+          'Assunto_Especificacao': r.situacao_obs ?? '',
+          'DRS_Origem': nomeDRSPorNumero(r.drs) ?? '',
+          'Data_Recebimento_GPC': fmtData(r.data),
+          'Exercício analisado': r.exercicio ?? '',
+          'nome do tecn': resolveResponsavel(r),
+          'Inicio': fmtData(datas[0]),
+          'Termino': fmtData(datas.length ? datas[datas.length - 1] : null),
+          'Folhas analisada': r.num_paginas ?? '',
+          'Enviado ao GGCON': enviadoGgcon(r),
+          'Situação': r.cobranca_estagio ? (COBRANCA_ESTAGIO_LABELS[r.cobranca_estagio] ?? r.cobranca_estagio) : '',
+        };
+      }),
+    };
+
+    await exportXLSX([...sheets, sheetPge], `gpc_registros_por_drs_${todayStr()}.xlsx`);
   }, []);
 
   // Colunas comuns a CJ/Outros — mesmo recorte de campos do relatório "Registros por DRS".
@@ -793,7 +826,7 @@ export const GpcRelatorios = () => {
       color: 'bg-cyan-600',
       title: 'Registros por DRS',
       description:
-        'Lista detalhada dos registros (processo, entidade, responsável, posição, situação) separada em uma aba por DRS.',
+        'Lista detalhada dos registros (processo, entidade, responsável, posição, situação) separada em uma aba por DRS, mais uma aba com os encaminhados à PGE (Contencioso e Dívida Ativa).',
       badge: 'Múltiplas abas',
       onGenerate: relPorDrsDetalhado,
     },

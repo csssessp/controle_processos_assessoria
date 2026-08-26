@@ -607,13 +607,15 @@ export const GpcService = {
     };
   },
 
-  // Timeline bruta de fluxo técnico (registro_id + data do evento) — usada pelos
-  // relatórios para calcular "Início da Análise"/"Término da Análise" a partir dos
-  // eventos reais, já que cgof_gpc_parcelamento/cgof_gpc_recebidos não têm essas
-  // datas como campo próprio (só existem como texto livre em imports antigos).
-  getFluxoTecnicoTimeline: async (): Promise<{ registro_id: number; data_evento: string }[]> => {
-    return fetchAllRows<{ registro_id: number; data_evento: string }>(
-      'cgof_gpc_fluxo_tecnico', 'registro_id, data_evento',
+  // Timeline bruta de fluxo técnico (registro_id + data do evento, + movimento/obs) —
+  // usada pelos relatórios para calcular "Início da Análise"/"Término da Análise" a
+  // partir dos eventos reais, já que cgof_gpc_parcelamento/cgof_gpc_recebidos não têm
+  // essas datas como campo próprio (só existem como texto livre em imports antigos).
+  // movimento/obs servem para achar o evento "ENCAMINHADO À PGE" e sua observação
+  // (aba PGE Contencioso e Dívida Ativa do relatório Registros por DRS).
+  getFluxoTecnicoTimeline: async (): Promise<{ registro_id: number; data_evento: string; movimento: string | null; obs: string | null }[]> => {
+    return fetchAllRows<{ registro_id: number; data_evento: string; movimento: string | null; obs: string | null }>(
+      'cgof_gpc_fluxo_tecnico', 'registro_id, data_evento, movimento, obs',
     );
   },
 
