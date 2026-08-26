@@ -426,6 +426,10 @@ const etapaTone = (etapa: string | null): { bg: string; text: string; border: st
   if (!t) return { bg: 'bg-slate-100', text: 'text-slate-500', border: 'border-slate-200' };
   if (/cancel|rescind|arquiv/.test(t)) return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' };
   if (/conclu|pago|public|assinado|formaliz/.test(t)) return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
+  // Mesmo estágio (falta atribuir/distribuir para um técnico), só com texto digitado de
+  // formas diferentes ("atribuição ao técnico", "atribuição para o técnico", "distribuição
+  // para o técnico") — cor própria pra não se confundir com o "aguardando" genérico abaixo.
+  if (/(atribui|distribui).*t[eé]cnic/.test(t)) return { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' };
   if (/aguard|pend|encaminh/.test(t)) return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
   if (/comit|jurídic|juridic|análise|analise|trâmit|tramit/.test(t)) return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
   return { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' };
