@@ -1791,9 +1791,10 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                 )}
 
                 {/* Assinatura — etapa obrigatória entre o checklist concluído e o Encaminhar.
-                    Quem libera processos libera para assinatura; quem tem ggcon_assina
-                    (ex.: Marilsa) confirma. Ver podeAssinarGgcon em types.ts. */}
-                {canLiberar && analise.status === 'EM_ANALISE' && analise.data_analise && (
+                    Quem libera processos ou o próprio técnico dono da análise libera para
+                    assinatura; quem tem ggcon_assina (ex.: Marilsa) confirma. Ver
+                    podeAssinarGgcon em types.ts. */}
+                {(canLiberar || isDono) && analise.status === 'EM_ANALISE' && analise.data_analise && (
                   <div className="bg-white rounded-xl border border-purple-200 bg-purple-50/30 p-4 space-y-2">
                     <h4 className="text-sm font-bold text-purple-800 flex items-center gap-1.5"><FileSignature size={14}/>Assinatura</h4>
                     <p className="text-[11px] text-purple-700/80">Antes de encaminhar, o processo precisa ser liberado e assinado.</p>

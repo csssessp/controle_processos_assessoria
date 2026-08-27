@@ -393,8 +393,8 @@ export const GgconAnaliseService = {
   },
 
   // Marca a conclusão do preenchimento do checklist — o processo continua com o
-  // analista (status EM_ANALISE) até alguém com permissão de liberação liberar para
-  // assinatura.
+  // analista (status EM_ANALISE) até alguém com permissão de liberação ou o próprio
+  // técnico dono da análise liberar para assinatura.
   concluirAnalise: async (id: number, usuarioResponsavel: string): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       data_analise: hoje(),
