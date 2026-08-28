@@ -477,8 +477,13 @@ export const GgconAnaliseService = {
   // fecha o fluxo de análise. Exige assinatura confirmada antes, a menos que a
   // conferência tenha sido concluída com pendência (pula a assinatura de propósito)
   // ou já esteja Concluída (permite corrigir a área/data de um encaminhamento existente).
+  // Quando a área é GPC (comparação sem acento/maiúscula, cobre o texto livre do
+  // datalist), espelha em Processos GGCON (etapa da movimentação atual) do mesmo jeito
+  // que encaminharAoGpc já fazia — esse encaminhamento genérico (usado no desvio
+  // "Conferência com Pendência") não sincronizava, então "Processos GGCON" ficava
+  // parado na etapa anterior mesmo com o processo já encaminhado ao GPC na Análise.
   encaminhar: async (id: number, areaEncaminhamento: string, usuarioResponsavel: string): Promise<void> => {
-    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_assinatura').eq('id', id).single();
+    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_assinatura, processo_sei').eq('id', id).single();
     const podeEncaminhar = !!atual && ((atual as any).status === 'CONCLUIDA' ||
       (atual as any).status === 'CONFERENCIA_PENDENCIA' ||
       ((atual as any).status === 'AGUARDANDO_ASSINATURA' && !!(atual as any).data_assinatura));
@@ -491,6 +496,13 @@ export const GgconAnaliseService = {
     }).eq('id', id);
     if (error) throw new Error(error.message);
     await registrarEvento(id, 'ENCAMINHADA', { usuarioResponsavel, observacao: areaEncaminhamento });
+    const processoSei = (atual as any).processo_sei;
+    if (processoSei) {
+      const etapa = areaEncaminhamento.trim().toUpperCase() === 'GPC'
+        ? 'Encaminhado ao GPC'
+        : `Encaminhado para ${areaEncaminhamento.trim()}`;
+      await GgconService.setEtapaNaMovimentacaoAtual(processoSei, etapa);
+    }
   },
 
   deleteAnalise: async (id: number): Promise<void> => {
@@ -563,7 +575,13 @@ export const GgconAnaliseService = {
   // assinatura/encaminhamento ao GPC — sem isso, o checklist continuava marcado como
   // concluído (data_analise preenchida) e a tela ficava presa mostrando "Preenchimento
   // concluído" em vez dos botões de Conferência, mesmo com o status já voltado pra
-  // "Em Análise" (mesmo raciocínio de GgconService.sincronizarRetornoGpc).
+  // "Em Análise" (mesmo raciocínio de GgconService.sincronizarRetornoGpc). Também limpa
+  // o encaminhamento (área/data) e a pendência (descrição/data) — descoberto porque
+  // `podeEncaminhar` na tela (GgconAnalise.tsx) checa `area_encaminhamento` isolado do
+  // status, então deixar essas colunas preenchidas mantinha o painel "Encaminhado
+  // para X / Alterar encaminhamento" visível mesmo com a análise de volta em Em
+  // Análise. NUNCA mexe nas respostas do checklist (cgof_ggcon_analise_itens) — só
+  // "Resetar Análise" apaga isso.
   alterarStatus: async (id: number, novoStatus: GgconAnaliseStatus, usuarioResponsavel: string, motivo: string): Promise<void> => {
     const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status').eq('id', id).single();
     const { error } = await supabase.from('cgof_ggcon_analises').update({
@@ -572,6 +590,8 @@ export const GgconAnaliseService = {
       ...(novoStatus === 'EM_ANALISE' ? {
         data_analise: null, data_liberacao_assinatura: null, data_assinatura: null,
         assinado_por: null, data_encaminhamento_gpc: null,
+        data_encaminhamento: null, area_encaminhamento: null,
+        data_pendencia: null, pendencia_descricao: null,
       } : {}),
       // Correção manual de status = alguém já olhou o registro — não precisa mais
       // do destaque de "novo/sem revisão" no topo da lista.
