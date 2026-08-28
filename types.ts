@@ -35,6 +35,7 @@ export interface User {
   ggcon_libera_analise?: boolean; // Pode liberar processos para a fila de Análise GGCON
   ggcon_assina?: boolean; // Pode confirmar a assinatura na etapa de Análise GGCON (ex.: Marilsa)
   ggcon_restrito_analise?: boolean; // Só enxerga "Análise Processo GGCON" — sem acesso a Processos/Relatórios GGCON
+  ggcon_admin_analise?: boolean; // Pode Alterar Status e Resetar Análise sem ser Administrador
   tela_inicial?: string | null; // Tela em que o usuário cai ao entrar — ver TELA_INICIAL_OPCOES em App.tsx
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
@@ -67,6 +68,15 @@ export const podeAcessarProcessosGgcon = (user: User | null): boolean => {
   if (!user) return false;
   if (user.role === UserRole.ADMIN) return true;
   return user.ggcon_restrito_analise !== true;
+};
+
+/** Verifica se o usuário pode Alterar Status e Resetar Análise na tela "Análise
+ * Processo GGCON" sem ser Administrador (Admin sempre pode). "Limpar Histórico" e
+ * "Excluir" continuam exclusivos de Administrador — não usar este helper pra eles. */
+export const podeAdministrarAnalise = (user: User | null): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return userHasArea(user, 'ggcon') && user.ggcon_admin_analise === true;
 };
 
 export interface Process {

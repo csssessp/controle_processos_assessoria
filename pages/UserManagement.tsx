@@ -95,6 +95,7 @@ export const UserManagement = () => {
       ggcon_libera_analise: formData.get('ggcon_libera_analise') === 'on',
       ggcon_assina: formData.get('ggcon_assina') === 'on',
       ggcon_restrito_analise: formData.get('ggcon_restrito_analise') === 'on',
+      ggcon_admin_analise: formData.get('ggcon_admin_analise') === 'on',
       tela_inicial: (formData.get('tela_inicial') as string) || null,
       // If password field is empty, do not send it (service will ignore update)
       password: passwordInput || undefined
@@ -352,6 +353,12 @@ export const UserManagement = () => {
                   <span className="flex items-center gap-1 text-purple-700 font-medium">Restringir só à tela de Análise</span>
                 </label>
                 <p className="text-[10px] text-slate-400">Usuários com esta permissão marcada não veem "Processos GGCON" nem "Relatórios GGCON" — só "Análise Processo GGCON". Administradores nunca ficam restritos, mesmo com esta marcação.</p>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none pt-1">
+                  <input type="checkbox" name="ggcon_admin_analise" defaultChecked={editingUser?.ggcon_admin_analise ?? false} className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"/>
+                  <span className="flex items-center gap-1 text-purple-700 font-medium">Pode alterar status e resetar análise</span>
+                </label>
+                <p className="text-[10px] text-slate-400">Usuários com esta permissão podem usar "Alterar Status" e "Resetar Análise" (correções manuais fora do fluxo normal) na tela "Análise Processo GGCON". "Limpar Histórico" e "Excluir" continuam exclusivos de Administrador. Administradores sempre podem, independente desta marcação.</p>
               </div>
             </div>
 

@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import {
   GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
-  GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, User, UserRole,
+  GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, podeAdministrarAnalise, User, UserRole,
 } from '../types';
 
 const DRS_UNIDADES = [
@@ -1326,6 +1326,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [showPendencia, setShowPendencia] = useState(false);
   const [pendenciaTexto, setPendenciaTexto] = useState('');
   const isAdmin = currentUser?.role === UserRole.ADMIN;
+  const canAdministrarAnalise = podeAdministrarAnalise(currentUser);
   const [resetMotivo, setResetMotivo] = useState('');
 
   const load = useCallback(async () => {
@@ -1864,9 +1865,10 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                 {/* Alterar status manualmente — corrige registros que não se encaixam no fluxo
                     automático (ex.: importados da planilha antiga, já "Concluída" mas sem
                     checklist digitalizado aqui). Não mexe em mais nada, só no campo status.
-                    Restrito a Administrador — ação sensível o suficiente pra não ficar
-                    disponível a quem só tem a permissão de liberar processos. */}
-                {isAdmin && (
+                    Restrito a Administrador ou a quem tem ggcon_admin_analise — ação sensível
+                    o suficiente pra não ficar disponível a quem só tem a permissão de liberar
+                    processos. */}
+                {canAdministrarAnalise && (
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><RefreshCw size={14}/>Alterar Status</h4>
                     <p className="text-[11px] text-slate-400">Corrige o status manualmente, sem passar pelo fluxo normal (Liberar → Analisar → Concluir → Encaminhar).</p>
@@ -1881,9 +1883,10 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
                 {/* Resetar — apaga o checklist preenchido e as datas de análise/encaminhamento,
                     devolvendo o processo para a fila do mesmo analista. Ação sensível, por isso
-                    exige senha (mesmo padrão de exclusão), fica registrada no histórico, e desde
-                    2026-08-21 é restrita a Administrador (mesmo padrão de Alterar Status). */}
-                {isAdmin && analise.status !== 'AGUARDANDO_LIBERACAO' && (
+                    exige senha (mesmo padrão de exclusão), fica registrada no histórico, e é
+                    restrita a Administrador ou a quem tem ggcon_admin_analise (mesmo padrão de
+                    Alterar Status). */}
+                {canAdministrarAnalise && analise.status !== 'AGUARDANDO_LIBERACAO' && (
                   <div className="bg-white rounded-xl border border-amber-200 bg-amber-50/30 p-4 space-y-2">
                     <h4 className="text-sm font-bold text-amber-800 flex items-center gap-1.5"><RefreshCw size={14}/>Resetar Análise</h4>
                     <p className="text-[11px] text-amber-700/80">Apaga todas as respostas do checklist, a pendência registrada e as datas de análise/assinatura/encaminhamento. O analista responsável é mantido.</p>
@@ -2059,7 +2062,7 @@ export const GgconAnalisePage = () => {
   const isViewOnly = currentUser?.view_only === true;
   const canLiberar = podeLiberarAnalise(currentUser);
   const podeAssinar = podeAssinarGgcon(currentUser);
-  const isAdmin = currentUser?.role === UserRole.ADMIN;
+  const canAdministrarAnalise = podeAdministrarAnalise(currentUser);
 
   const [rows, setRows] = useState<GgconAnalise[]>([]);
   const [count, setCount] = useState(0);
@@ -2397,8 +2400,8 @@ export const GgconAnalisePage = () => {
                       { label: 'Editar Cadastro', icon: ClipboardCheck, onClick: () => setOverlay({ type: 'form', data: r }) },
                       ...(r.status === 'AGUARDANDO_LIBERACAO' ? [{ label: 'Liberar para Análise', icon: Send, onClick: () => setOverlay({ type: 'liberar', analise: r }) }] : []),
                       ...(r.status !== 'AGUARDANDO_LIBERACAO' && r.status !== 'CONCLUIDA' ? [{ label: 'Reatribuir Analista', icon: UserCog, onClick: () => setOverlay({ type: 'reatribuir', analise: r }) }] : []),
-                      ...(isAdmin ? [{ label: 'Alterar Status', icon: RefreshCw, onClick: () => setOverlay({ type: 'alterarStatus', analise: r }) }] : []),
-                      ...(isAdmin && r.status !== 'AGUARDANDO_LIBERACAO' ? [{ label: 'Resetar Análise', icon: RefreshCw, onClick: () => setResetRequest(r) }] : []),
+                      ...(canAdministrarAnalise ? [{ label: 'Alterar Status', icon: RefreshCw, onClick: () => setOverlay({ type: 'alterarStatus', analise: r }) }] : []),
+                      ...(canAdministrarAnalise && r.status !== 'AGUARDANDO_LIBERACAO' ? [{ label: 'Resetar Análise', icon: RefreshCw, onClick: () => setResetRequest(r) }] : []),
                       { label: 'Excluir', icon: Trash2, danger: true, onClick: () => setDeleteId(r.id) },
                     ] : []),
                   ];
