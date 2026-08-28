@@ -124,7 +124,7 @@ export const GgconAnaliseService = {
     if (search.trim()) {
       query = query.or(`processo_sei.ilike.%${search}%,convenio_numero.ilike.%${search}%,interessado.ilike.%${search}%`);
     }
-    if (status === 'EM_ANDAMENTO') query = query.in('status', ['AGUARDANDO_ANALISE', 'EM_ANALISE', 'AGUARDANDO_ASSINATURA', 'CONFERENCIA_PENDENCIA']);
+    if (status === 'EM_ANDAMENTO') query = query.in('status', ['AGUARDANDO_ANALISE', 'EM_ANALISE', 'AGUARDANDO_ASSINATURA', 'CONFERENCIA_PENDENCIA', 'ENCAMINHADO_GPC', 'RETORNO_GPC']);
     else if (status) query = query.eq('status', status);
     if (analista.trim()) query = query.eq('analista_atual', analista);
     if (tipoConveniada) query = query.eq('tipo_conveniada', tipoConveniada);
@@ -147,7 +147,7 @@ export const GgconAnaliseService = {
     return {
       aguardandoLiberacao: all.filter(r => r.status === 'AGUARDANDO_LIBERACAO').length,
       minhaFila: all.filter(r => meu(r) && (r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE')).length,
-      emAndamento: all.filter(r => r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE' || r.status === 'AGUARDANDO_ASSINATURA' || r.status === 'CONFERENCIA_PENDENCIA').length,
+      emAndamento: all.filter(r => r.status === 'AGUARDANDO_ANALISE' || r.status === 'EM_ANALISE' || r.status === 'AGUARDANDO_ASSINATURA' || r.status === 'CONFERENCIA_PENDENCIA' || r.status === 'ENCAMINHADO_GPC' || r.status === 'RETORNO_GPC').length,
       aguardandoAssinatura: all.filter(r => r.status === 'AGUARDANDO_ASSINATURA' && !r.data_assinatura).length,
       concluidas: all.filter(r => r.status === 'CONCLUIDA').length,
     };
@@ -422,9 +422,12 @@ export const GgconAnaliseService = {
 
   // Libera o processo, já com o checklist concluído, para a etapa de assinatura —
   // quem tem a permissão ggcon_assina (ex.: Marilsa) passa a ver o aviso na tela.
+  // Aceita partir de EM_ANALISE (fluxo normal) ou RETORNO_GPC (reanálise depois de um
+  // retorno do GPC) — mesma guarda espelhada em encaminharAoGpc.
   liberarParaAssinatura: async (id: number, usuarioResponsavel: string): Promise<void> => {
     const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_analise').eq('id', id).single();
-    if (!atual || (atual as any).status !== 'EM_ANALISE' || !(atual as any).data_analise) {
+    const status = (atual as any)?.status;
+    if (!atual || (status !== 'EM_ANALISE' && status !== 'RETORNO_GPC') || !(atual as any).data_analise) {
       throw new Error('Conclua o preenchimento do checklist antes de liberar para assinatura.');
     }
     const { error } = await supabase.from('cgof_ggcon_analises').update({
@@ -434,6 +437,27 @@ export const GgconAnaliseService = {
     }).eq('id', id);
     if (error) throw new Error(error.message);
     await registrarEvento(id, 'LIBERADA_ASSINATURA', { usuarioResponsavel });
+  },
+
+  // Alternativa a liberarParaAssinatura: encaminha direto ao GPC, pulando a etapa de
+  // assinatura. Mesma guarda (EM_ANALISE ou RETORNO_GPC, com checklist concluído).
+  // Espelha em Processos GGCON (etapa da movimentação atual) para que o status
+  // apareça nas duas telas — ver GgconService.setEtapaNaMovimentacaoAtual.
+  encaminharAoGpc: async (id: number, usuarioResponsavel: string): Promise<void> => {
+    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_analise, processo_sei').eq('id', id).single();
+    const status = (atual as any)?.status;
+    if (!atual || (status !== 'EM_ANALISE' && status !== 'RETORNO_GPC') || !(atual as any).data_analise) {
+      throw new Error('Conclua o preenchimento do checklist antes de encaminhar ao GPC.');
+    }
+    const { error } = await supabase.from('cgof_ggcon_analises').update({
+      status: 'ENCAMINHADO_GPC',
+      data_encaminhamento_gpc: hoje(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
+    await registrarEvento(id, 'ENCAMINHADA_GPC', { usuarioResponsavel });
+    const processoSei = (atual as any).processo_sei;
+    if (processoSei) await GgconService.setEtapaNaMovimentacaoAtual(processoSei, 'Encaminhado ao GPC');
   },
 
   // Confirma a assinatura (quem tem ggcon_assina) — não muda o status (continua
@@ -485,6 +509,18 @@ export const GgconAnaliseService = {
     if (error) throw new Error(error.message);
   },
 
+  // Quem no GPC analisou o processo — editável em qualquer momento do fluxo (mesmo
+  // padrão de Observações), sincronizado com Processos GGCON (mesmo processo_sei) via
+  // GgconService.setAnalistaGpcNaMovimentacaoAtual.
+  atualizarAnalistaGpc: async (id: number, processoSei: string, analistaGpc: string | null): Promise<void> => {
+    const { error } = await supabase.from('cgof_ggcon_analises').update({
+      analista_gpc: analistaGpc?.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
+    await GgconService.setAnalistaGpcNaMovimentacaoAtual(processoSei, analistaGpc?.trim() || null);
+  },
+
   // Reseta a análise: limpa todas as respostas do checklist e as datas de
   // análise/assinatura/pendência/encaminhamento, devolvendo o processo para
   // AGUARDANDO_ANALISE — o analista responsável permanece o mesmo (reatribuir é uma
@@ -503,6 +539,7 @@ export const GgconAnaliseService = {
       data_liberacao_assinatura: null,
       data_assinatura: null,
       assinado_por: null,
+      data_encaminhamento_gpc: null,
       data_pendencia: null,
       pendencia_descricao: null,
       data_encaminhamento: null,
@@ -519,16 +556,23 @@ export const GgconAnaliseService = {
   // vêm "Concluída" porque já foram finalizados no processo real, mas sem checklist
   // digitalizado aqui) e para qualquer correção pontual que não se encaixe no fluxo
   // automático (Liberar → Iniciar → Concluir → Encaminhar). Não mexe em datas nem no
-  // checklist — só no status e, quando o novo status é AGUARDANDO_LIBERACAO, também
-  // limpa analista responsável e data de atribuição: por definição, "aguardando
-  // liberação" é o estado de quem ainda não foi atribuído a ninguém, então esses
-  // campos nunca podem ficar inconsistentes (status "aguardando" com analista/data
-  // de atribuição já preenchidos).
+  // checklist — só no status — com duas exceções: quando o novo status é
+  // AGUARDANDO_LIBERACAO, também limpa analista responsável e data de atribuição (por
+  // definição, "aguardando liberação" é o estado de quem ainda não foi atribuído a
+  // ninguém); quando o novo status é EM_ANALISE, também limpa as datas de conclusão/
+  // assinatura/encaminhamento ao GPC — sem isso, o checklist continuava marcado como
+  // concluído (data_analise preenchida) e a tela ficava presa mostrando "Preenchimento
+  // concluído" em vez dos botões de Conferência, mesmo com o status já voltado pra
+  // "Em Análise" (mesmo raciocínio de GgconService.sincronizarRetornoGpc).
   alterarStatus: async (id: number, novoStatus: GgconAnaliseStatus, usuarioResponsavel: string, motivo: string): Promise<void> => {
     const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status').eq('id', id).single();
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: novoStatus,
       ...(novoStatus === 'AGUARDANDO_LIBERACAO' ? { analista_atual: null, liberado_por: null, data_liberacao: null } : {}),
+      ...(novoStatus === 'EM_ANALISE' ? {
+        data_analise: null, data_liberacao_assinatura: null, data_assinatura: null,
+        assinado_por: null, data_encaminhamento_gpc: null,
+      } : {}),
       // Correção manual de status = alguém já olhou o registro — não precisa mais
       // do destaque de "novo/sem revisão" no topo da lista.
       novo_destaque: false,

@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { emitError } from './errorBus';
 import { DbService } from './dbService';
+import { GpcService } from './gpcService';
 import { GgconProcesso, userHasArea } from '../types';
 
 function notifyFetchError(): void {
@@ -57,6 +58,15 @@ export function deriveSituacaoFromEtapa(etapa: string | null | undefined): {
     comite_gestor: etapa === 'Comitê Gestor',
     consultoria_juridica: etapa === 'Consultoria Jurídica',
   };
+}
+
+// Reconhece a etapa "Retorno GPC" por palavra-chave (mesmo estilo de correspondência
+// usado em etapaTone, pages/GgconProcessos.tsx) em vez de exigir o texto exato — a
+// etapa continua sendo um campo de texto livre (ver ETAPAS, só uma sugestão de
+// datalist), então o usuário pode digitar variações ("Retorno do GPC" etc.).
+export function isEtapaRetornoGpc(etapa: string | null | undefined): boolean {
+  const e = (etapa ?? '').toLowerCase();
+  return e.includes('retorno') && e.includes('gpc');
 }
 
 // Regra do Comitê Gestor (aba COMO_ALIMENTAR): Convênios > R$ 1 milhão e Termos
@@ -168,7 +178,10 @@ export const GgconService = {
     return (data ?? []) as GgconProcesso[];
   },
 
-  saveProcesso: async (p: Partial<GgconProcesso>): Promise<GgconProcesso> => {
+  // `usuarioResponsavel` só é usado para registrar quem fez a movimentação, caso ela
+  // seja reconhecida como um "Retorno GPC" (ver sincronizarRetornoGpc abaixo) — não é
+  // persistido em cgof_ggcon_processos.
+  saveProcesso: async (p: Partial<GgconProcesso>, usuarioResponsavel?: string | null): Promise<GgconProcesso> => {
     const payload = {
       processo_sei: p.processo_sei,
       numero_demanda: p.numero_demanda ?? null,
@@ -190,15 +203,22 @@ export const GgconService = {
       data_envio: p.data_envio ?? null,
       proxima_providencia: p.proxima_providencia ?? null,
       urgente: p.urgente ?? false,
+      analista_gpc: p.analista_gpc ?? null,
     };
+    let saved: GgconProcesso;
     if (p.codigo) {
       const { data, error } = await supabase.from('cgof_ggcon_processos').update(payload).eq('codigo', p.codigo).select().single();
       if (error) throw new Error(error.message);
-      return data as GgconProcesso;
+      saved = data as GgconProcesso;
+    } else {
+      const { data, error } = await supabase.from('cgof_ggcon_processos').insert(payload).select().single();
+      if (error) throw new Error(error.message);
+      saved = data as GgconProcesso;
     }
-    const { data, error } = await supabase.from('cgof_ggcon_processos').insert(payload).select().single();
-    if (error) throw new Error(error.message);
-    return data as GgconProcesso;
+    if (saved.processo_sei && isEtapaRetornoGpc(saved.etapa)) {
+      await GgconService.sincronizarRetornoGpc(saved.processo_sei, usuarioResponsavel ?? null);
+    }
+    return saved;
   },
 
   deleteProcesso: async (codigo: number): Promise<void> => {
@@ -228,6 +248,91 @@ export const GgconService = {
       .update({ tecnico_responsavel: tecnico })
       .eq('codigo', codigo);
     if (updError) console.error(updError);
+  },
+
+  // Mesmo padrão de setTecnicoNaMovimentacaoAtual, para o campo Analista GPC —
+  // chamado por GgconAnaliseService.atualizarAnalistaGpc ao editar esse campo na tela
+  // de Análise GGCON, para refletir na movimentação atual de Processos GGCON.
+  setAnalistaGpcNaMovimentacaoAtual: async (processoSei: string, analistaGpc: string | null): Promise<void> => {
+    const { data, error } = await supabase
+      .from('cgof_ggcon_processos')
+      .select('codigo')
+      .eq('processo_sei', processoSei)
+      .order('codigo', { ascending: false })
+      .limit(1);
+    if (error) { console.error(error); return; }
+    const codigo = data?.[0]?.codigo;
+    if (codigo == null) return;
+    const { error: updError } = await supabase
+      .from('cgof_ggcon_processos')
+      .update({ analista_gpc: analistaGpc })
+      .eq('codigo', codigo);
+    if (updError) console.error(updError);
+  },
+
+  // Mesmo padrão de setTecnicoNaMovimentacaoAtual, para a etapa — chamado por
+  // GgconAnaliseService.encaminharAoGpc para que o status "Encaminhado ao GPC" da
+  // Análise GGCON apareça também em Processos GGCON (etapa da movimentação atual).
+  setEtapaNaMovimentacaoAtual: async (processoSei: string, etapa: string): Promise<void> => {
+    const { data, error } = await supabase
+      .from('cgof_ggcon_processos')
+      .select('codigo')
+      .eq('processo_sei', processoSei)
+      .order('codigo', { ascending: false })
+      .limit(1);
+    if (error) { console.error(error); return; }
+    const codigo = data?.[0]?.codigo;
+    if (codigo == null) return;
+    const { error: updError } = await supabase
+      .from('cgof_ggcon_processos')
+      .update({ etapa, data_movimentacao: new Date().toISOString().slice(0, 10), ...deriveSituacaoFromEtapa(etapa) })
+      .eq('codigo', codigo);
+    if (updError) console.error(updError);
+  },
+
+  // Reconhece que uma movimentação com etapa "Retorno GPC" foi registrada em Processos
+  // GGCON (ver isEtapaRetornoGpc, chamado a partir de saveProcesso) e propaga pra
+  // Análise GGCON correspondente: volta o status pra RETORNO_GPC e reabre o checklist
+  // pra edição (zera as datas de conclusão/assinatura, mas NÃO mexe nas respostas dos
+  // itens — o técnico só corrige o que for preciso, diferente de "Resetar Análise").
+  // Só age se a análise estiver em ENCAMINHADO_GPC — idempotente, evita reagir de novo
+  // a cada edição futura da mesma movimentação (mesmo raciocínio "no-op silencioso" do
+  // sync do técnico acima).
+  sincronizarRetornoGpc: async (processoSei: string, usuarioResponsavel: string | null): Promise<void> => {
+    const { data: analises, error } = await supabase
+      .from('cgof_ggcon_analises')
+      .select('id, status')
+      .eq('processo_sei', processoSei)
+      .order('id', { ascending: false })
+      .limit(1);
+    if (error) { console.error(error); return; }
+    const analise = analises?.[0] as { id: number; status: string } | undefined;
+    if (!analise || analise.status !== 'ENCAMINHADO_GPC') return;
+    const { error: updError } = await supabase.from('cgof_ggcon_analises').update({
+      status: 'RETORNO_GPC',
+      data_analise: null,
+      data_liberacao_assinatura: null,
+      data_assinatura: null,
+      assinado_por: null,
+      data_encaminhamento_gpc: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', analise.id);
+    if (updError) { console.error(updError); return; }
+    const { error: histError } = await supabase.from('cgof_ggcon_analise_historico').insert({
+      analise_id: analise.id,
+      evento: 'RETORNO_GPC',
+      usuario_responsavel: usuarioResponsavel,
+      observacao: 'Retorno registrado em Processos GGCON',
+    });
+    if (histError) console.error('Falha ao registrar evento no histórico (ação principal já foi aplicada):', histError);
+  },
+
+  // Nomes elegíveis para "Analista GPC": usuários ativos com acesso ao GPC (mesma
+  // query de GpcService.getGpcUsers, já usada em GpcProcessos_v2.tsx para o técnico
+  // GPC), reaproveitada aqui em vez de duplicar a lógica.
+  getGpcAnalistas: async (): Promise<string[]> => {
+    const users = await GpcService.getGpcUsers();
+    return users.map(u => u.name).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   },
 
   // Exclui TODAS as movimentações de um processo (o "fluxo" inteiro), não só uma linha.

@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import brasaoUrl from '../img/Brasão.png';
 import { GgconAnaliseService, GgconAnaliseFiltroStatus, GgconAnaliseSortField } from '../services/ggconAnaliseService';
+import { GgconService } from '../services/ggconService';
 import { CHECKLISTS, GGCON_TIPO_CONVENIADA_LABELS, ITENS_INVESTIMENTO_OBRA, MODELOS_REFERENCIA } from '../services/ggconAnaliseChecklists';
 import { MUNICIPIOS, buscarDRSPorMunicipio } from '../services/ggconMunicipios';
 import { useToast } from '../context/ToastContext';
@@ -194,12 +195,19 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
       startY: cursorY + 3,
       styles: { fontSize: 7, cellPadding: 1.3, valign: 'middle' },
       headStyles: { fillColor: [30, 64, 175] },
-      columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 55, fontSize: 6 }, 4: { cellWidth: 40, fontSize: 6.5 } },
+      // rowPageBreak: 'avoid' — sem isso, o autoTable divide uma linha alta (ex.: item com
+      // observação longa) entre duas páginas em vez de mover a linha inteira pra próxima,
+      // cortando o texto no meio da frase bem na quebra de página (confirmado gerando um PDF
+      // de teste com várias observações longas — ver reference_jspdf_offline_preview).
+      rowPageBreak: 'avoid',
+      columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 22, fontSize: 6 }, 4: { cellWidth: 73, fontSize: 6.5 } },
       head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI', 'Observação']],
       body: itensEx.map(i => {
         const dica = CHECKLISTS[analise.tipo_conveniada].find(t => t.numero === i.item_numero)?.dica;
         const links = toLinks(i.documento_sei).map(parseLink);
-        const docCell = links.length ? links.map(l => l.pagina ? `${l.url} (pág. ${l.pagina})` : l.url).join('\n') : (dica || '-');
+        // Mostra só "Link" (em vez da URL inteira, que ocupava a coluna toda) — o hyperlink
+        // real continua indo pra URL completa via doc.link em didDrawCell abaixo.
+        const docCell = links.length ? links.map(l => l.pagina ? `Link (pág. ${l.pagina})` : 'Link').join('\n') : (dica || '-');
         return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell, i.observacao ?? '-'];
       }),
       didParseCell: (data) => {
@@ -285,11 +293,11 @@ const Modal = ({ title, subtitle, onClose, children, size = 'lg' }: {
   </div>
 );
 
-const ListInput = ({ id, options, value, onChange, placeholder }: {
-  id: string; options: string[]; value: string; onChange: (v: string) => void; placeholder?: string;
+const ListInput = ({ id, options, value, onChange, onBlur, placeholder }: {
+  id: string; options: string[]; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string;
 }) => (
   <>
-    <input className={INPUT} list={id} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+    <input className={INPUT} list={id} value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} />
     <datalist id={id}>
       {options.map(o => <option key={o} value={o} />)}
     </datalist>
@@ -313,6 +321,8 @@ const statusTone = (status: GgconAnaliseStatus): { bg: string; text: string; bor
     case 'AGUARDANDO_ASSINATURA': return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' };
     case 'CONFERENCIA_PENDENCIA': return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' };
     case 'CONCLUIDA': return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
+    case 'ENCAMINHADO_GPC': return { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' };
+    case 'RETORNO_GPC': return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' };
   }
 };
 
@@ -1272,6 +1282,8 @@ const EVENTO_LABELS: Record<GgconAnaliseHistorico['evento'], string> = {
   LIBERADA_ASSINATURA: 'Liberado para assinatura',
   ASSINADA: 'Assinado',
   CONCLUIDA_COM_PENDENCIA: 'Conferência concluída com pendência',
+  ENCAMINHADA_GPC: 'Encaminhado ao GPC',
+  RETORNO_GPC: 'Retorno do GPC',
 };
 
 const HistoricoResponsaveis = ({ historico }: { historico: GgconAnaliseHistorico[] }) => (
@@ -1318,6 +1330,9 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [areaEncaminhamento, setAreaEncaminhamento] = useState('');
   const [showEncaminhar, setShowEncaminhar] = useState(false);
   const [observacoesTexto, setObservacoesTexto] = useState('');
+  const [analistaGpcTexto, setAnalistaGpcTexto] = useState('');
+  const [gpcAnalistas, setGpcAnalistas] = useState<string[]>([]);
+  useEffect(() => { GgconService.getGpcAnalistas().then(setGpcAnalistas); }, []);
   const [showReset, setShowReset] = useState(false);
   const [showModelos, setShowModelos] = useState(false);
   const [showAlterarStatus, setShowAlterarStatus] = useState(false);
@@ -1348,6 +1363,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     setHistorico(h);
     setObservacoesTexto(a?.observacoes ?? '');
     setAreaEncaminhamento(a?.area_encaminhamento ?? '');
+    setAnalistaGpcTexto(a?.analista_gpc ?? '');
     setLoading(false);
     return a;
   }, [analiseId]);
@@ -1365,11 +1381,15 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   }, [analiseId]);
 
   const isDono = !!currentUserName && analise?.analista_atual === currentUserName;
-  // canEdit governa o checklist em si (trava a partir de Aguardando Assinatura ou
-  // Conferência com Pendência — o checklist já é o produto final da análise assim
-  // que ela é concluída, por qualquer um dos dois caminhos).
+  // canEdit governa o checklist em si (trava a partir de Aguardando Assinatura,
+  // Conferência com Pendência ou Encaminhado ao GPC — o checklist já é o produto final
+  // da análise assim que ela é concluída, por qualquer um desses caminhos). RETORNO_GPC
+  // fica de fora de propósito: o checklist reabre para o técnico corrigir/complementar
+  // (ver GgconService.sincronizarRetornoGpc, que já zera data_analise ao entrar nesse
+  // status, trazendo de volta os botões de conclusão em vez da mensagem "concluído").
   const canEdit = (isDono || canLiberar) && analise?.status !== 'CONCLUIDA'
-    && analise?.status !== 'AGUARDANDO_ASSINATURA' && analise?.status !== 'CONFERENCIA_PENDENCIA';
+    && analise?.status !== 'AGUARDANDO_ASSINATURA' && analise?.status !== 'CONFERENCIA_PENDENCIA'
+    && analise?.status !== 'ENCAMINHADO_GPC';
   // canManage governa observações e encaminhamento — quem libera pode corrigir a
   // qualquer momento (mesmo depois de concluída), e o analista pode sempre deixar notas.
   const canManage = isDono || canLiberar;
@@ -1456,6 +1476,18 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     finally { setBusy(false); }
   };
 
+  const handleEncaminharGpc = async () => {
+    if (!analise || !currentUserName) return;
+    setBusy(true);
+    try {
+      await GgconAnaliseService.encaminharAoGpc(analise.id, currentUserName);
+      await load();
+      onChanged();
+      toast('success', 'Encaminhado ao GPC.');
+    } catch (ex: any) { toast('error', ex.message); }
+    finally { setBusy(false); }
+  };
+
   const handleConfirmarAssinatura = async () => {
     if (!analise || !currentUserName) return;
     setBusy(true);
@@ -1490,6 +1522,16 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
       // segundo blur sem mudanças não ache que o texto ainda difere do que já foi
       // salvo e dispare outro PATCH à toa.
       setAnalise(prev => prev ? { ...prev, observacoes: observacoesTexto.trim() || null } : prev);
+      onChanged();
+    } catch (ex: any) { toast('error', ex.message); }
+  };
+
+  const handleSalvarAnalistaGpc = async () => {
+    if (!analise) return;
+    if ((analise.analista_gpc ?? '') === analistaGpcTexto) return;
+    try {
+      await GgconAnaliseService.atualizarAnalistaGpc(analise.id, analise.processo_sei, analistaGpcTexto);
+      setAnalise(prev => prev ? { ...prev, analista_gpc: analistaGpcTexto.trim() || null } : prev);
       onChanged();
     } catch (ex: any) { toast('error', ex.message); }
   };
@@ -1709,12 +1751,33 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                   {analise.area_encaminhamento && (
                     <p className="text-xs text-slate-500 pt-1 border-t border-dashed border-slate-100">Encaminhado para <strong>{analise.area_encaminhamento}</strong></p>
                   )}
+                  {analise.data_encaminhamento_gpc && (
+                    <p className="text-xs text-slate-500 pt-1 border-t border-dashed border-slate-100">Encaminhado ao GPC em <strong>{fmtDate(analise.data_encaminhamento_gpc)}</strong></p>
+                  )}
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-1.5">
                   <h4 className="text-sm font-bold text-slate-700 mb-1">Analista Responsável</h4>
                   <p className="text-sm text-slate-600">{analise.analista_atual ?? 'Não atribuído'}</p>
                   {analise.liberado_por && <p className="text-[11px] text-slate-400">Liberado por {analise.liberado_por}</p>}
+                </div>
+
+                {/* Analista GPC — quem no GPC analisou o processo, sincronizado com Processos
+                    GGCON (mesmo processo_sei) via atualizarAnalistaGpc. */}
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-1.5">
+                  <h4 className="text-sm font-bold text-slate-700 mb-1">Analista GPC</h4>
+                  {canManage ? (
+                    <ListInput
+                      id="dl-analista-gpc"
+                      options={gpcAnalistas}
+                      value={analistaGpcTexto}
+                      onChange={setAnalistaGpcTexto}
+                      onBlur={handleSalvarAnalistaGpc}
+                      placeholder="Nome de quem no GPC analisou..."
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-600">{analise.analista_gpc ?? 'Não atribuído'}</p>
+                  )}
                 </div>
 
                 {/* Observações — nota de acompanhamento livre, editável pelo analista dono ou por
@@ -1791,17 +1854,24 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                   </div>
                 )}
 
-                {/* Assinatura — etapa obrigatória entre o checklist concluído e o Encaminhar.
-                    Quem libera processos ou o próprio técnico dono da análise libera para
-                    assinatura; quem tem ggcon_assina (ex.: Marilsa) confirma. Ver
-                    podeAssinarGgcon em types.ts. */}
-                {(canLiberar || isDono) && analise.status === 'EM_ANALISE' && analise.data_analise && (
+                {/* Depois do checklist concluído, escolhe o destino: GPC (pula a assinatura
+                    de propósito — mesmo padrão de Conferência com Pendência) ou o fluxo
+                    normal de Assinatura. Quem libera processos ou o próprio técnico dono da
+                    análise decide; quem tem ggcon_assina (ex.: Marilsa) confirma a assinatura
+                    depois. Ver podeAssinarGgcon em types.ts. Aceita partir de EM_ANALISE
+                    (fluxo normal) ou RETORNO_GPC (reanálise depois de um retorno do GPC). */}
+                {(canLiberar || isDono) && (analise.status === 'EM_ANALISE' || analise.status === 'RETORNO_GPC') && analise.data_analise && (
                   <div className="bg-white rounded-xl border border-purple-200 bg-purple-50/30 p-4 space-y-2">
-                    <h4 className="text-sm font-bold text-purple-800 flex items-center gap-1.5"><FileSignature size={14}/>Assinatura</h4>
-                    <p className="text-[11px] text-purple-700/80">Antes de encaminhar, o processo precisa ser liberado e assinado.</p>
-                    <button className={BTN_PRIMARY + ' w-full justify-center'} disabled={busy} onClick={handleLiberarAssinatura}>
-                      {busy ? <Loader2 size={16} className="animate-spin"/> : <FileSignature size={16}/>}Liberar para Assinatura
-                    </button>
+                    <h4 className="text-sm font-bold text-purple-800 flex items-center gap-1.5"><FileSignature size={14}/>Encaminhamento</h4>
+                    <p className="text-[11px] text-purple-700/80">Encaminhe direto ao GPC ou libere para a etapa de Assinatura.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button className={BTN_PRIMARY + ' justify-center'} disabled={busy} onClick={handleEncaminharGpc}>
+                        {busy ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}Encaminhar ao GPC
+                      </button>
+                      <button className={BTN_GHOST + ' justify-center'} disabled={busy} onClick={handleLiberarAssinatura}>
+                        {busy ? <Loader2 size={16} className="animate-spin"/> : <FileSignature size={16}/>}Encaminhar para Assinatura
+                      </button>
+                    </div>
                   </div>
                 )}
 

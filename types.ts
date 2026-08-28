@@ -465,6 +465,7 @@ export interface GgconProcesso {
   data_envio: string | null;
   proxima_providencia: string | null;
   urgente: boolean;
+  analista_gpc: string | null; // sincronizado com cgof_ggcon_analises.analista_gpc (mesmo processo_sei)
   created_at?: string;
   updated_at?: string;
 }
@@ -485,7 +486,9 @@ export type GgconAnaliseStatus =
   | 'EM_ANALISE'
   | 'AGUARDANDO_ASSINATURA'
   | 'CONFERENCIA_PENDENCIA'
-  | 'CONCLUIDA';
+  | 'CONCLUIDA'
+  | 'ENCAMINHADO_GPC'
+  | 'RETORNO_GPC';
 
 export const GGCON_ANALISE_STATUS_LABELS: Record<GgconAnaliseStatus, string> = {
   AGUARDANDO_LIBERACAO: 'Aguardando Liberação',
@@ -494,6 +497,8 @@ export const GGCON_ANALISE_STATUS_LABELS: Record<GgconAnaliseStatus, string> = {
   AGUARDANDO_ASSINATURA: 'Aguardando Assinatura',
   CONFERENCIA_PENDENCIA: 'Conferência com Pendência',
   CONCLUIDA: 'Concluída',
+  ENCAMINHADO_GPC: 'Encaminhado ao GPC',
+  RETORNO_GPC: 'Retorno GPC',
 };
 
 export type GgconAnaliseResposta = 'SIM' | 'NAO' | 'NAO_SE_APLICA' | 'OUTROS';
@@ -531,6 +536,8 @@ export interface GgconAnalise {
   pendencia_descricao: string | null;
   data_encaminhamento: string | null;
   area_encaminhamento: string | null;
+  analista_gpc: string | null; // quem no GPC analisou o processo — sincronizado com cgof_ggcon_processos.analista_gpc
+  data_encaminhamento_gpc: string | null; // quando o status virou ENCAMINHADO_GPC
   observacoes: string | null;
   criado_automaticamente: boolean;
   novo_destaque: boolean;
@@ -567,7 +574,8 @@ export interface GgconAnaliseItem {
 
 export type GgconAnaliseEvento =
   | 'LIBERADA' | 'REATRIBUIDA' | 'INICIADA' | 'CONCLUIDA' | 'ENCAMINHADA' | 'RESETADA'
-  | 'STATUS_ALTERADO' | 'HISTORICO_LIMPO' | 'LIBERADA_ASSINATURA' | 'ASSINADA' | 'CONCLUIDA_COM_PENDENCIA';
+  | 'STATUS_ALTERADO' | 'HISTORICO_LIMPO' | 'LIBERADA_ASSINATURA' | 'ASSINADA' | 'CONCLUIDA_COM_PENDENCIA'
+  | 'ENCAMINHADA_GPC' | 'RETORNO_GPC';
 
 export interface GgconAnaliseHistorico {
   id: number;

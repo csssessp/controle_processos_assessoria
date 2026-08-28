@@ -30,7 +30,7 @@ const ETAPAS = [
   'Manifestação do Grupo de Controle Orçamentário', 'Pago', 'Preparar para CJ', 'Prestação de Contas',
   'Processo SIAFEM', 'Publicado', 'Rescindido', 'Aguardando a demanda ser cadastrada',
   'Manifestação da CRS', 'Aguarda Formalização do Convênio', 'Pendente de Assinatura GGCON',
-  'Pendente Assinatura CGOF', 'Processo Arquivado',
+  'Pendente Assinatura CGOF', 'Processo Arquivado', 'Encaminhado ao GPC', 'Retorno GPC',
 ];
 const PROXIMAS_PROVIDENCIAS = [
   'Aguarda Deliberação do Comitê Gestor', 'Aguarda Parecer da Consultoria Jurídica',
@@ -159,9 +159,10 @@ const Sec = ({ title }: { title: string }) => (
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
-const GgconForm = ({ initial, tecnicos, onSave, onClose }: {
+const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
   initial?: Partial<GgconProcesso>;
   tecnicos: string[];
+  gpcAnalistas: string[];
   onSave: (p: Partial<GgconProcesso>) => Promise<void>;
   onClose: () => void;
 }) => {
@@ -290,6 +291,10 @@ const GgconForm = ({ initial, tecnicos, onSave, onClose }: {
         <div>
           <label className={LABEL}>Etapa Atual</label>
           <ListInput id="dl-etapa" options={ETAPAS} value={form.etapa ?? ''} onChange={v => set('etapa', v || null)}/>
+        </div>
+        <div>
+          <label className={LABEL}>Analista GPC</label>
+          <ListInput id="dl-analista-gpc" options={gpcAnalistas} value={form.analista_gpc ?? ''} onChange={v => set('analista_gpc', v || null)}/>
         </div>
         <div>
           <label className={LABEL}>Data de Entrada</label>
@@ -748,6 +753,7 @@ export const GgconProcessos = () => {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
   const [tecnicosFiltro, setTecnicosFiltro] = useState<string[]>([]);
+  const [gpcAnalistas, setGpcAnalistas] = useState<string[]>([]);
   const [historico, setHistorico] = useState<GgconProcesso[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null
@@ -799,6 +805,7 @@ export const GgconProcessos = () => {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { GgconService.getTecnicos().then(setTecnicos); }, []);
   useEffect(() => { GgconService.getTecnicosFiltro().then(setTecnicosFiltro); }, []);
+  useEffect(() => { GgconService.getGpcAnalistas().then(setGpcAnalistas); }, []);
 
   const toggleSort = (field: GgconSortField) => {
     if (sortBy === field) { setSortOrder(o => o === 'asc' ? 'desc' : 'asc'); }
@@ -830,7 +837,7 @@ export const GgconProcessos = () => {
   // registro correspondente na Análise GGCON — só se ainda não existir um (evita
   // duplicar quando o mesmo processo é salvo de novo, ex.: editar outra movimentação).
   const salvarProcessoEChecarAnalise = async (p: Partial<GgconProcesso>) => {
-    await GgconService.saveProcesso(p);
+    await GgconService.saveProcesso(p, currentUser?.name ?? null);
     await refreshAfterChange();
     if (p.tipo?.trim() === 'Prestação de Contas' && p.processo_sei) {
       const jaExiste = await GgconAnaliseService.existeParaProcesso(p.processo_sei);
@@ -1099,6 +1106,7 @@ export const GgconProcessos = () => {
           <GgconForm
             initial={overlay.data}
             tecnicos={tecnicos}
+            gpcAnalistas={gpcAnalistas}
             onSave={salvarProcessoEChecarAnalise}
             onClose={fecharModalForm}
           />
