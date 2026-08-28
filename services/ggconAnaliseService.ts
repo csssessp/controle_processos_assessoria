@@ -478,29 +478,35 @@ export const GgconAnaliseService = {
   // conferência tenha sido concluída com pendência (pula a assinatura de propósito)
   // ou já esteja Concluída (permite corrigir a área/data de um encaminhamento existente).
   // Quando a área é GPC (comparação sem acento/maiúscula, cobre o texto livre do
-  // datalist), espelha em Processos GGCON (etapa da movimentação atual) do mesmo jeito
-  // que encaminharAoGpc já fazia — esse encaminhamento genérico (usado no desvio
-  // "Conferência com Pendência") não sincronizava, então "Processos GGCON" ficava
-  // parado na etapa anterior mesmo com o processo já encaminhado ao GPC na Análise.
+  // datalist), NÃO fecha como CONCLUIDA — vira ENCAMINHADO_GPC (mesmo status do botão
+  // dedicado encaminharAoGpc), pra: (a) a listagem mostrar "Encaminhado ao GPC" em vez
+  // de "Concluída" (o processo ainda não terminou, só saiu do GGCON temporariamente); e
+  // (b) GgconService.sincronizarRetornoGpc reconhecer um "Retorno GPC" registrado em
+  // Processos GGCON depois (ela só age se status === ENCAMINHADO_GPC, senão vira no-op
+  // silencioso). Espelha em Processos GGCON (etapa da movimentação atual) do mesmo
+  // jeito que encaminharAoGpc já fazia — esse encaminhamento genérico (usado no desvio
+  // "Conferência com Pendência") antes não sincronizava nada.
   encaminhar: async (id: number, areaEncaminhamento: string, usuarioResponsavel: string): Promise<void> => {
     const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_assinatura, processo_sei').eq('id', id).single();
     const podeEncaminhar = !!atual && ((atual as any).status === 'CONCLUIDA' ||
       (atual as any).status === 'CONFERENCIA_PENDENCIA' ||
+      (atual as any).status === 'ENCAMINHADO_GPC' ||
       ((atual as any).status === 'AGUARDANDO_ASSINATURA' && !!(atual as any).data_assinatura));
     if (!podeEncaminhar) throw new Error('É necessário confirmar a assinatura antes de encaminhar.');
+    const area = areaEncaminhamento.trim();
+    const isGpc = area.toUpperCase() === 'GPC';
     const { error } = await supabase.from('cgof_ggcon_analises').update({
-      status: 'CONCLUIDA',
+      status: isGpc ? 'ENCAMINHADO_GPC' : 'CONCLUIDA',
       data_encaminhamento: hoje(),
-      area_encaminhamento: areaEncaminhamento,
+      area_encaminhamento: area,
+      ...(isGpc ? { data_encaminhamento_gpc: hoje() } : {}),
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
-    await registrarEvento(id, 'ENCAMINHADA', { usuarioResponsavel, observacao: areaEncaminhamento });
+    await registrarEvento(id, isGpc ? 'ENCAMINHADA_GPC' : 'ENCAMINHADA', { usuarioResponsavel, observacao: area });
     const processoSei = (atual as any).processo_sei;
     if (processoSei) {
-      const etapa = areaEncaminhamento.trim().toUpperCase() === 'GPC'
-        ? 'Encaminhado ao GPC'
-        : `Encaminhado para ${areaEncaminhamento.trim()}`;
+      const etapa = isGpc ? 'Encaminhado ao GPC' : `Encaminhado para ${area}`;
       await GgconService.setEtapaNaMovimentacaoAtual(processoSei, etapa);
     }
   },
