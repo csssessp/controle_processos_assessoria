@@ -3599,20 +3599,30 @@ const AssinaturaResponsavelSection = ({ registroId, exercicioId, signatoryUsers,
     const r2 = responsavelAssinatura2?.trim() ? [responsavelAssinatura2.trim()] : [];
     return [...new Set([...r1, ...r2])];
   });
+  // Depois de gravar em cgof_gpc_registro_exercicio (fonte real, por exercício), espelha
+  // também em cgof_gpc_recebidos — sem isso a tela de detalhe/lista (que lê
+  // row.responsavel_assinatura do cache, não do exercício) continuava mostrando "Nenhum
+  // responsável definido" mesmo com a assinatura já salva. Mesmo padrão de
+  // GpcService.syncRecebidoCache já usado pra posição/movimento/situação no submit do
+  // formulário — só que esses dois campos salvam na hora do clique, sem precisar de Salvar.
+  const salvarAssinatura = (novaLista: string[]) => {
+    const valor = novaLista.join(' | ') || null;
+    return GpcService.updateAssinaturaExercicio(registroId, exercicioId, valor, null)
+      .then(() => GpcService.syncRecebidoCache(registroId, { responsavel_assinatura: valor, responsavel_assinatura_2: null }))
+      .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
+  };
   const addAssinatura = (name: string) => {
     if (!name || assinaturasLocal.includes(name)) return;
     const next = [...assinaturasLocal, name];
     setAssinaturasLocal(next);
     onChange?.(next.join(' | '), '');
-    GpcService.updateAssinaturaExercicio(registroId, exercicioId, next.join(' | '), null)
-      .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
+    salvarAssinatura(next);
   };
   const removeAssinatura = (name: string) => {
     const next = assinaturasLocal.filter(n => n !== name);
     setAssinaturasLocal(next);
     onChange?.(next.join(' | '), '');
-    GpcService.updateAssinaturaExercicio(registroId, exercicioId, next.join(' | ') || null, null)
-      .catch((e: any) => toast('error', 'Erro ao salvar assinatura: ' + e.message));
+    salvarAssinatura(next);
   };
 
   return (
