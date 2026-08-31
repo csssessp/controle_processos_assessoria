@@ -749,7 +749,7 @@ export const GpcRelatorios = () => {
           })),
         },
         {
-          name: 'Atividades Avulsas',
+          name: 'Outras Atividades',
           rows: atividades.map(a => ({
             'Técnico': a.tecnico,
             'Tipo': a.tipo,
