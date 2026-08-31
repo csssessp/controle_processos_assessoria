@@ -1409,7 +1409,10 @@ export const GpcService = {
       if (e.evento === 'CADASTRO_EXERCICIO') s.exercicios++;
     }
     for (const a of atividadesFiltradas) {
-      const s = getBucket(a.tecnico);
+      // normalizeNomeTecnico: atividade avulsa chega com a grafia digitada no formulário,
+      // que pode divergir da grafia normalizada usada pelos eventos de produtividade/fluxo_tecnico
+      // acima — sem isso o mesmo técnico virava duas linhas no relatório (bug real, 2026-08-31).
+      const s = getBucket(normalizeNomeTecnico(a.tecnico));
       s.outras++;
       s.horas += a.horas ?? 0;
       s.paginas += a.paginas ?? 0;
