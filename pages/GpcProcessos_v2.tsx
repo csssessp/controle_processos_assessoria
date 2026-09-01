@@ -4418,6 +4418,24 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
   const isEditing = !!(liveRecord?.codigo);
 
+  // Processo sem número SIGES formal: ao marcar, gera automaticamente o próximo
+  // número sequencial (SIGES-01, SIGES-02, ...) com base nos cadastros existentes.
+  const [semSiges, setSemSiges] = useState(() => /^SIGES-\d+$/i.test((initial?.processo ?? '').trim()));
+  const [loadingSiges, setLoadingSiges] = useState(false);
+  const toggleSemSiges = async (checked: boolean) => {
+    setSemSiges(checked);
+    if (checked) {
+      setLoadingSiges(true);
+      try {
+        set('processo', await GpcService.getNextSigesNumero());
+      } finally {
+        setLoadingSiges(false);
+      }
+    } else if (/^SIGES-\d+$/i.test((form.processo ?? '').trim())) {
+      set('processo', '');
+    }
+  };
+
 
 
   // Section locking (require password to edit Identificação + Classificação)
@@ -4968,9 +4986,27 @@ const RegistroModal: React.FC<RegistroModalProps> = ({ initial, presetProcesso, 
 
               <div>
 
-                <label className={LABEL}>Número do Processo *</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Número do Processo *</label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={semSiges}
+                      onChange={e => toggleSemSiges(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-blue-600 rounded"
+                    />
+                    Sem número SIGES
+                  </label>
+                </div>
 
-                <input className={INPUT} value={form.processo ?? ''} onChange={e => set('processo', e.target.value)} required placeholder="ex: 00163175/2025-14" />
+                <input
+                  className={INPUT}
+                  value={form.processo ?? ''}
+                  onChange={e => set('processo', e.target.value)}
+                  required
+                  readOnly={semSiges}
+                  placeholder={loadingSiges ? 'Gerando número...' : 'ex: 00163175/2025-14'}
+                />
 
               </div>
 

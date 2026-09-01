@@ -216,6 +216,21 @@ export const GpcService = {
     return rows.filter(r => norm(r.processo ?? '') === needle).length;
   },
 
+  // Gera o próximo número sequencial "SIGES-NN" para processos que ainda não têm
+  // número de processo formal — varre todos os cadastros existentes com esse padrão
+  // e retorna o maior sufixo numérico + 1.
+  getNextSigesNumero: async (): Promise<string> => {
+    const rows = await fetchAllRows<{ processo: string | null }>(
+      'cgof_gpc_recebidos', 'processo', q => q.ilike('processo', 'SIGES-%'),
+    );
+    let max = 0;
+    for (const r of rows) {
+      const m = /^SIGES-(\d+)$/i.exec((r.processo ?? '').trim());
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+    return `SIGES-${String(max + 1).padStart(2, '0')}`;
+  },
+
   // Cadastros existentes que batem com o número do processo digitado, agrupados por
   // processo_codigo — usado para oferecer "Vincular a este processo" em vez de criar
   // um processo-mestre duplicado quando o mesmo processo retorna em outro exercício.
