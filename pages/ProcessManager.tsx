@@ -251,6 +251,7 @@ export const ProcessManager = () => {
   const [sectorOptions, setSectorOptions] = useState<string[]>([]);
   const [interestedOptions, setInterestedOptions] = useState<string[]>([]);
   const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
+  const optionsLoadedRef = useRef(false);
 
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -308,9 +309,15 @@ export const ProcessManager = () => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
+  // page/itemsPerPage NÃO entram aqui: DbService.getProcesses() sempre busca todas as
+  // linhas que batem no filtro (a paginação de verdade é feita no cliente, depois de
+  // deduplicar por número de processo — ver uniqueProcesses/paginatedProcesses abaixo),
+  // então incluir currentPage/itemsPerPage nesta função fazia CADA clique de "próxima
+  // página" ou troca de itens-por-página recarregar a tabela inteira do banco (17 mil+
+  // linhas) de novo, o que deixava a tela extremamente lenta.
   const getCurrentParams = useCallback(() => ({
-    page: currentPage,
-    itemsPerPage: itemsPerPage,
+    page: 1,
+    itemsPerPage: 0,
     searchTerm: debouncedSearchTerm,
     filters: {
       CGOF: filterCgof || undefined,
@@ -325,7 +332,7 @@ export const ProcessManager = () => {
       field: sortBy,
       order: sortOrder
     }
-  }), [currentPage, itemsPerPage, debouncedSearchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder]);
+  }), [debouncedSearchTerm, filterCgof, filterSector, filterEntryDateStart, filterEntryDateEnd, filterOverdue, filterEmptySector, filterEmptyExitDate, sortBy, sortOrder]);
 
   const refreshCurrentList = useCallback(() => {
     fetchProcesses(getCurrentParams());
@@ -441,33 +448,6 @@ export const ProcessManager = () => {
       });
   }, [processes]);
 
-  // DEBUG: log the first items after dedupe/sort to inspect ordering issues
-  useEffect(() => {
-    try {
-      const sample = uniqueProcesses.slice(0, 50).map((p, idx) => {
-        const today = new Date(); today.setHours(0,0,0,0);
-        const deadline = p.deadline ? new Date(p.deadline) : null;
-        const isOverdue = deadline ? (deadline.setHours(0,0,0,0) < today.getTime()) : false;
-        const deadlineDiff = deadline ? Math.ceil((deadline.getTime() - today.getTime()) / (1000*60*60*24)) : null;
-        return {
-          idx: idx + 1,
-          number: p.number,
-          entryDate: p.entryDate,
-          urgent: !!p.urgent,
-          _hadUrgent: (p as any)._hadUrgent ?? false,
-          deadline: p.deadline,
-          _hadOverdue: (p as any)._hadOverdue ?? false,
-          isOverdue,
-          daysToDeadline: deadlineDiff
-        };
-      });
-      // eslint-disable-next-line no-console
-      console.table(sample);
-    } catch (e) {
-      // ignore
-    }
-  }, [uniqueProcesses]);
-
   const availableCgofs = useMemo(() => {
     const currentOptions = new Set(CGOF_OPTIONS);
     processes.forEach(p => { if(p.CGOF) currentOptions.add(p.CGOF as any) });
@@ -539,7 +519,6 @@ export const ProcessManager = () => {
   };
 
   const handleOpenModal = async (process?: Process) => {
-    setLoadingEdit(true);
     setIsModalOpen(true);
     setEditingProcess(process || null);
     if (process) {
@@ -547,14 +526,19 @@ export const ProcessManager = () => {
     } else {
       setOriginalEntryDate('');
     }
-    
+
+    // As opções de sugestão (setor/interessada/assunto) são carregadas só uma vez por
+    // sessão nesta tela — antes eram recarregadas do zero (17 mil+ linhas varridas 3x) a
+    // cada abertura do modal, o que deixava "Lançar/Editar Registro" extremamente lento.
+    if (optionsLoadedRef.current) return;
+    setLoadingEdit(true);
     try {
         const [setoresRpc, interessadasRpc, assuntosRpc] = await Promise.all([
             DbService.getUniqueValues('sector'),
             DbService.getUniqueValues('interested'),
             DbService.getUniqueValues('subject')
         ]);
-        
+
         const localSectors = Array.from(new Set(processes.map(p => p.sector).filter(Boolean))).sort();
         const localInterested = Array.from(new Set(processes.map(p => p.interested).filter(Boolean))).sort();
         const localSubjects = Array.from(new Set(processes.map(p => p.subject).filter(Boolean))).sort();
@@ -562,8 +546,9 @@ export const ProcessManager = () => {
         setSectorOptions(setoresRpc.length > 0 ? setoresRpc : (localSectors.length > 0 ? localSectors : ['SES-GS-ATG8', 'GS/RECEBIMENTO']));
         setInterestedOptions(interessadasRpc.length > 0 ? interessadasRpc : localInterested);
         setSubjectOptions(assuntosRpc.length > 0 ? assuntosRpc : localSubjects);
-    } catch (error) { 
-        console.error("Erro ao carregar listas de sugestão:", error); 
+        optionsLoadedRef.current = true;
+    } catch (error) {
+        console.error("Erro ao carregar listas de sugestão:", error);
     } finally {
         setLoadingEdit(false);
     }
@@ -1574,7 +1559,14 @@ export const ProcessManager = () => {
                     uppercase
                     formatValue={(v) => {
                       let s = v.replace(/\//g, '-').trim().replace(/^-+|-+$/g, '');
-                      if (s && !s.startsWith('SES-')) s = 'SES-' + s;
+                      // Só prefixa "SES-" quando o valor não já indica outro órgão de
+                      // origem (ex.: SAP, IAMSPE, HCFMUSP, HCFAMEMA, GGCON) — sem isso,
+                      // toda tentativa de mudar a localização para fora da SES (ex.:
+                      // "SAP-SGC-DAF-DFC") era sobrescrita de volta para "SES-SAP-..." ao
+                      // sair do campo, tornando impossível remover o SES do processo.
+                      const ORGAO_PREFIXES = ['SES', 'SAP', 'IAMSPE', 'HCFMUSP', 'HCFAMEMA', 'GGCON'];
+                      const primeiroSegmento = s.split('-')[0];
+                      if (s && !ORGAO_PREFIXES.includes(primeiroSegmento)) s = 'SES-' + s;
                       return s;
                     }}
                     onLoadOptions={() => DbService.getUniqueValues('sector')}

@@ -3829,14 +3829,18 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
 
       const correcaoAlterada =
         (saved.correcao_obs ?? '') !== (current?.correcao_obs ?? '') ||
-        (saved.correcao_paginas ?? 0) !== (current?.correcao_paginas ?? 0);
+        (saved.correcao_paginas ?? 0) !== (current?.correcao_paginas ?? 0) ||
+        (saved.correcao_tecnico ?? '') !== (current?.correcao_tecnico ?? '');
       if (correcaoAlterada && saved.correcao_obs?.trim()) {
-        const analistas = saved.responsaveis_analise?.length ? saved.responsaveis_analise : [tecnico];
-        await Promise.all(analistas.map(analista => GpcService.saveFluxoTecnico({
-          registro_id: registroId, exercicio_id: selectedId, tecnico: analista,
+        // Crédito vai só para o técnico que de fato fez a correção (campo dedicado
+        // acima), não para todos os responsáveis pela análise do exercício — do
+        // contrário uma única correção era contada em dobro/triplo na produtividade.
+        const correcaoTecnico = saved.correcao_tecnico ?? tecnico;
+        await GpcService.saveFluxoTecnico({
+          registro_id: registroId, exercicio_id: selectedId, tecnico: correcaoTecnico,
           movimento: 'CORREÇÃO DOCUMENTAL', acao: saved.correcao_obs,
           num_paginas_analise: saved.correcao_paginas ?? null, data_evento: now,
-        })));
+        });
       }
 
       await load();
@@ -4224,6 +4228,19 @@ const ExercicioAnaliseTab = ({ registroId, exercicios, posicoes, gpcUsers, signa
 
             <CollapsibleSection icon={<PenLine size={13} />} title={secTitle('Correção Documental')}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={LABEL}>
+                    <span className="flex items-center gap-1"><User size={11} />Técnico da Correção</span>
+                  </label>
+                  <select
+                    className={INPUT}
+                    value={f.correcao_tecnico ?? ''}
+                    onChange={e => set('correcao_tecnico', e.target.value || null)}
+                  >
+                    <option value="">— selecione —</option>
+                    {gpcUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
+                </div>
                 <div>
                   <label className={LABEL}>
                     <span className="flex items-center gap-1"><BookOpen size={11} />Páginas Analisadas na Correção</span>

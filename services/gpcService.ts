@@ -1041,6 +1041,7 @@ export const GpcService = {
       valor_devolvido: r.valor_devolvido ?? null,
       correcao_paginas: r.correcao_paginas ?? null,
       correcao_obs: r.correcao_obs ?? null,
+      correcao_tecnico: r.correcao_tecnico ?? null,
       responsavel_assinatura: r.responsavel_assinatura ?? null,
       responsavel_assinatura_2: r.responsavel_assinatura_2 ?? null,
       updated_at: new Date().toISOString(),

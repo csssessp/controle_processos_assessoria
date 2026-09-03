@@ -399,6 +399,7 @@ export interface GpcRegistroExercicio {
   valor_devolvido: number | null;
   correcao_paginas: number | null;
   correcao_obs: string | null;
+  correcao_tecnico: string | null;
   responsavel_assinatura?: string | null;
   responsavel_assinatura_2?: string | null;
   created_at?: string;

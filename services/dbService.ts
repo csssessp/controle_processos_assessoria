@@ -281,21 +281,30 @@ export const DbService = {
       return query.order('entryDate', { ascending: false });
     };
 
+    // As páginas de 1000 linhas são buscadas em paralelo (não uma de cada vez) — com a
+    // tabela em 17 mil+ linhas, um loop sequencial precisa de ~18 idas e voltas ao banco
+    // uma após a outra, o que deixava qualquer busca/filtro extremamente lento. A primeira
+    // página é buscada sozinha (é dela que vem o "count" exato usado para saber quantas
+    // páginas faltam); as demais saem todas de uma vez com Promise.all.
     const PAGE_SIZE = 1000;
-    let allData: any[] = [];
-    let totalCount = 0;
-    let from = 0;
-    while (true) {
-      const { data, count, error } = await buildQuery(from, from + PAGE_SIZE - 1);
-      if (error) {
-        console.error('Error fetching processes:', error.message);
-        return { data: allData.map(mapProcessFromDB) as Process[], count: totalCount };
+    const first = await buildQuery(0, PAGE_SIZE - 1);
+    if (first.error) {
+      console.error('Error fetching processes:', first.error.message);
+      return { data: [], count: 0 };
+    }
+    const totalCount = first.count ?? (first.data?.length || 0);
+    let allData: any[] = first.data || [];
+
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    if (totalPages > 1) {
+      const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 1);
+      const results = await Promise.all(
+        remainingPages.map(page => buildQuery(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1))
+      );
+      for (const { data, error } of results) {
+        if (error) { console.error('Error fetching processes:', error.message); continue; }
+        allData = allData.concat(data || []);
       }
-      if (from === 0 && count != null) totalCount = count;
-      const rows = data || [];
-      allData = allData.concat(rows);
-      from += PAGE_SIZE;
-      if (rows.length < PAGE_SIZE) break;
     }
 
     const mappedData = allData.map(mapProcessFromDB);
@@ -430,28 +439,43 @@ export const DbService = {
   },
 
   getUniqueValues: async (column: 'sector' | 'interested' | 'subject'): Promise<string[]> => {
+    // Caminho rápido: função RPC que faz o DISTINCT no banco (ver instruções no topo
+    // deste arquivo) — devolve só os valores únicos (dezenas), não as 17 mil+ linhas da
+    // tabela. Se a função ainda não foi criada no Supabase (PGRST202), cai no fallback
+    // abaixo, que também funciona mas é bem mais lento por trafegar a coluna inteira.
+    const rpcName = column === 'sector' ? 'distinct_setor' : column === 'interested' ? 'distinct_interessada' : 'distinct_assunto';
     try {
-      // Paginado (mesmo motivo de getProcesses): "processes" tem 17.000+ linhas, e sem
-      // range() explícito o PostgREST só devolvia os valores únicos da primeira página
-      // (1000 linhas), fazendo opções de filtro sumirem dos dropdowns.
-      const PAGE_SIZE = 1000;
-      const values: string[] = [];
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from('processes')
-          .select(column)
-          .not(column, 'is', null)
-          .range(from, from + PAGE_SIZE - 1);
+      const { data, error } = await supabase.rpc(rpcName);
+      if (!error && data) {
+        return (data as any[]).map(r => r.value).filter(Boolean).sort();
+      }
+    } catch { /* RPC indisponível — segue para o fallback */ }
 
-        if (error) {
-          console.error(`Error fetching unique ${column}:`, error.message);
-          break;
+    try {
+      // Fallback paginado (mesmo motivo de getProcesses): sem range() explícito o
+      // PostgREST só devolvia os valores únicos da primeira página (1000 linhas), fazendo
+      // opções de filtro sumirem dos dropdowns. Buscado em paralelo pelo mesmo motivo de
+      // getProcesses — um loop sequencial de ~18 páginas é extremamente lento.
+      const PAGE_SIZE = 1000;
+      const fetchPage = (from: number) => supabase
+        .from('processes')
+        .select(column, { count: from === 0 ? 'exact' : undefined })
+        .not(column, 'is', null)
+        .range(from, from + PAGE_SIZE - 1);
+
+      const first = await fetchPage(0);
+      if (first.error) throw first.error;
+      const values: string[] = ((first.data as any[]) ?? []).map(item => item[column]);
+      const totalCount = first.count ?? values.length;
+
+      const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+      if (totalPages > 1) {
+        const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 1);
+        const results = await Promise.all(remainingPages.map(page => fetchPage(page * PAGE_SIZE)));
+        for (const { data, error } of results) {
+          if (error) { console.error(`Error fetching unique ${column}:`, error.message); continue; }
+          for (const item of (data as any[]) ?? []) values.push(item[column]);
         }
-        const rows = (data as any[]) ?? [];
-        for (const item of rows) values.push(item[column]);
-        from += PAGE_SIZE;
-        if (rows.length < PAGE_SIZE) break;
       }
 
       // Remover duplicatas e valores vazios, ordenar alfabeticamente
