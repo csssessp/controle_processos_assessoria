@@ -1895,10 +1895,14 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                   </div>
                 )}
 
-                {/* Encaminhamento — só quem libera processos decide o destino; fica disponível
-                    mesmo depois de concluída, para corrigir a área/data se necessário. Só
-                    aparece depois da assinatura confirmada (ver podeEncaminhar acima). */}
-                {canLiberar && podeEncaminhar && (
+                {/* Encaminhamento — quem libera processos OU o próprio técnico dono da análise
+                    decide o destino (canManage, mesmo padrão do bloco de Encaminhamento
+                    EM_ANALISE/RETORNO_GPC logo acima) — fica disponível mesmo depois de
+                    concluída, para corrigir a área/data se necessário. Só aparece depois da
+                    assinatura confirmada (ver podeEncaminhar acima). Antes exigia canLiberar
+                    sozinho, o que travava o técnico responsável (isDono) numa Conferência com
+                    Pendência sem ninguém com a permissão de liberar prestar atenção nela. */}
+                {canManage && podeEncaminhar && (
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><Send size={14}/>Encaminhamento</h4>
                     {showEncaminhar ? (
