@@ -36,6 +36,7 @@ export interface User {
   ggcon_assina?: boolean; // Pode confirmar a assinatura na etapa de Análise GGCON (ex.: Marilsa)
   ggcon_restrito_analise?: boolean; // Só enxerga "Análise Processo GGCON" — sem acesso a Processos/Relatórios GGCON
   ggcon_admin_analise?: boolean; // Pode Alterar Status e Resetar Análise sem ser Administrador
+  ggcon_ver_produtividade_analise?: boolean; // Pode ver a aba "Produtividade" na Análise Processo GGCON
   tela_inicial?: string | null; // Tela em que o usuário cai ao entrar — ver TELA_INICIAL_OPCOES em App.tsx
   password_hash?: string; // Stored hash
   password?: string; // Input only, not stored in DB directly
@@ -77,6 +78,14 @@ export const podeAdministrarAnalise = (user: User | null): boolean => {
   if (!user) return false;
   if (user.role === UserRole.ADMIN) return true;
   return userHasArea(user, 'ggcon') && user.ggcon_admin_analise === true;
+};
+
+/** Verifica se o usuário pode ver a aba "Produtividade" na tela "Análise Processo
+ * GGCON" (Admin sempre pode). */
+export const podeVerProdutividadeAnalise = (user: User | null): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return userHasArea(user, 'ggcon') && user.ggcon_ver_produtividade_analise === true;
 };
 
 export interface Process {
@@ -587,4 +596,22 @@ export interface GgconAnaliseHistorico {
   usuario_responsavel: string | null;
   data_evento: string;
   observacao: string | null;
+}
+
+// ─── Produtividade da Análise GGCON ────────────────────────────────────────────
+
+export interface GgconProdutividadeLinha {
+  tecnico: string;
+  processosAnalisados: number;
+  completos100: number;
+  paginas: number;
+}
+
+export interface GgconProdutividadeDetalheLinha {
+  processo_sei: string;
+  tecnico: string;
+  evento: GgconAnaliseEvento;
+  data_evento: string;
+  completo: boolean;
+  paginas: number;
 }

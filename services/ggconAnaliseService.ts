@@ -5,6 +5,7 @@ import { GgconService } from './ggconService';
 import {
   GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
   GgconAnaliseResposta, GgconTipoConveniada, userHasArea, UserRole,
+  GgconProdutividadeLinha, GgconProdutividadeDetalheLinha,
 } from '../types';
 import { CHECKLISTS } from './ggconAnaliseChecklists';
 
@@ -35,6 +36,28 @@ async function fetchAllRows<T = any>(
 }
 
 const hoje = () => new Date().toISOString().slice(0, 10);
+
+// Soma os números encontrados no campo "página" de cada link de documento SEI de um
+// item do checklist (mesmo formato de serialização de pages/GgconAnalise.tsx:56-71 —
+// string pura quando não há página, ou JSON `{url, pagina}` quando há). Usado como
+// proxy de "quantidade de páginas" na aba Produtividade, a pedido do usuário — o campo
+// foi pensado originalmente como "em que página do documento está a info", não como
+// contador, então isso é uma aproximação.
+function contarPaginas(raw: string[] | null): number {
+  if (!raw) return 0;
+  let total = 0;
+  for (const s of raw) {
+    let pagina: string | undefined;
+    if (s.startsWith('{')) {
+      try { const p = JSON.parse(s); pagina = typeof p?.pagina === 'string' ? p.pagina : undefined; } catch { /* link legado, sem página */ }
+    }
+    if (pagina) {
+      const nums = pagina.match(/\d+/g);
+      if (nums) total += nums.reduce((acc, n) => acc + parseInt(n, 10), 0);
+    }
+  }
+  return total;
+}
 
 // Não lança erro se o insert falhar — o registro no histórico é auditoria secundária;
 // a mudança de estado principal (status/analista/datas) já foi gravada com sucesso
@@ -696,5 +719,70 @@ export const GgconAnaliseService = {
         maisAntigoAbertoDias: idadesAbertos.length ? Math.max(...idadesAbertos) : null,
       };
     }).sort((a, b) => (b.aguardandoAnalise + b.emAnalise) - (a.aguardandoAnalise + a.emAnalise));
+  },
+
+  // Produtividade mensal por técnico — conta processos concluídos (evento CONCLUIDA
+  // ou CONCLUIDA_COM_PENDENCIA) no mês/ano informado, atribuídos via
+  // usuario_responsavel de cgof_ggcon_analise_historico (quem executou a ação), com
+  // a soma de páginas dos documentos SEI anexados ao checklist de cada processo.
+  getProdutividade: async (ano: number, mes: number): Promise<{
+    linhas: GgconProdutividadeLinha[];
+    detalhe: GgconProdutividadeDetalheLinha[];
+  }> => {
+    const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const fim = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${String(mes + 1).padStart(2, '0')}-01`;
+
+    const historico = await fetchAllRows<GgconAnaliseHistorico>(
+      'cgof_ggcon_analise_historico', '*',
+      q => q.gte('data_evento', inicio).lt('data_evento', fim).in('evento', ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIA']),
+    );
+    if (!historico.length) return { linhas: [], detalhe: [] };
+
+    const analiseIds = [...new Set(historico.map(h => h.analise_id))];
+    const analises = await fetchAllRows<{ id: number; processo_sei: string }>(
+      'cgof_ggcon_analises', 'id, processo_sei', q => q.in('id', analiseIds),
+    );
+    const processoPorId = new Map(analises.map(a => [a.id, a.processo_sei]));
+
+    const itens = await fetchAllRows<{ analise_id: number; documento_sei: string[] | null }>(
+      'cgof_ggcon_analise_itens', 'analise_id, documento_sei', q => q.in('analise_id', analiseIds),
+    );
+    const paginasPorAnalise = new Map<number, number>();
+    for (const it of itens) {
+      paginasPorAnalise.set(it.analise_id, (paginasPorAnalise.get(it.analise_id) ?? 0) + contarPaginas(it.documento_sei));
+    }
+
+    // Dedupe por (técnico, analise_id): o mesmo processo resetado e reconcluído no
+    // mesmo mês conta só 1 vez para aquele técnico.
+    const vistos = new Set<string>();
+    const detalhe: GgconProdutividadeDetalheLinha[] = [];
+    for (const h of [...historico].sort((a, b) => a.data_evento.localeCompare(b.data_evento))) {
+      const tecnico = h.usuario_responsavel || 'Não identificado';
+      const chave = `${tecnico}::${h.analise_id}`;
+      if (vistos.has(chave)) continue;
+      vistos.add(chave);
+      detalhe.push({
+        processo_sei: processoPorId.get(h.analise_id) ?? `#${h.analise_id}`,
+        tecnico,
+        evento: h.evento,
+        data_evento: h.data_evento,
+        completo: h.evento === 'CONCLUIDA',
+        paginas: paginasPorAnalise.get(h.analise_id) ?? 0,
+      });
+    }
+
+    const porTecnico = new Map<string, GgconProdutividadeLinha>();
+    for (const d of detalhe) {
+      const cur = porTecnico.get(d.tecnico) ?? { tecnico: d.tecnico, processosAnalisados: 0, completos100: 0, paginas: 0 };
+      cur.processosAnalisados += 1;
+      if (d.completo) cur.completos100 += 1;
+      cur.paginas += d.paginas;
+      porTecnico.set(d.tecnico, cur);
+    }
+
+    return {
+      linhas: [...porTecnico.values()].sort((a, b) => b.processosAnalisados - a.processosAnalisados),
+      detalhe,
+    };
   },
 };

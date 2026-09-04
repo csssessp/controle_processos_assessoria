@@ -111,6 +111,7 @@ export const DbService = {
       ggcon_assina: user.ggcon_assina ?? false,
       ggcon_restrito_analise: user.ggcon_restrito_analise ?? false,
       ggcon_admin_analise: user.ggcon_admin_analise ?? false,
+      ggcon_ver_produtividade_analise: user.ggcon_ver_produtividade_analise ?? false,
       tela_inicial: user.tela_inicial || null
     };
 

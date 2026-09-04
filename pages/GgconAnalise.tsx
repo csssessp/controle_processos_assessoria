@@ -3,11 +3,12 @@ import {
   Search, Plus, X, Check, Loader2, AlertCircle, ClipboardCheck, Send, UserCog,
   History, ChevronLeft, ChevronRight, Lock, Trash2, MoreVertical, RotateCcw, Inbox,
   ArrowUp, ArrowDown, ArrowUpDown, RefreshCw, StickyNote, Download, Users, ExternalLink,
-  Pencil, FileSignature, AlertTriangle,
+  Pencil, FileSignature, AlertTriangle, BarChart3, FileSpreadsheet,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import brasaoUrl from '../img/Brasão.png';
 import { GgconAnaliseService, GgconAnaliseFiltroStatus, GgconAnaliseSortField } from '../services/ggconAnaliseService';
 import { GgconService } from '../services/ggconService';
@@ -18,7 +19,8 @@ import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import {
   GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
-  GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, podeAdministrarAnalise, User, UserRole,
+  GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, podeAdministrarAnalise,
+  podeVerProdutividadeAnalise, GgconProdutividadeLinha, GgconProdutividadeDetalheLinha, User, UserRole,
 } from '../types';
 
 const DRS_UNIDADES = [
@@ -1125,6 +1127,174 @@ const ConsolidadoPorAnalista = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
+// ─── Produtividade da Análise GGCON ─────────────────────────────────────────────
+// Exportação XLSX no mesmo padrão usado em GgconRelatorios.tsx/GpcRelatorios.tsx.
+
+function exportXLSX(sheets: { name: string; rows: Record<string, unknown>[] }[], filename: string) {
+  const wb = XLSX.utils.book_new();
+  for (const { name, rows } of sheets) {
+    if (!rows.length) continue;
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const cols = Object.keys(rows[0]);
+    ws['!cols'] = cols.map(col => ({
+      wch: Math.min(60, Math.max(col.length + 2, ...rows.slice(0, 300).map(r => String(r[col] ?? '').length + 1))),
+    }));
+    XLSX.utils.book_append_sheet(wb, ws, name.substring(0, 31));
+  }
+  if (!wb.SheetNames.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sem dados']]), 'Sem dados');
+  }
+  XLSX.writeFile(wb, filename);
+}
+
+const todayStr = () => new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+
+const MESES_LABEL = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+const ProdutividadeAnaliseGgcon = ({ onClose }: { onClose: () => void }) => {
+  const agora = new Date();
+  const [ano, setAno] = useState(agora.getFullYear());
+  const [mes, setMes] = useState(agora.getMonth() + 1);
+  const [linhas, setLinhas] = useState<GgconProdutividadeLinha[]>([]);
+  const [detalhe, setDetalhe] = useState<GgconProdutividadeDetalheLinha[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    GgconAnaliseService.getProdutividade(ano, mes).then(r => {
+      setLinhas(r.linhas);
+      setDetalhe(r.detalhe);
+      setLoading(false);
+    });
+  }, [ano, mes]);
+
+  const totais = linhas.reduce((acc, l) => ({
+    processosAnalisados: acc.processosAnalisados + l.processosAnalisados,
+    completos100: acc.completos100 + l.completos100,
+    paginas: acc.paginas + l.paginas,
+  }), { processosAnalisados: 0, completos100: 0, paginas: 0 });
+
+  const completos = detalhe.filter(d => d.completo).sort((a, b) => a.data_evento.localeCompare(b.data_evento));
+
+  const handleExport = () => {
+    const periodo = `${String(mes).padStart(2, '0')}-${ano}`;
+    exportXLSX([
+      {
+        name: 'Resumo por Técnico',
+        rows: linhas.map(l => ({
+          'Técnico': l.tecnico,
+          'Processos Analisados': l.processosAnalisados,
+          'Completos (100%)': l.completos100,
+          'Páginas': l.paginas,
+        })),
+      },
+      {
+        name: 'Detalhe dos Processos',
+        rows: detalhe.map(d => ({
+          'Processo SEI': d.processo_sei,
+          'Técnico': d.tecnico,
+          'Evento': d.evento,
+          'Data': fmtDate(d.data_evento),
+          'Progresso 100%': d.completo ? 'SIM' : 'NÃO',
+          'Páginas': d.paginas,
+        })),
+      },
+    ], `ggcon_produtividade_analise_${periodo}_${todayStr()}.xlsx`);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+        <h3 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><BarChart3 size={15} className="text-blue-600"/>Produtividade da Análise</h3>
+        <div className="flex items-center gap-2">
+          <select value={mes} onChange={e => setMes(Number(e.target.value))} className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5">
+            {MESES_LABEL.map((label, idx) => <option key={label} value={idx + 1}>{label}</option>)}
+          </select>
+          <input
+            type="number"
+            value={ano}
+            onChange={e => setAno(Number(e.target.value) || agora.getFullYear())}
+            className="w-20 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5"
+          />
+          <button onClick={handleExport} disabled={loading || !linhas.length} className={`${BTN_GHOST} disabled:opacity-40 disabled:cursor-not-allowed`}>
+            <FileSpreadsheet size={16}/>Exportar XLSX
+          </button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"><X size={15}/></button>
+        </div>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-10"><Loader2 size={22} className="animate-spin text-blue-500"/></div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  {['Técnico', 'Processos Analisados', 'Completos (100%)', 'Páginas'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {linhas.map(l => (
+                  <tr key={l.tecnico} className="border-t border-slate-100 hover:bg-slate-50/50">
+                    <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{l.tecnico}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{l.processosAnalisados}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{l.completos100}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{l.paginas}</td>
+                  </tr>
+                ))}
+                {!linhas.length && (
+                  <tr><td colSpan={4} className="py-10 text-center text-slate-400">Nenhum processo concluído neste período.</td></tr>
+                )}
+              </tbody>
+              {!!linhas.length && (
+                <tfoot>
+                  <tr className="border-t-2 border-slate-200 bg-slate-50/70 font-semibold text-slate-700">
+                    <td className="px-4 py-2.5">Total</td>
+                    <td className="px-4 py-2.5">{totais.processosAnalisados}</td>
+                    <td className="px-4 py-2.5">{totais.completos100}</td>
+                    <td className="px-4 py-2.5">{totais.paginas}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+
+          {!!completos.length && (
+            <div className="border-t border-slate-100 px-5 py-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2.5">Processos com progresso 100% no mês</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      {['Processo SEI', 'Técnico', 'Data'].map(h => (
+                        <th key={h} className="px-4 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {completos.map((d, idx) => (
+                      <tr key={`${d.processo_sei}-${idx}`} className="border-t border-slate-100">
+                        <td className="px-4 py-2 text-slate-700 whitespace-nowrap">{d.processo_sei}</td>
+                        <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{d.tecnico}</td>
+                        <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{fmtDate(d.data_evento)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 // ─── Item do checklist ──────────────────────────────────────────────────────────
 
 const RESPOSTA_OPCOES: { value: GgconAnaliseResposta; label: string; on: string; off: string }[] = [
@@ -2137,6 +2307,7 @@ export const GgconAnalisePage = () => {
   const canLiberar = podeLiberarAnalise(currentUser);
   const podeAssinar = podeAssinarGgcon(currentUser);
   const canAdministrarAnalise = podeAdministrarAnalise(currentUser);
+  const canVerProdutividade = podeVerProdutividadeAnalise(currentUser);
 
   const [rows, setRows] = useState<GgconAnalise[]>([]);
   const [count, setCount] = useState(0);
@@ -2151,6 +2322,7 @@ export const GgconAnalisePage = () => {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [loteOverlay, setLoteOverlay] = useState<null | 'liberar' | 'reatribuir' | 'assinatura'>(null);
   const [showConsolidado, setShowConsolidado] = useState(false);
+  const [showProdutividade, setShowProdutividade] = useState(false);
 
   const filtrosIniciais = useMemo(carregarFiltrosPersistidos, []);
   const [search, setSearch] = useState(filtrosIniciais.search);
@@ -2296,12 +2468,19 @@ export const GgconAnalisePage = () => {
           <h2 className="text-2xl font-bold text-slate-800">Análise Processo GGCON</h2>
           <p className="text-sm text-slate-500 mt-0.5">Conferência de Prestação de Contas — {count.toLocaleString('pt-BR')} processo{count !== 1 ? 's' : ''}</p>
         </div>
-        {canLiberar && (
+        {(canLiberar || canVerProdutividade) && (
           <div className="flex items-center gap-2">
-            <button className={BTN_GHOST} onClick={() => setShowConsolidado(s => !s)}>
-              <Users size={16}/>{showConsolidado ? 'Ocultar Consolidado' : 'Consolidado por Analista'}
-            </button>
-            {!isViewOnly && (
+            {canLiberar && (
+              <button className={BTN_GHOST} onClick={() => setShowConsolidado(s => !s)}>
+                <Users size={16}/>{showConsolidado ? 'Ocultar Consolidado' : 'Consolidado por Analista'}
+              </button>
+            )}
+            {canVerProdutividade && (
+              <button className={BTN_GHOST} onClick={() => setShowProdutividade(s => !s)}>
+                <BarChart3 size={16}/>{showProdutividade ? 'Ocultar Produtividade' : 'Produtividade'}
+              </button>
+            )}
+            {canLiberar && !isViewOnly && (
               <button className={BTN_PRIMARY_LG} onClick={() => setOverlay({ type: 'form' })}>
                 <Plus size={18}/>Novo Registro
               </button>
@@ -2311,6 +2490,7 @@ export const GgconAnalisePage = () => {
       </div>
 
       {showConsolidado && canLiberar && <ConsolidadoPorAnalista onClose={() => setShowConsolidado(false)}/>}
+      {showProdutividade && canVerProdutividade && <ProdutividadeAnaliseGgcon onClose={() => setShowProdutividade(false)}/>}
 
       {/* Destaque — processos aguardando a análise do usuário logado, visível assim que
           ele entra na tela, sem precisar clicar em nenhum filtro. */}
