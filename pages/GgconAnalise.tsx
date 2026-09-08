@@ -1182,12 +1182,20 @@ const ProdutividadeAnaliseGgcon = ({ onClose }: { onClose: () => void }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Guarda contra race condition: sem isso, trocar de mês rapidamente (ex.: Setembro
+    // -> Outubro) podia deixar uma resposta antiga (mais lenta) sobrescrever o estado
+    // depois de uma resposta mais nova já ter chegado — o usuário via os números de um
+    // mês exibidos sob o rótulo de outro (bug real, reportado: Outubro mostrando os
+    // mesmos totais de Agosto porque a resposta de Agosto chegou por último).
+    let cancelado = false;
     setLoading(true);
     GgconAnaliseService.getProdutividade(ano, mes).then(r => {
+      if (cancelado) return;
       setLinhas(r.linhas);
       setDetalhe(r.detalhe);
       setLoading(false);
     });
+    return () => { cancelado = true; };
   }, [ano, mes]);
 
   const totais = linhas.reduce((acc, l) => ({
