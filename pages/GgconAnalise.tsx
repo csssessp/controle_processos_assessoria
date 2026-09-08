@@ -1541,13 +1541,14 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [showEditCadastro, setShowEditCadastro] = useState(false);
   const [showPendencia, setShowPendencia] = useState(false);
   const [pendenciaTexto, setPendenciaTexto] = useState('');
-  // Popup "mês de competência" antes de concluir — pede pro técnico escolher a que mês
-  // aquele processo deve valer na Produtividade da Análise, em vez de assumir sempre o
-  // mês real do clique (ver GgconAnaliseService.getProdutividade). null = popup fechado;
-  // 'sem_pendencia'/'com_pendencia' = qual dos dois botões de conclusão disparou.
-  const [mesProdutividadeOverlay, setMesProdutividadeOverlay] = useState<null | 'sem_pendencia' | 'com_pendencia'>(null);
-  const [mesEscolhido, setMesEscolhido] = useState(() => new Date().getMonth() + 1);
-  const [anoEscolhido, setAnoEscolhido] = useState(() => new Date().getFullYear());
+  // Popup "Data de Conclusão" antes de concluir — pede pro técnico confirmar/ajustar a
+  // data real em que o checklist foi finalizado, em vez de assumir sempre hoje(). Essa
+  // data grava tanto data_analise (coluna "Analisado" da listagem/PDF) quanto o mês de
+  // competência na Produtividade da Análise (ver GgconAnaliseService.concluirAnalise/
+  // concluirAnaliseComPendencia/getProdutividade). null = popup fechado; 'sem_pendencia'/
+  // 'com_pendencia' = qual dos dois botões de conclusão disparou.
+  const [dataConclusaoOverlay, setDataConclusaoOverlay] = useState<null | 'sem_pendencia' | 'com_pendencia'>(null);
+  const [dataConclusaoEscolhida, setDataConclusaoEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
   const isAdmin = currentUser?.role === UserRole.ADMIN;
   const canAdministrarAnalise = podeAdministrarAnalise(currentUser);
   const [resetMotivo, setResetMotivo] = useState('');
@@ -1650,38 +1651,37 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     catch (ex: any) { toast('error', ex.message); }
   };
 
-  const handleConcluir = async (mesProdutividade: string) => {
+  const handleConcluir = async (dataConclusao: string) => {
     if (!analise || !currentUserName) return;
     setBusy(true);
     try {
-      await GgconAnaliseService.concluirAnalise(analise.id, currentUserName, mesProdutividade);
+      await GgconAnaliseService.concluirAnalise(analise.id, currentUserName, dataConclusao);
       await load();
       onChanged();
-      setMesProdutividadeOverlay(null);
+      setDataConclusaoOverlay(null);
       toast('success', 'Preenchimento concluído.');
     } catch (ex: any) { toast('error', ex.message); }
     finally { setBusy(false); }
   };
 
-  const handleConcluirComPendencia = async (mesProdutividade: string) => {
+  const handleConcluirComPendencia = async (dataConclusao: string) => {
     if (!analise || !currentUserName || !pendenciaTexto.trim()) return;
     setBusy(true);
     try {
-      await GgconAnaliseService.concluirAnaliseComPendencia(analise.id, currentUserName, pendenciaTexto.trim(), mesProdutividade);
+      await GgconAnaliseService.concluirAnaliseComPendencia(analise.id, currentUserName, pendenciaTexto.trim(), dataConclusao);
       await load();
       onChanged();
       setShowPendencia(false);
       setPendenciaTexto('');
-      setMesProdutividadeOverlay(null);
+      setDataConclusaoOverlay(null);
       toast('success', 'Conferência concluída com pendência.');
     } catch (ex: any) { toast('error', ex.message); }
     finally { setBusy(false); }
   };
 
-  const handleConfirmarMesProdutividade = () => {
-    const mes = `${anoEscolhido}-${String(mesEscolhido).padStart(2, '0')}-01`;
-    if (mesProdutividadeOverlay === 'sem_pendencia') handleConcluir(mes);
-    else if (mesProdutividadeOverlay === 'com_pendencia') handleConcluirComPendencia(mes);
+  const handleConfirmarDataConclusao = () => {
+    if (dataConclusaoOverlay === 'sem_pendencia') handleConcluir(dataConclusaoEscolhida);
+    else if (dataConclusaoOverlay === 'com_pendencia') handleConcluirComPendencia(dataConclusaoEscolhida);
   };
 
   const handleLiberarAssinatura = async () => {
@@ -2051,7 +2051,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                         {!completo && <p className="text-[11px] text-amber-600 text-center">Responda todos os {total} itens para concluir.</p>}
                         {!showPendencia && (
                           <div className="grid grid-cols-2 gap-2">
-                            <button className={BTN_PRIMARY_GREEN + ' justify-center'} disabled={!completo || busy} onClick={() => setMesProdutividadeOverlay('sem_pendencia')} title="Checklist sem pendências — segue para a etapa de Assinatura">
+                            <button className={BTN_PRIMARY_GREEN + ' justify-center'} disabled={!completo || busy} onClick={() => setDataConclusaoOverlay('sem_pendencia')} title="Checklist sem pendências — segue para a etapa de Assinatura">
                               <Check size={16}/>Conferência sem Pendência
                             </button>
                             <button
@@ -2082,7 +2082,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                                 type="button"
                                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                 disabled={!pendenciaTexto.trim() || busy}
-                                onClick={() => setMesProdutividadeOverlay('com_pendencia')}
+                                onClick={() => setDataConclusaoOverlay('com_pendencia')}
                               >
                                 {busy ? <Loader2 size={16} className="animate-spin"/> : <AlertTriangle size={16}/>}Confirmar Pendência
                               </button>
@@ -2280,32 +2280,29 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
         />
       )}
 
-      {mesProdutividadeOverlay && analise && (
+      {dataConclusaoOverlay && analise && (
         <Modal
-          title="Mês de competência"
-          subtitle="Em qual mês esse processo deve contar na Produtividade da Análise?"
-          onClose={() => setMesProdutividadeOverlay(null)}
+          title="Data de Conclusão"
+          subtitle="Em que data esse checklist foi realmente finalizado?"
+          onClose={() => setDataConclusaoOverlay(null)}
           size="md"
         >
           <div className="space-y-4">
             <p className="text-xs text-slate-500">
-              Por padrão vem o mês atual — mude se o trabalho foi feito num mês anterior
-              e você quer que a produtividade seja creditada nele.
+              Por padrão vem a data de hoje — mude se você preencheu o checklist em outro
+              dia e só está confirmando agora. Essa data vale tanto para "Analisado" na
+              listagem/PDF quanto para o mês de competência na Produtividade da Análise.
             </p>
-            <div className="flex items-center gap-2">
-              <select value={mesEscolhido} onChange={e => setMesEscolhido(Number(e.target.value))} className={INPUT}>
-                {MESES_LABEL.map((label, idx) => <option key={label} value={idx + 1}>{label}</option>)}
-              </select>
-              <input
-                type="number"
-                value={anoEscolhido}
-                onChange={e => setAnoEscolhido(Number(e.target.value) || new Date().getFullYear())}
-                className={INPUT + ' w-28'}
-              />
-            </div>
+            <input
+              type="date"
+              value={dataConclusaoEscolhida}
+              onChange={e => setDataConclusaoEscolhida(e.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
+              className={INPUT}
+            />
             <div className="flex gap-2 pt-2">
-              <button type="button" className={BTN_GHOST + ' flex-1 justify-center'} onClick={() => setMesProdutividadeOverlay(null)} disabled={busy}>Cancelar</button>
-              <button type="button" className={BTN_PRIMARY + ' flex-1 justify-center'} onClick={handleConfirmarMesProdutividade} disabled={busy}>
+              <button type="button" className={BTN_GHOST + ' flex-1 justify-center'} onClick={() => setDataConclusaoOverlay(null)} disabled={busy}>Cancelar</button>
+              <button type="button" className={BTN_PRIMARY + ' flex-1 justify-center'} onClick={handleConfirmarDataConclusao} disabled={busy || !dataConclusaoEscolhida}>
                 {busy ? <Loader2 size={16} className="animate-spin"/> : <Check size={16}/>}Confirmar
               </button>
             </div>

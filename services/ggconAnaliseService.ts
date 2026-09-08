@@ -441,15 +441,18 @@ export const GgconAnaliseService = {
   // Marca a conclusão do preenchimento do checklist — o processo continua com o
   // analista (status EM_ANALISE) até alguém com permissão de liberação ou o próprio
   // técnico dono da análise liberar para assinatura.
-  // mesProdutividade (1º dia do mês, "YYYY-MM-01") é o mês que o técnico escolheu no
-  // popup de conclusão pra valer como competência na Produtividade — ver getProdutividade.
-  concluirAnalise: async (id: number, usuarioResponsavel: string, mesProdutividade?: string | null): Promise<void> => {
+  // dataConclusao ("YYYY-MM-DD") é a data que o técnico escolheu no popup de conclusão
+  // — grava em data_analise (a mesma coluna "Analisado" da listagem/PDF) em vez de
+  // assumir sempre hoje(), pra quem preencheu o checklist num dia e só clicou em
+  // Concluir depois não ficar com a data errada. O mês dessa data também vira a
+  // competência na Produtividade (mesProdutividade, ver getProdutividade).
+  concluirAnalise: async (id: number, usuarioResponsavel: string, dataConclusao: string): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
-      data_analise: hoje(),
+      data_analise: dataConclusao,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
-    await registrarEvento(id, 'CONCLUIDA', { usuarioResponsavel, mesProdutividade });
+    await registrarEvento(id, 'CONCLUIDA', { usuarioResponsavel, mesProdutividade: dataConclusao.slice(0, 7) + '-01' });
   },
 
   // Alternativa a concluirAnalise: a conferência encontrou algo a corrigir. Pula a
@@ -457,17 +460,19 @@ export const GgconAnaliseService = {
   // — a pendência fica registrada permanentemente em data_pendencia/pendencia_descricao,
   // mesmo depois de encaminhado.
   concluirAnaliseComPendencia: async (
-    id: number, usuarioResponsavel: string, descricaoPendencia: string, mesProdutividade?: string | null,
+    id: number, usuarioResponsavel: string, descricaoPendencia: string, dataConclusao: string,
   ): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: 'CONFERENCIA_PENDENCIA',
-      data_analise: hoje(),
-      data_pendencia: hoje(),
+      data_analise: dataConclusao,
+      data_pendencia: dataConclusao,
       pendencia_descricao: descricaoPendencia,
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
-    await registrarEvento(id, 'CONCLUIDA_COM_PENDENCIA', { usuarioResponsavel, observacao: descricaoPendencia, mesProdutividade });
+    await registrarEvento(id, 'CONCLUIDA_COM_PENDENCIA', {
+      usuarioResponsavel, observacao: descricaoPendencia, mesProdutividade: dataConclusao.slice(0, 7) + '-01',
+    });
   },
 
   // Libera o processo, já com o checklist concluído, para a etapa de assinatura —
