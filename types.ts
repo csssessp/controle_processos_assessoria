@@ -614,4 +614,5 @@ export interface GgconProdutividadeDetalheLinha {
   data_evento: string;
   completo: boolean;
   paginas: number;
+  status: GgconAnaliseStatus;
 }

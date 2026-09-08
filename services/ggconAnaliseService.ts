@@ -773,10 +773,13 @@ export const GgconAnaliseService = {
     if (!historico.length) return { linhas: [], detalhe: [] };
 
     const analiseIds = [...new Set(historico.map(h => h.analise_id))];
-    const analises = await fetchAllRows<{ id: number; processo_sei: string }>(
-      'cgof_ggcon_analises', 'id, processo_sei', q => q.in('id', analiseIds),
+    const analises = await fetchAllRows<{ id: number; processo_sei: string; status: GgconAnaliseStatus }>(
+      'cgof_ggcon_analises', 'id, processo_sei, status', q => q.in('id', analiseIds),
     );
     const processoPorId = new Map(analises.map(a => [a.id, a.processo_sei]));
+    // Status ATUAL do processo (não o status na época do evento) — um processo com
+    // CONTRIBUICAO_PARCIAL no mês pode já ter sido concluído por outro técnico depois.
+    const statusPorId = new Map(analises.map(a => [a.id, a.status]));
 
     const itens = await fetchAllRows<{ analise_id: number; documento_sei: string[] | null }>(
       'cgof_ggcon_analise_itens', 'analise_id, documento_sei', q => q.in('analise_id', analiseIds),
@@ -810,6 +813,7 @@ export const GgconAnaliseService = {
         data_evento: h.data_evento,
         completo: h.evento === 'CONCLUIDA',
         paginas: paginasPorAnalise.get(h.analise_id) ?? 0,
+        status: statusPorId.get(h.analise_id) as GgconAnaliseStatus,
       }));
 
     const porTecnico = new Map<string, GgconProdutividadeLinha>();

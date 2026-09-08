@@ -1177,7 +1177,7 @@ const ProdutividadeAnaliseGgcon = ({ onClose }: { onClose: () => void }) => {
     paginas: acc.paginas + l.paginas,
   }), { processosAnalisados: 0, completos100: 0, paginas: 0 });
 
-  const completos = detalhe.filter(d => d.completo).sort((a, b) => a.data_evento.localeCompare(b.data_evento));
+  const detalheOrdenado = [...detalhe].sort((a, b) => a.data_evento.localeCompare(b.data_evento));
 
   const handleExport = () => {
     const periodo = `${String(mes).padStart(2, '0')}-${ano}`;
@@ -1199,6 +1199,7 @@ const ProdutividadeAnaliseGgcon = ({ onClose }: { onClose: () => void }) => {
           'Evento': d.evento,
           'Data': fmtDate(d.data_evento),
           'Progresso 100%': d.completo ? 'SIM' : 'NÃO',
+          'Status Atual': GGCON_ANALISE_STATUS_LABELS[d.status] ?? d.status,
           'Páginas': d.paginas,
         })),
       },
@@ -1264,23 +1265,25 @@ const ProdutividadeAnaliseGgcon = ({ onClose }: { onClose: () => void }) => {
             </table>
           </div>
 
-          {!!completos.length && (
+          {!!detalheOrdenado.length && (
             <div className="border-t border-slate-100 px-5 py-4">
-              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2.5">Processos com progresso 100% no mês</h4>
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2.5">Processos analisados no mês</h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
-                      {['Processo SEI', 'Técnico', 'Data'].map(h => (
+                      {['Processo SEI', 'Técnico', 'Evento', 'Status Atual', 'Data'].map(h => (
                         <th key={h} className="px-4 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {completos.map((d, idx) => (
+                    {detalheOrdenado.map((d, idx) => (
                       <tr key={`${d.processo_sei}-${idx}`} className="border-t border-slate-100">
                         <td className="px-4 py-2 text-slate-700 whitespace-nowrap">{d.processo_sei}</td>
                         <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{d.tecnico}</td>
+                        <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{EVENTO_LABELS[d.evento]}</td>
+                        <td className="px-4 py-2 whitespace-nowrap"><StatusBadge status={d.status}/></td>
                         <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{fmtDate(d.data_evento)}</td>
                       </tr>
                     ))}
