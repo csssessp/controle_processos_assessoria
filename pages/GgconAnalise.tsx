@@ -233,24 +233,43 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     cursorY = (doc as any).lastAutoTable.finalY + 8;
   });
 
-  const finalY = cursorY;
+  // Rodapé (Analista/Status/datas/Pendência/Observações) — igual ao loop do checklist
+  // acima, cada linha checa se cabe antes de desenhar; se o checklist já tiver enchido
+  // a página (ex.: 47 itens), sem essa checagem o texto era escrito além do limite
+  // inferior da folha e saía cortado no PDF exportado (bug real, reportado com a linha
+  // de Observações sumindo na borda da página).
+  let footerY = cursorY;
+  const bottomMargin = 15;
+  const ensureSpace = (neededHeight: number) => {
+    if (footerY + neededHeight > pageHeight - bottomMargin) {
+      doc.addPage();
+      footerY = 14;
+    }
+  };
   doc.setFontSize(9);
+  ensureSpace(5);
   doc.text(
     `Analista Responsável: ${analise.analista_atual ?? '-'}      Status: ${GGCON_ANALISE_STATUS_LABELS[analise.status]}`,
-    14, finalY,
+    14, footerY,
   );
+  footerY += 5;
+  ensureSpace(5);
   doc.text(
     `Recebimento: ${fmtDate(analise.data_recebimento)}      Atribuição: ${fmtDate(analise.data_liberacao)}      Analisado: ${fmtDate(analise.data_analise)}      Encaminhamento: ${analise.area_encaminhamento ?? '-'} (${fmtDate(analise.data_encaminhamento)})`,
-    14, finalY + 5,
+    14, footerY,
   );
-  let proximaLinhaY = finalY + 10;
+  footerY += 5;
   if (analise.pendencia_descricao) {
     const linhas = doc.splitTextToSize(`Pendência (${fmtDate(analise.data_pendencia)}): ${analise.pendencia_descricao}`, 270);
-    doc.text(linhas, 14, proximaLinhaY);
-    proximaLinhaY += linhas.length * 5;
+    ensureSpace(linhas.length * 5);
+    doc.text(linhas, 14, footerY);
+    footerY += linhas.length * 5;
   }
   if (analise.observacoes) {
-    doc.text(doc.splitTextToSize(`Observações: ${analise.observacoes}`, 270), 14, proximaLinhaY);
+    const linhas = doc.splitTextToSize(`Observações: ${analise.observacoes}`, 270);
+    ensureSpace(linhas.length * 5);
+    doc.text(linhas, 14, footerY);
+    footerY += linhas.length * 5;
   }
 
   doc.save(`analise_${analise.processo_sei.replace(/\D/g, '')}.pdf`);
