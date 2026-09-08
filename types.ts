@@ -585,7 +585,7 @@ export interface GgconAnaliseItem {
 export type GgconAnaliseEvento =
   | 'LIBERADA' | 'REATRIBUIDA' | 'INICIADA' | 'CONCLUIDA' | 'ENCAMINHADA' | 'RESETADA'
   | 'STATUS_ALTERADO' | 'HISTORICO_LIMPO' | 'LIBERADA_ASSINATURA' | 'ASSINADA' | 'CONCLUIDA_COM_PENDENCIA'
-  | 'ENCAMINHADA_GPC' | 'RETORNO_GPC';
+  | 'ENCAMINHADA_GPC' | 'RETORNO_GPC' | 'CONTRIBUICAO_PARCIAL';
 
 export interface GgconAnaliseHistorico {
   id: number;

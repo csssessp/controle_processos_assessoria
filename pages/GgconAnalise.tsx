@@ -240,7 +240,7 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     14, finalY,
   );
   doc.text(
-    `Recebimento: ${fmtDate(analise.data_recebimento)}      Atribuição: ${fmtDate(analise.data_liberacao)}      Conclusão: ${fmtDate(analise.data_analise)}      Encaminhamento: ${analise.area_encaminhamento ?? '-'} (${fmtDate(analise.data_encaminhamento)})`,
+    `Recebimento: ${fmtDate(analise.data_recebimento)}      Atribuição: ${fmtDate(analise.data_liberacao)}      Analisado: ${fmtDate(analise.data_analise)}      Encaminhamento: ${analise.area_encaminhamento ?? '-'} (${fmtDate(analise.data_encaminhamento)})`,
     14, finalY + 5,
   );
   let proximaLinhaY = finalY + 10;
@@ -1454,6 +1454,7 @@ const EVENTO_LABELS: Record<GgconAnaliseHistorico['evento'], string> = {
   CONCLUIDA_COM_PENDENCIA: 'Conferência concluída com pendência',
   ENCAMINHADA_GPC: 'Encaminhado ao GPC',
   RETORNO_GPC: 'Retorno do GPC',
+  CONTRIBUICAO_PARCIAL: 'Contribuição parcial registrada',
 };
 
 const HistoricoResponsaveis = ({ historico }: { historico: GgconAnaliseHistorico[] }) => (
@@ -1582,6 +1583,10 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     const itensEx = itens.filter(i => i.exercicio_id === ex.id);
     return itensEx.length > 0 && itensEx.every(i => !!i.resposta);
   });
+  // Rodadas de análise já concluídas neste processo antes de agora (o processo voltou
+  // pra análise via Retorno GPC ou correção manual de status) — mostra o fluxo de
+  // quem já analisou e quando, sem esperar o técnico abrir o Histórico completo.
+  const analisesAnteriores = historico.filter(h => h.evento === 'CONCLUIDA' || h.evento === 'CONCLUIDA_COM_PENDENCIA');
   const itensExercicioAtivo = useMemo(
     () => itens.filter(i => i.exercicio_id === activeExercicioId),
     [itens, activeExercicioId],
@@ -1910,12 +1915,32 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                   </div>
                 )}
 
+                {/* Fluxo das análises já feitas neste processo — aparece sempre que o
+                    processo já foi analisado antes (voltou pra análise via Retorno GPC ou
+                    correção manual de status), pra deixar visível de cara que não é a
+                    primeira rodada. */}
+                {analisesAnteriores.length > 0 && (
+                  <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
+                    <h4 className="text-sm font-bold text-blue-800 flex items-center gap-1.5">
+                      <History size={14}/>Já analisado {analisesAnteriores.length}x anteriormente
+                    </h4>
+                    <div className="space-y-1">
+                      {analisesAnteriores.map(h => (
+                        <p key={h.id} className="text-xs text-blue-700">
+                          {fmtDate(h.data_evento)} — {h.usuario_responsavel ?? 'Não identificado'}
+                          {h.evento === 'CONCLUIDA_COM_PENDENCIA' ? ' (com pendência)' : ''}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
                   <h4 className="text-sm font-bold text-slate-700">Datas</h4>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div><span className="text-slate-400 block">Recebimento</span><span className="font-semibold text-slate-700">{fmtDate(analise.data_recebimento)}</span></div>
                     <div><span className="text-slate-400 block">Liberação</span><span className="font-semibold text-slate-700">{fmtDate(analise.data_liberacao)}</span></div>
-                    <div><span className="text-slate-400 block">Análise (conclusão)</span><span className="font-semibold text-slate-700">{fmtDate(analise.data_analise)}</span></div>
+                    <div><span className="text-slate-400 block">Analisado</span><span className="font-semibold text-slate-700">{fmtDate(analise.data_analise)}</span></div>
                     <div><span className="text-slate-400 block">Encaminhamento</span><span className="font-semibold text-slate-700">{fmtDate(analise.data_encaminhamento)}</span></div>
                   </div>
                   {analise.area_encaminhamento && (
@@ -2278,7 +2303,7 @@ const COLUNAS: { label: string; field: GgconAnaliseSortField | null }[] = [
   { label: 'Progresso', field: null },
   { label: 'Recebimento', field: 'data_recebimento' },
   { label: 'Atribuição', field: 'data_liberacao' },
-  { label: 'Conclusão', field: 'data_analise' },
+  { label: 'Analisado', field: 'data_analise' },
   { label: 'Encaminhamento', field: 'data_encaminhamento' },
   { label: 'Observações', field: null },
   { label: '', field: null },

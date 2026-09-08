@@ -382,7 +382,12 @@ export const GgconAnaliseService = {
   },
 
   // Troca o analista responsável a qualquer momento do fluxo — sempre grava no
-  // histórico quem era o analista anterior e quem passou a ser o novo.
+  // histórico quem era o analista anterior e quem passou a ser o novo. Se o checklist
+  // já tinha algum item respondido (progresso > 0%) na hora da troca, o analista
+  // anterior já colocou trabalho real no processo — grava um evento CONTRIBUICAO_PARCIAL
+  // creditando ele, além do REATRIBUIDA normal, para que a Produtividade da Análise
+  // (getProdutividade, abaixo) conte o processo tanto para quem já tinha analisado
+  // quanto para quem vier a concluir depois.
   reatribuirAnalista: async (id: number, analistaAnterior: string | null, novoAnalista: string, usuarioResponsavel: string, motivo?: string): Promise<void> => {
     const { data, error } = await supabase.from('cgof_ggcon_analises').update({
       analista_atual: novoAnalista,
@@ -392,6 +397,20 @@ export const GgconAnaliseService = {
     await registrarEvento(id, 'REATRIBUIDA', {
       analistaAnterior, analistaNovo: novoAnalista, usuarioResponsavel, observacao: motivo ?? null,
     });
+    if (analistaAnterior && analistaAnterior !== novoAnalista) {
+      const itens = await fetchAllRows<{ resposta: string | null }>(
+        'cgof_ggcon_analise_itens', 'resposta', q => q.eq('analise_id', id),
+      );
+      const total = itens.length;
+      const respondidos = itens.filter(i => i.resposta).length;
+      if (respondidos > 0) {
+        const pct = Math.round((respondidos / total) * 100);
+        await registrarEvento(id, 'CONTRIBUICAO_PARCIAL', {
+          usuarioResponsavel: analistaAnterior,
+          observacao: `${respondidos}/${total} itens respondidos (${pct}%) antes da reatribuição para ${novoAnalista}`,
+        });
+      }
+    }
     // Espelha o analista no Técnico Responsável de Processos GGCON (mesmo processo_sei).
     if (data?.processo_sei) await GgconService.setTecnicoNaMovimentacaoAtual(data.processo_sei, novoAnalista);
   },
@@ -611,17 +630,28 @@ export const GgconAnaliseService = {
   // para X / Alterar encaminhamento" visível mesmo com a análise de volta em Em
   // Análise. NUNCA mexe nas respostas do checklist (cgof_ggcon_analise_itens) — só
   // "Resetar Análise" apaga isso.
+  //
+  // data_analise ("Analisado" na listagem) só faz sentido em branco enquanto o
+  // processo ainda não foi trabalhado por um técnico — AGUARDANDO_LIBERACAO,
+  // AGUARDANDO_ANALISE ou EM_ANALISE. Voltar manualmente para qualquer um desses três
+  // limpa data_analise (mesmo raciocínio que EM_ANALISE já tinha, agora estendido a
+  // AGUARDANDO_ANALISE); sair deles para qualquer status posterior (ex.: registro
+  // importado corrigido direto para Concluída, sem passar pelo botão de concluir
+  // checklist) preenche data_analise com hoje() se ainda estiver vazia — sem isso a
+  // coluna "Analisado" ficava em branco para um processo cujo status já diz que foi
+  // analisado.
   alterarStatus: async (id: number, novoStatus: GgconAnaliseStatus, usuarioResponsavel: string, motivo: string): Promise<void> => {
-    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status').eq('id', id).single();
+    const { data: atual } = await supabase.from('cgof_ggcon_analises').select('status, data_analise').eq('id', id).single();
+    const preAnalise: GgconAnaliseStatus[] = ['AGUARDANDO_LIBERACAO', 'AGUARDANDO_ANALISE', 'EM_ANALISE'];
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: novoStatus,
       ...(novoStatus === 'AGUARDANDO_LIBERACAO' ? { analista_atual: null, liberado_por: null, data_liberacao: null } : {}),
-      ...(novoStatus === 'EM_ANALISE' ? {
+      ...(preAnalise.includes(novoStatus) ? {
         data_analise: null, data_liberacao_assinatura: null, data_assinatura: null,
         assinado_por: null, data_encaminhamento_gpc: null,
         data_encaminhamento: null, area_encaminhamento: null,
         data_pendencia: null, pendencia_descricao: null,
-      } : {}),
+      } : !(atual as any)?.data_analise ? { data_analise: hoje() } : {}),
       // Correção manual de status = alguém já olhou o registro — não precisa mais
       // do destaque de "novo/sem revisão" no topo da lista.
       novo_destaque: false,
@@ -722,9 +752,12 @@ export const GgconAnaliseService = {
   },
 
   // Produtividade mensal por técnico — conta processos concluídos (evento CONCLUIDA
-  // ou CONCLUIDA_COM_PENDENCIA) no mês/ano informado, atribuídos via
-  // usuario_responsavel de cgof_ggcon_analise_historico (quem executou a ação), com
-  // a soma de páginas dos documentos SEI anexados ao checklist de cada processo.
+  // ou CONCLUIDA_COM_PENDENCIA) e processos com contribuição parcial (evento
+  // CONTRIBUICAO_PARCIAL, gravado em reatribuirAnalista quando o processo já tinha
+  // progresso e trocou de técnico) no mês/ano informado, atribuídos via
+  // usuario_responsavel de cgof_ggcon_analise_historico (quem executou a ação/quem
+  // já tinha analisado antes da troca), com a soma de páginas dos documentos SEI
+  // anexados ao checklist de cada processo.
   getProdutividade: async (ano: number, mes: number): Promise<{
     linhas: GgconProdutividadeLinha[];
     detalhe: GgconProdutividadeDetalheLinha[];
@@ -734,7 +767,8 @@ export const GgconAnaliseService = {
 
     const historico = await fetchAllRows<GgconAnaliseHistorico>(
       'cgof_ggcon_analise_historico', '*',
-      q => q.gte('data_evento', inicio).lt('data_evento', fim).in('evento', ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIA']),
+      q => q.gte('data_evento', inicio).lt('data_evento', fim)
+        .in('evento', ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIA', 'CONTRIBUICAO_PARCIAL']),
     );
     if (!historico.length) return { linhas: [], detalhe: [] };
 
@@ -753,23 +787,30 @@ export const GgconAnaliseService = {
     }
 
     // Dedupe por (técnico, analise_id): o mesmo processo resetado e reconcluído no
-    // mesmo mês conta só 1 vez para aquele técnico.
-    const vistos = new Set<string>();
-    const detalhe: GgconProdutividadeDetalheLinha[] = [];
-    for (const h of [...historico].sort((a, b) => a.data_evento.localeCompare(b.data_evento))) {
+    // mesmo mês conta só 1 vez para aquele técnico — mas se o mesmo técnico tem tanto
+    // uma CONTRIBUICAO_PARCIAL quanto uma CONCLUIDA/CONCLUIDA_COM_PENDENCIA no mês (ex.:
+    // trabalhou, foi reatribuído, e voltou a ser o analista a tempo de concluir), a
+    // conclusão prevalece — é o sinal mais forte de trabalho feito.
+    const prioridade: Partial<Record<GgconAnaliseHistorico['evento'], number>> = {
+      CONCLUIDA: 2, CONCLUIDA_COM_PENDENCIA: 2, CONTRIBUICAO_PARCIAL: 1,
+    };
+    const porChave = new Map<string, GgconAnaliseHistorico>();
+    for (const h of historico) {
       const tecnico = h.usuario_responsavel || 'Não identificado';
       const chave = `${tecnico}::${h.analise_id}`;
-      if (vistos.has(chave)) continue;
-      vistos.add(chave);
-      detalhe.push({
+      const atual = porChave.get(chave);
+      if (!atual || (prioridade[h.evento] ?? 0) > (prioridade[atual.evento] ?? 0)) porChave.set(chave, h);
+    }
+    const detalhe: GgconProdutividadeDetalheLinha[] = [...porChave.values()]
+      .sort((a, b) => a.data_evento.localeCompare(b.data_evento))
+      .map(h => ({
         processo_sei: processoPorId.get(h.analise_id) ?? `#${h.analise_id}`,
-        tecnico,
+        tecnico: h.usuario_responsavel || 'Não identificado',
         evento: h.evento,
         data_evento: h.data_evento,
         completo: h.evento === 'CONCLUIDA',
         paginas: paginasPorAnalise.get(h.analise_id) ?? 0,
-      });
-    }
+      }));
 
     const porTecnico = new Map<string, GgconProdutividadeLinha>();
     for (const d of detalhe) {
