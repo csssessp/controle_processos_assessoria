@@ -811,7 +811,11 @@ export const GgconAnaliseService = {
         tecnico: h.usuario_responsavel || 'Não identificado',
         evento: h.evento,
         data_evento: h.data_evento,
-        completo: h.evento === 'CONCLUIDA',
+        // Tanto CONCLUIDA quanto CONCLUIDA_COM_PENDENCIA só disparam com o checklist
+        // 100% respondido (mesma trava de botão em AnaliseDetalheOverlay, `disabled={!completo}`)
+        // — a pendência é sobre o conteúdo achado na conferência, não sobre progresso do
+        // checklist. Só CONTRIBUICAO_PARCIAL pode legitimamente ser < 100%.
+        completo: h.evento === 'CONCLUIDA' || h.evento === 'CONCLUIDA_COM_PENDENCIA',
         paginas: paginasPorAnalise.get(h.analise_id) ?? 0,
         status: statusPorId.get(h.analise_id) as GgconAnaliseStatus,
       }));
