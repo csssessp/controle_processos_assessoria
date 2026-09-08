@@ -66,7 +66,10 @@ function contarPaginas(raw: string[] | null): number {
 async function registrarEvento(
   analiseId: number,
   evento: GgconAnaliseHistorico['evento'],
-  opts: { analistaAnterior?: string | null; analistaNovo?: string | null; usuarioResponsavel?: string | null; observacao?: string | null } = {},
+  opts: {
+    analistaAnterior?: string | null; analistaNovo?: string | null; usuarioResponsavel?: string | null;
+    observacao?: string | null; mesProdutividade?: string | null;
+  } = {},
 ): Promise<void> {
   const { error } = await supabase.from('cgof_ggcon_analise_historico').insert({
     analise_id: analiseId,
@@ -75,6 +78,7 @@ async function registrarEvento(
     analista_novo: opts.analistaNovo ?? null,
     usuario_responsavel: opts.usuarioResponsavel ?? null,
     observacao: opts.observacao ?? null,
+    mes_produtividade: opts.mesProdutividade ?? null,
   });
   if (error) console.error('Falha ao registrar evento no histórico (ação principal já foi aplicada):', error);
 }
@@ -437,20 +441,24 @@ export const GgconAnaliseService = {
   // Marca a conclusão do preenchimento do checklist — o processo continua com o
   // analista (status EM_ANALISE) até alguém com permissão de liberação ou o próprio
   // técnico dono da análise liberar para assinatura.
-  concluirAnalise: async (id: number, usuarioResponsavel: string): Promise<void> => {
+  // mesProdutividade (1º dia do mês, "YYYY-MM-01") é o mês que o técnico escolheu no
+  // popup de conclusão pra valer como competência na Produtividade — ver getProdutividade.
+  concluirAnalise: async (id: number, usuarioResponsavel: string, mesProdutividade?: string | null): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       data_analise: hoje(),
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
-    await registrarEvento(id, 'CONCLUIDA', { usuarioResponsavel });
+    await registrarEvento(id, 'CONCLUIDA', { usuarioResponsavel, mesProdutividade });
   },
 
   // Alternativa a concluirAnalise: a conferência encontrou algo a corrigir. Pula a
   // etapa de Assinatura e vai direto para Encaminhar (ver validação em `encaminhar`)
   // — a pendência fica registrada permanentemente em data_pendencia/pendencia_descricao,
   // mesmo depois de encaminhado.
-  concluirAnaliseComPendencia: async (id: number, usuarioResponsavel: string, descricaoPendencia: string): Promise<void> => {
+  concluirAnaliseComPendencia: async (
+    id: number, usuarioResponsavel: string, descricaoPendencia: string, mesProdutividade?: string | null,
+  ): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').update({
       status: 'CONFERENCIA_PENDENCIA',
       data_analise: hoje(),
@@ -459,7 +467,7 @@ export const GgconAnaliseService = {
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     if (error) throw new Error(error.message);
-    await registrarEvento(id, 'CONCLUIDA_COM_PENDENCIA', { usuarioResponsavel, observacao: descricaoPendencia });
+    await registrarEvento(id, 'CONCLUIDA_COM_PENDENCIA', { usuarioResponsavel, observacao: descricaoPendencia, mesProdutividade });
   },
 
   // Libera o processo, já com o checklist concluído, para a etapa de assinatura —
@@ -758,18 +766,26 @@ export const GgconAnaliseService = {
   // usuario_responsavel de cgof_ggcon_analise_historico (quem executou a ação/quem
   // já tinha analisado antes da troca), com a soma de páginas dos documentos SEI
   // anexados ao checklist de cada processo.
+  //
+  // Competência do mês = mes_produtividade (escolhido pelo técnico no popup de
+  // conclusão) quando preenchido; senão cai no mês de data_evento (timestamp real do
+  // clique) — cobre eventos antigos, gravados antes dessa opção existir, e
+  // CONTRIBUICAO_PARCIAL, que é automático (sem popup). Por isso a busca não filtra
+  // por data no banco — precisa trazer tudo e decidir a competência de cada linha em
+  // JS antes de bucketizar (o volume de eventos deste módulo é pequeno o bastante pra
+  // isso não pesar).
   getProdutividade: async (ano: number, mes: number): Promise<{
     linhas: GgconProdutividadeLinha[];
     detalhe: GgconProdutividadeDetalheLinha[];
   }> => {
-    const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
-    const fim = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${String(mes + 1).padStart(2, '0')}-01`;
+    const competenciaAlvo = `${ano}-${String(mes).padStart(2, '0')}`;
+    const competenciaDe = (h: GgconAnaliseHistorico) => (h.mes_produtividade ?? h.data_evento).slice(0, 7);
 
-    const historico = await fetchAllRows<GgconAnaliseHistorico>(
+    const todosEventos = await fetchAllRows<GgconAnaliseHistorico>(
       'cgof_ggcon_analise_historico', '*',
-      q => q.gte('data_evento', inicio).lt('data_evento', fim)
-        .in('evento', ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIA', 'CONTRIBUICAO_PARCIAL']),
+      q => q.in('evento', ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIA', 'CONTRIBUICAO_PARCIAL']),
     );
+    const historico = todosEventos.filter(h => competenciaDe(h) === competenciaAlvo);
     if (!historico.length) return { linhas: [], detalhe: [] };
 
     const analiseIds = [...new Set(historico.map(h => h.analise_id))];

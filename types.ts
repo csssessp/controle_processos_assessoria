@@ -596,6 +596,12 @@ export interface GgconAnaliseHistorico {
   usuario_responsavel: string | null;
   data_evento: string;
   observacao: string | null;
+  // Mês/ano (1º dia do mês) que o técnico escolheu na hora de concluir a análise, pra
+  // valer como competência na Produtividade — evita que um atraso em clicar "Concluir"
+  // jogue o crédito pro mês errado. Null em eventos antigos (antes dessa opção existir)
+  // e em CONTRIBUICAO_PARCIAL (gerado automático na reatribuição, sem escolha do
+  // técnico) — nesses casos getProdutividade usa o mês de data_evento como fallback.
+  mes_produtividade: string | null;
 }
 
 // ─── Produtividade da Análise GGCON ────────────────────────────────────────────
