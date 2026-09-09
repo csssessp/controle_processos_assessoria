@@ -557,6 +557,7 @@ export interface GgconAnalise {
   // agregados calculados no service, não persistidos
   itens_total?: number;
   itens_respondidos?: number;
+  itens_paginas?: number;
 }
 
 export interface GgconAnaliseExercicio {

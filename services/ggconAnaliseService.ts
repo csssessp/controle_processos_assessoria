@@ -43,7 +43,7 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 // proxy de "quantidade de páginas" na aba Produtividade, a pedido do usuário — o campo
 // foi pensado originalmente como "em que página do documento está a info", não como
 // contador, então isso é uma aproximação.
-function contarPaginas(raw: string[] | null): number {
+export function contarPaginas(raw: string[] | null): number {
   if (!raw) return 0;
   let total = 0;
   for (const s of raw) {
@@ -113,21 +113,23 @@ export interface GgconAnaliseFiltro {
 async function comProgresso(rows: GgconAnalise[]): Promise<GgconAnalise[]> {
   if (!rows.length) return rows;
   const ids = rows.map(r => r.id);
-  const data = await fetchAllRows<{ analise_id: number; resposta: string | null }>(
-    'cgof_ggcon_analise_itens', 'analise_id, resposta',
+  const data = await fetchAllRows<{ analise_id: number; resposta: string | null; documento_sei: string[] | null }>(
+    'cgof_ggcon_analise_itens', 'analise_id, resposta, documento_sei',
     q => q.in('analise_id', ids),
   );
-  const totais = new Map<number, { total: number; respondidos: number }>();
+  const totais = new Map<number, { total: number; respondidos: number; paginas: number }>();
   for (const item of data) {
-    const cur = totais.get(item.analise_id) ?? { total: 0, respondidos: 0 };
+    const cur = totais.get(item.analise_id) ?? { total: 0, respondidos: 0, paginas: 0 };
     cur.total += 1;
     if (item.resposta) cur.respondidos += 1;
+    cur.paginas += contarPaginas(item.documento_sei);
     totais.set(item.analise_id, cur);
   }
   return rows.map(r => ({
     ...r,
     itens_total: totais.get(r.id)?.total ?? 0,
     itens_respondidos: totais.get(r.id)?.respondidos ?? 0,
+    itens_paginas: totais.get(r.id)?.paginas ?? 0,
   }));
 }
 

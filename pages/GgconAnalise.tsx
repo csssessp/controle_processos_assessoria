@@ -3,14 +3,14 @@ import {
   Search, Plus, X, Check, Loader2, AlertCircle, ClipboardCheck, Send, UserCog,
   History, ChevronLeft, ChevronRight, Lock, Trash2, MoreVertical, RotateCcw, Inbox,
   ArrowUp, ArrowDown, ArrowUpDown, RefreshCw, StickyNote, Download, Users, ExternalLink,
-  Pencil, FileSignature, AlertTriangle, BarChart3, FileSpreadsheet,
+  Pencil, FileSignature, AlertTriangle, BarChart3, FileSpreadsheet, Files,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import brasaoUrl from '../img/Brasão.png';
-import { GgconAnaliseService, GgconAnaliseFiltroStatus, GgconAnaliseSortField } from '../services/ggconAnaliseService';
+import { GgconAnaliseService, GgconAnaliseFiltroStatus, GgconAnaliseSortField, contarPaginas } from '../services/ggconAnaliseService';
 import { GgconService } from '../services/ggconService';
 import { CHECKLISTS, GGCON_TIPO_CONVENIADA_LABELS, ITENS_INVESTIMENTO_OBRA, MODELOS_REFERENCIA } from '../services/ggconAnaliseChecklists';
 import { MUNICIPIOS, buscarDRSPorMunicipio } from '../services/ggconMunicipios';
@@ -1629,6 +1629,17 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     () => itens.filter(i => i.exercicio_id === activeExercicioId),
     [itens, activeExercicioId],
   );
+  // Quantidade de páginas informadas pelos técnicos nos links de Documento SEI do
+  // checklist (mesmo cálculo usado na Produtividade — ver contarPaginas no service) —
+  // mostrado tanto do exercício em edição quanto do total da análise.
+  const paginasExercicioAtivo = useMemo(
+    () => itensExercicioAtivo.reduce((acc, i) => acc + contarPaginas(i.documento_sei), 0),
+    [itensExercicioAtivo],
+  );
+  const paginasTotal = useMemo(
+    () => itensValidos.reduce((acc, i) => acc + contarPaginas(i.documento_sei), 0),
+    [itensValidos],
+  );
   // Encaminhar só libera depois da assinatura confirmada, OU se a conferência foi
   // concluída com pendência (pula a assinatura de propósito), OU se já estava
   // Concluída, pra permitir corrigir área/data de um encaminhamento existente.
@@ -1845,7 +1856,15 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                     <h4 className="text-sm font-bold text-slate-700">
                       Checklist — {GGCON_TIPO_CONVENIADA_LABELS[analise.tipo_conveniada]}
                     </h4>
-                    <ProgressoChecklist respondidos={respondidos} total={total}/>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="flex items-center gap-1 text-[11px] font-semibold text-slate-500"
+                        title="Soma dos números de página informados pelos técnicos nos links de Documento SEI, em todos os exercícios"
+                      >
+                        <Files size={12}/>{paginasTotal} pág{paginasTotal === 1 ? '.' : 's.'}
+                      </span>
+                      <ProgressoChecklist respondidos={respondidos} total={total}/>
+                    </div>
                   </div>
 
                   {/* Um processo pode abranger vários exercícios financeiros — cada um com
@@ -1866,7 +1885,17 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
                   {temExercicioValido ? (
                     <>
-                      <p className="text-[11px] text-slate-400 italic mb-2.5">Todas as documentações devem estar atualizadas e assinadas.</p>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <p className="text-[11px] text-slate-400 italic">Todas as documentações devem estar atualizadas e assinadas.</p>
+                        {exerciciosValidos.length > 1 && (
+                          <span
+                            className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 whitespace-nowrap"
+                            title="Soma dos números de página informados pelos técnicos nos links de Documento SEI deste exercício"
+                          >
+                            <Files size={12}/>{paginasExercicioAtivo} pág{paginasExercicioAtivo === 1 ? '.' : 's.'} neste exercício
+                          </span>
+                        )}
+                      </div>
                       <div className="space-y-2.5 max-h-[64vh] overflow-y-auto pr-1">
                         {itensExercicioAtivo.map(item => (
                           <ChecklistItemRow key={item.id} item={item} dica={dicaPorItem.get(item.item_numero)} readOnly={!canEdit} onChange={patch => handleItemChange(item, patch)}/>
@@ -2376,6 +2405,7 @@ const COLUNAS: { label: string; field: GgconAnaliseSortField | null }[] = [
   { label: 'Status', field: 'status' },
   { label: 'Analista', field: 'analista_atual' },
   { label: 'Progresso', field: null },
+  { label: 'Páginas', field: null },
   { label: 'Recebimento', field: 'data_recebimento' },
   { label: 'Atribuição', field: 'data_liberacao' },
   { label: 'Analisado', field: 'data_analise' },
@@ -2790,6 +2820,7 @@ export const GgconAnalisePage = () => {
                         {isMeu && <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold align-middle">VOCÊ</span>}
                       </td>
                       <td className="px-3 py-3"><ProgressoChecklist respondidos={r.itens_respondidos ?? 0} total={r.itens_total ?? 0}/></td>
+                      <td className="px-3 py-3 text-sm text-slate-600 text-center">{r.itens_paginas ? r.itens_paginas : <span className="text-slate-300">-</span>}</td>
                       <td className="px-3 py-3 text-sm whitespace-nowrap text-slate-600">{fmtDate(r.data_recebimento)}</td>
                       <td className="px-3 py-3 text-sm whitespace-nowrap text-slate-600">{fmtDate(r.data_liberacao)}</td>
                       <td className="px-3 py-3 text-sm whitespace-nowrap text-slate-600">{fmtDate(r.data_analise)}</td>
