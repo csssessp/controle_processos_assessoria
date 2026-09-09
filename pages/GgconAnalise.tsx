@@ -101,7 +101,34 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     try { doc.addImage(brasao, 'PNG', 14, 6, 14, 16); } catch { /* segue sem o brasão se a imagem falhar */ }
   }
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 14;
+  const bottomMargin = 15;
+  const topMarginNovaPagina = 14;
+
+  // Escreve um texto livre (com quebra automática dentro de maxWidth) LINHA POR LINHA,
+  // checando antes de CADA linha se ela cabe no espaço restante da página — em vez de
+  // decidir uma única vez "o bloco inteiro cabe ou não cabe" (era assim que o rodapé
+  // funcionava antes, com `ensureSpace(linhas.length * altura)`: um texto mais alto que
+  // uma página inteira nunca "cabia" em nenhum lugar, então era desenhado do mesmo jeito,
+  // ultrapassando o limite inferior da folha — as linhas além da borda simplesmente não
+  // aparecem no PDF, visualmente indistinguível de "texto cortado". Caso real que expôs
+  // isso: `pendencia_descricao` de um processo real com ~8000 caracteres/15 parágrafos,
+  // bem maior que uma página. Escrever linha a linha com `doc.addPage()` sempre que
+  // necessário garante que NENHUMA linha é perdida, não importa o tamanho do texto.
+  // Retorna o cursorY logo após a última linha escrita.
+  const writeParagraph = (text: string, x: number, startY: number, maxWidth: number, lineHeight = 5): number => {
+    let cy = startY;
+    for (const linha of doc.splitTextToSize(text, maxWidth)) {
+      if (cy + lineHeight > pageHeight - bottomMargin) {
+        doc.addPage();
+        cy = topMarginNovaPagina;
+      }
+      doc.text(linha, x, cy);
+      cy += lineHeight;
+    }
+    return cy;
+  };
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
@@ -132,46 +159,62 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   doc.setFontSize(9);
   const col1 = marginX, col2 = 195;
   const rowWidth = pageWidth - marginX * 2;
-  const field = (x: number, label: string, value: string) => {
+  const col1Width = col2 - col1 - 4;
+  const col2Width = pageWidth - marginX - col2;
+  // Desenha o valor SEMPRE com quebra de linha dentro de maxWidth (mesmo quando cabe
+  // numa linha só, o caso comum) — sem isso, um valor comprido (ex.: "Município/DRS"
+  // com nome de município + DRS longos) estourava a borda direita da página e saía
+  // cortado, um bug real achado testando esta função com dado de produção (ver
+  // project_ggcon_analise_module). Retorna a quantidade de linhas usadas, pra quem
+  // desenha dois campos lado a lado (col1/col2) avançar "y" pelo maior dos dois em vez
+  // de um valor fixo — assim uma linha que quebrou não fica sobreposta pela próxima.
+  const field = (x: number, label: string, value: string, maxWidth: number): number => {
     doc.setFont('helvetica', 'bold');
     doc.text(`${label}:`, x, y);
     const labelWidth = doc.getTextWidth(`${label}:`) + 1.5;
     doc.setFont('helvetica', 'normal');
-    doc.text(value || '-', x + labelWidth, y);
+    const linhas = doc.splitTextToSize(value || '-', maxWidth - labelWidth);
+    doc.text(linhas, x + labelWidth, y);
+    return linhas.length;
   };
-  // Campos que podem vir com texto longo (nome de conveniada, objeto do convênio)
-  // quebram linha dentro da largura da linha inteira — sem isso, texto comprido
-  // estourava a margem direita da página. Retorna a quantidade de linhas usadas
-  // para o chamador ajustar o próximo "y".
+  // Avança "y" após uma linha de 1 ou 2 campos, pelo maior número de linhas usado —
+  // fica igual ao antigo "y += 6" fixo quando tudo cabe numa linha só (1 * 5 + 1 = 6).
+  const avancarLinha = (...linhasPorCampo: number[]) => { y += Math.max(...linhasPorCampo) * 5 + 1; };
+  // Campos que podem vir com texto bem mais longo (nome de conveniada, objeto do
+  // convênio) usam a largura da linha inteira e a mesma proteção de quebra de PÁGINA
+  // (não só de largura) de writeParagraph — sem isso, texto comprido também podia
+  // estourar a borda inferior da folha. Retorna o "y" já avançado para o chamador.
   const fieldWrapped = (x: number, label: string, value: string, maxWidth: number): number => {
     doc.setFont('helvetica', 'bold');
     doc.text(`${label}:`, x, y);
     const labelWidth = doc.getTextWidth(`${label}:`) + 1.5;
     doc.setFont('helvetica', 'normal');
-    const lines = doc.splitTextToSize(value || '-', maxWidth - labelWidth);
-    doc.text(lines, x + labelWidth, y);
-    return lines.length;
+    return writeParagraph(value || '-', x + labelWidth, y, maxWidth - labelWidth);
   };
-  field(col1, 'Convênio Nº', analise.convenio_numero ?? '-');
-  field(col2, 'Processo SEI', analise.processo_sei);
-  y += 6;
-  field(col1, 'Exercício(s)', exercicios.map(e => e.exercicio != null ? String(e.exercicio) : 'Não especificado').join(', ') || '-');
-  y += 6;
-  field(col1, 'CNPJ', analise.cnpj ?? '-');
-  field(col2, 'Tipo', GGCON_TIPO_CONVENIADA_LABELS[analise.tipo_conveniada]);
-  y += 6;
-  y += fieldWrapped(col1, 'Interessado', analise.interessado ?? '-', rowWidth) * 5;
-  y += fieldWrapped(col1, 'Objeto do Convênio', analise.objeto ?? '-', rowWidth) * 5 + 1;
-  field(col1, 'Custeio/Investimento', [analise.custeio ? 'Custeio' : null, analise.investimento ? 'Investimento' : null].filter(Boolean).join(' + ') || '-');
-  field(col2, 'Valor Total do Repasse', fmtBRL(analise.valor_repasse));
-  y += 6;
-  field(col1, 'Vigência', `${fmtDate(analise.vigencia_inicio)} a ${fmtDate(analise.vigencia_termino)}${analise.vigencia_prorrogado_ate ? ` (prorrogado até ${fmtDate(analise.vigencia_prorrogado_ate)})` : ''}`);
-  y += 6;
-  field(col1, 'Termo(s) Aditivo(s)', analise.termo_aditivo_numeros?.join(', ') || '-');
-  field(col2, 'Resolução Nº', analise.resolucao_numero ?? '-');
-  y += 6;
-  field(col1, 'Retirratificação', analise.termo_retirratificacao ? 'Sim' : 'Não');
-  field(col2, 'Município/DRS', [analise.municipio, analise.drs_unidade].filter(Boolean).join(' — ') || '-');
+  avancarLinha(
+    field(col1, 'Convênio Nº', analise.convenio_numero ?? '-', col1Width),
+    field(col2, 'Processo SEI', analise.processo_sei, col2Width),
+  );
+  avancarLinha(field(col1, 'Exercício(s)', exercicios.map(e => e.exercicio != null ? String(e.exercicio) : 'Não especificado').join(', ') || '-', rowWidth));
+  avancarLinha(
+    field(col1, 'CNPJ', analise.cnpj ?? '-', col1Width),
+    field(col2, 'Tipo', GGCON_TIPO_CONVENIADA_LABELS[analise.tipo_conveniada], col2Width),
+  );
+  y = fieldWrapped(col1, 'Interessado', analise.interessado ?? '-', rowWidth);
+  y = fieldWrapped(col1, 'Objeto do Convênio', analise.objeto ?? '-', rowWidth) + 1;
+  avancarLinha(
+    field(col1, 'Custeio/Investimento', [analise.custeio ? 'Custeio' : null, analise.investimento ? 'Investimento' : null].filter(Boolean).join(' + ') || '-', col1Width),
+    field(col2, 'Valor Total do Repasse', fmtBRL(analise.valor_repasse), col2Width),
+  );
+  avancarLinha(field(col1, 'Vigência', `${fmtDate(analise.vigencia_inicio)} a ${fmtDate(analise.vigencia_termino)}${analise.vigencia_prorrogado_ate ? ` (prorrogado até ${fmtDate(analise.vigencia_prorrogado_ate)})` : ''}`, rowWidth));
+  avancarLinha(
+    field(col1, 'Termo(s) Aditivo(s)', analise.termo_aditivo_numeros?.join(', ') || '-', col1Width),
+    field(col2, 'Resolução Nº', analise.resolucao_numero ?? '-', col2Width),
+  );
+  avancarLinha(
+    field(col1, 'Retirratificação', analise.termo_retirratificacao ? 'Sim' : 'Não', col1Width),
+    field(col2, 'Município/DRS', [analise.municipio, analise.drs_unidade].filter(Boolean).join(' — ') || '-', col2Width),
+  );
 
   y += 5;
   doc.setDrawColor(203, 213, 225);
@@ -183,7 +226,23 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   // texto solto — reaproveita a quebra de linha nativa do autoTable (um link por linha,
   // igual ao \n já usado nas sublistas a)/b)/c) da descrição).
   const DOCUMENTO_SEI_COL = 3;
-  const pageHeight = doc.internal.pageSize.getHeight();
+  const OBSERVACAO_COL = 4;
+  // Largura útil aproximada da coluna Observação (cellWidth 73 do columnStyles abaixo,
+  // menos o cellPadding de 1.3mm dos dois lados) — usada só pra DECIDIR se uma
+  // observação de item é longa demais pra entrar inteira na tabela com segurança, não
+  // pra desenhar (o autoTable segue medindo/quebrando linha ele mesmo).
+  const OBSERVACAO_COL_WIDTH = 73 - 2 * 1.3;
+  // Limite de segurança bem abaixo do que caberia numa página cheia (fontSize 6.5,
+  // ~2.3mm por linha -> uma página inteira comporta ~70 linhas). Observações digitadas
+  // pelo técnico num item são normalmente curtas (poucas linhas), mas o campo é texto
+  // livre sem limite de caracteres — qualquer item que ultrapassar esse limite não entra
+  // inteiro na célula da tabela (onde um "rowPageBreak: 'avoid'" não sabe dividir um
+  // conteúdo mais alto que uma página inteira, o mesmo tipo de bug que cortava o rodapé
+  // — ver writeParagraph acima); em vez disso a célula mostra um resumo + aviso, e o
+  // texto completo vai pra uma seção "Observações Complementares" no fim do documento,
+  // escrita com writeParagraph (garantido nunca cortar, não importa o tamanho).
+  const OBSERVACAO_MAX_LINHAS_TABELA = 40;
+  const observacoesComplementares: { itemNumero: number; exercicio: number | null; texto: string }[] = [];
   let cursorY = y + 5;
   const gruposExercicio = exercicios.length ? exercicios : [{ id: -1, analise_id: analise.id, exercicio: null } as GgconAnaliseExercicio];
   gruposExercicio.forEach(ex => {
@@ -202,7 +261,7 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
       // cortando o texto no meio da frase bem na quebra de página (confirmado gerando um PDF
       // de teste com várias observações longas — ver reference_jspdf_offline_preview).
       rowPageBreak: 'avoid',
-      columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 22, fontSize: 6 }, 4: { cellWidth: 73, fontSize: 6.5 } },
+      columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 130 }, 2: { cellWidth: 18, halign: 'center' }, [DOCUMENTO_SEI_COL]: { cellWidth: 22, fontSize: 6 }, [OBSERVACAO_COL]: { cellWidth: 73, fontSize: 6.5 } },
       head: [['Item', 'Descrição dos Documentos da Conveniada', 'Atendeu', 'Documento SEI', 'Observação']],
       body: itensEx.map(i => {
         const dica = CHECKLISTS[analise.tipo_conveniada].find(t => t.numero === i.item_numero)?.dica;
@@ -210,7 +269,15 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
         // Mostra só "Link" (em vez da URL inteira, que ocupava a coluna toda) — o hyperlink
         // real continua indo pra URL completa via doc.link em didDrawCell abaixo.
         const docCell = links.length ? links.map(l => l.pagina ? `Link (pág. ${l.pagina})` : 'Link').join('\n') : (dica || '-');
-        return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell, i.observacao ?? '-'];
+        let obsCell = i.observacao ?? '-';
+        if (i.observacao) {
+          const linhasObs = doc.splitTextToSize(i.observacao, OBSERVACAO_COL_WIDTH);
+          if (linhasObs.length > OBSERVACAO_MAX_LINHAS_TABELA) {
+            obsCell = `${linhasObs.slice(0, OBSERVACAO_MAX_LINHAS_TABELA).join('\n')}\n[continua em "Observações Complementares", no fim do documento]`;
+            observacoesComplementares.push({ itemNumero: i.item_numero, exercicio: ex.exercicio, texto: i.observacao });
+          }
+        }
+        return [String(i.item_numero), i.item_descricao, RESPOSTA_LABEL[i.resposta ?? ''] ?? '-', docCell, obsCell];
       }),
       didParseCell: (data) => {
         if (data.column.index === DOCUMENTO_SEI_COL && data.section === 'body') {
@@ -233,17 +300,36 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     cursorY = (doc as any).lastAutoTable.finalY + 8;
   });
 
-  // Rodapé (Analista/Status/datas/Pendência/Observações) — igual ao loop do checklist
-  // acima, cada linha checa se cabe antes de desenhar; se o checklist já tiver enchido
-  // a página (ex.: 47 itens), sem essa checagem o texto era escrito além do limite
-  // inferior da folha e saía cortado no PDF exportado (bug real, reportado com a linha
-  // de Observações sumindo na borda da página).
+  // Itens cuja observação não coube inteira na tabela (ver OBSERVACAO_MAX_LINHAS_TABELA
+  // acima) saem aqui na íntegra, cada um com writeParagraph — garantido nunca cortar,
+  // mesmo que o texto seja maior que uma página inteira.
+  if (observacoesComplementares.length) {
+    if (cursorY > pageHeight - bottomMargin - 15) { doc.addPage(); cursorY = topMarginNovaPagina; }
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Observações Complementares (itens com observação extensa)', marginX, cursorY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    cursorY += 6;
+    observacoesComplementares.forEach(({ itemNumero, exercicio, texto }) => {
+      if (cursorY + 5 > pageHeight - bottomMargin) { doc.addPage(); cursorY = topMarginNovaPagina; }
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Item ${itemNumero}${exercicio != null ? ` (Exercício ${exercicio})` : ''}:`, marginX, cursorY);
+      doc.setFont('helvetica', 'normal');
+      cursorY = writeParagraph(texto, marginX, cursorY + 5, pageWidth - marginX * 2) + 3;
+    });
+  }
+
+  // Rodapé (Analista/Status/datas/Pendência/Observações) — os dois campos livres
+  // (Pendência/Observações) usam writeParagraph, que já garante nunca cortar mesmo com
+  // texto maior que uma página inteira (caso real: pendencia_descricao com ~8000
+  // caracteres/15 parágrafos que saía cortada na borda inferior da folha, porque a
+  // versão antiga só decidia "cabe o bloco inteiro ou não" uma única vez).
   let footerY = cursorY;
-  const bottomMargin = 15;
   const ensureSpace = (neededHeight: number) => {
     if (footerY + neededHeight > pageHeight - bottomMargin) {
       doc.addPage();
-      footerY = 14;
+      footerY = topMarginNovaPagina;
     }
   };
   doc.setFontSize(9);
@@ -260,16 +346,10 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   );
   footerY += 5;
   if (analise.pendencia_descricao) {
-    const linhas = doc.splitTextToSize(`Pendência (${fmtDate(analise.data_pendencia)}): ${analise.pendencia_descricao}`, 270);
-    ensureSpace(linhas.length * 5);
-    doc.text(linhas, 14, footerY);
-    footerY += linhas.length * 5;
+    footerY = writeParagraph(`Pendência (${fmtDate(analise.data_pendencia)}): ${analise.pendencia_descricao}`, 14, footerY, 270);
   }
   if (analise.observacoes) {
-    const linhas = doc.splitTextToSize(`Observações: ${analise.observacoes}`, 270);
-    ensureSpace(linhas.length * 5);
-    doc.text(linhas, 14, footerY);
-    footerY += linhas.length * 5;
+    footerY = writeParagraph(`Observações: ${analise.observacoes}`, 14, footerY, 270);
   }
 
   doc.save(`analise_${analise.processo_sei.replace(/\D/g, '')}.pdf`);
