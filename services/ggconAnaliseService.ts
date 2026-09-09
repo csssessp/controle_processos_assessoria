@@ -37,12 +37,33 @@ async function fetchAllRows<T = any>(
 
 const hoje = () => new Date().toISOString().slice(0, 10);
 
-// Soma os números encontrados no campo "página" de cada link de documento SEI de um
-// item do checklist (mesmo formato de serialização de pages/GgconAnalise.tsx:56-71 —
-// string pura quando não há página, ou JSON `{url, pagina}` quando há). Usado como
-// proxy de "quantidade de páginas" na aba Produtividade, a pedido do usuário — o campo
-// foi pensado originalmente como "em que página do documento está a info", não como
-// contador, então isso é uma aproximação.
+// Interpreta o campo "página" de um link de documento SEI (texto livre, digitado pelo
+// técnico) pra estimar quantas páginas ele documentou. Convenção validada com o
+// usuário em 2026-09-09 com 3 exemplos reais: cada trecho separado por vírgula soma 1
+// se for um número solto ("10" -> 1) ou a DIFERENÇA entre os dois números se for uma
+// faixa "A-B" ("15-40" -> 25, "10-20" -> 10) — não é contagem inclusiva (B-A+1), é
+// literalmente B-A. Ex. combinado: "10,15-30" -> 1 (do "10") + 15 (do "15-30") = 16.
+function contarPaginasTexto(pagina: string): number {
+  let total = 0;
+  for (const parteRaw of pagina.split(',')) {
+    const parte = parteRaw.trim();
+    if (!parte) continue;
+    const range = parte.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (range) {
+      total += Math.abs(parseInt(range[2], 10) - parseInt(range[1], 10)) || 1;
+    } else if (/\d/.test(parte)) {
+      total += 1;
+    }
+  }
+  return total;
+}
+
+// Soma a quantidade de páginas (ver contarPaginasTexto) de cada link de documento SEI
+// de um item do checklist (mesmo formato de serialização de pages/GgconAnalise.tsx:56-71
+// — string pura quando não há página, ou JSON `{url, pagina}` quando há). Usado como
+// proxy de "quantidade de páginas" na Produtividade, na listagem geral e no
+// preenchimento do checklist — o campo foi pensado originalmente como "em que página
+// do documento está a info", não como contador, então isso é uma aproximação.
 export function contarPaginas(raw: string[] | null): number {
   if (!raw) return 0;
   let total = 0;
@@ -51,10 +72,7 @@ export function contarPaginas(raw: string[] | null): number {
     if (s.startsWith('{')) {
       try { const p = JSON.parse(s); pagina = typeof p?.pagina === 'string' ? p.pagina : undefined; } catch { /* link legado, sem página */ }
     }
-    if (pagina) {
-      const nums = pagina.match(/\d+/g);
-      if (nums) total += nums.reduce((acc, n) => acc + parseInt(n, 10), 0);
-    }
+    if (pagina) total += contarPaginasTexto(pagina);
   }
   return total;
 }
