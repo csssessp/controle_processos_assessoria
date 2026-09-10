@@ -1336,10 +1336,9 @@ export const GpcService = {
       analises: number;
       posicoes: number;
       movimentos: number; // pure movement/status changes only — NOT correções
-      correcoes: number;  // CORRECAO events — correção documental é trabalho analítico, contado à parte
       exercicios: number; // CADASTRO_EXERCICIO events
       outras: number;      // atividades avulsas (trabalho sem vínculo a processo do GPC)
-      total: number;       // = analises + posicoes + movimentos + correcoes + exercicios + outras (Cadastros excluded, same as screen)
+      total: number;       // = analises + posicoes + movimentos + exercicios + outras (Cadastros excluded, same as screen)
       paginas: number;
       horas: number;        // soma de horas registradas nas atividades avulsas
     }[];
@@ -1383,15 +1382,17 @@ export const GpcService = {
     const atividadesFiltradas = allAtividades.filter(a => localPeriodKey(a.data_atividade, mes ? 'mes' : 'ano') === target);
 
     // Aggregate per technician — mirrors computeStats() in GpcProcessos_v2.tsx exactly:
-    //   - CORRECAO is trabalho analítico próprio, contado em sua própria categoria (não em movimentos)
-    //   - Total = analises + posicoes + movimentos + correcoes + exercicios + outras (Cadastros NOT counted)
+    //   - CORRECAO conta como processo analisado (mesmo Set deduplicado por registro_id de
+    //     INICIO_ANALISE — toda correção documental É trabalho de análise), não tem mais
+    //     categoria própria na Produtividade; as páginas continuam somando de forma aditiva
+    //     (cada correção é esforço separado, diferente da dedupe usada pra Analisados)
+    //   - Total = analises + posicoes + movimentos + exercicios + outras (Cadastros NOT counted)
     //   - Pages: official num_paginas for INICIO_ANALISE (deduped); num_paginas_analise for CORRECAO
     type Stats = {
       cadastros: number;
       analises: Set<number>;
       posicoes: number;
       movimentos: number;
-      correcoes: number;
       exercicios: number;
       outras: number;
       seenAnalise: Set<number>;
@@ -1401,7 +1402,7 @@ export const GpcService = {
     const map: Record<string, Stats> = {};
     const getBucket = (responsavel: string) => {
       if (!map[responsavel]) {
-        map[responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0, seenAnalise: new Set(), paginas: 0, horas: 0 };
+        map[responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, exercicios: 0, outras: 0, seenAnalise: new Set(), paginas: 0, horas: 0 };
       }
       return map[responsavel];
     };
@@ -1419,7 +1420,7 @@ export const GpcService = {
       if (e.evento === 'POSICAO')        s.posicoes++;
       if (e.evento === 'MOVIMENTO')      s.movimentos++;
       if (e.evento === 'CORRECAO') {
-        s.correcoes++;
+        s.analises.add(e.registro_id);
         s.paginas += e.num_paginas_analise ?? pagesByProcesso.get(e.registro_id) ?? 0;
       }
       if (e.evento === 'CADASTRO_EXERCICIO') s.exercicios++;
@@ -1440,10 +1441,9 @@ export const GpcService = {
       analises: s.analises.size,
       posicoes: s.posicoes,
       movimentos: s.movimentos,
-      correcoes: s.correcoes,
       exercicios: s.exercicios,
       outras: s.outras,
-      total: s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios + s.outras, // mirrors screen (no cadastros)
+      total: s.analises.size + s.posicoes + s.movimentos + s.exercicios + s.outras, // mirrors screen (no cadastros)
       paginas: s.paginas,
       horas: s.horas,
     })).sort((a, b) => b.total - a.total);

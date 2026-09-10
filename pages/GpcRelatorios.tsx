@@ -729,10 +729,9 @@ export const GpcRelatorios = () => {
             'Processos Analisados': t.analises,
             'Avanços de Posição': t.posicoes,
             'Atualizações de Movimento': t.movimentos,
-            'Correções Documentais': t.correcoes,       // trabalho analítico de revisão, contado à parte
             'Exercícios Cadastrados': t.exercicios,
             'Outras Atividades': t.outras,               // trabalho sem vínculo a processo do GPC (auxílio a setor, documento, etc.)
-            'Total de Ações': t.total,                  // = Analisados + Posições + Movimentos + Correções + Exercícios + Outras (sem Cadastros)
+            'Total de Ações': t.total,                  // = Analisados + Posições + Movimentos + Exercícios + Outras (sem Cadastros; correções documentais contam dentro de Analisados)
             'Páginas Trabalhadas': t.paginas,            // páginas de análises + páginas de correções documentais
             'Horas em Outras Atividades': t.horas,
           })),

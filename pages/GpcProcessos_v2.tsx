@@ -6599,13 +6599,11 @@ interface TechStats {
 
   movimentos: number;     // MOVIMENTO events (pure movement/status changes only — NOT correções)
 
-  correcoes: number;      // CORRECAO events — correção documental é trabalho analítico, contado à parte
-
   exercicios: number;     // CADASTRO_EXERCICIO events
 
   outras: number;         // atividades avulsas (trabalho sem vínculo a processo do GPC)
 
-  total: number;          // analises + posicoes + movimentos + correcoes + exercicios + outras (excludes cadastros)
+  total: number;          // analises + posicoes + movimentos + exercicios + outras (excludes cadastros)
 
 }
 
@@ -6652,10 +6650,10 @@ function computeStats(events: ProdEvento[], atividades: GpcAtividadeAvulsa[], gr
 
   const atividadesInPeriod = gran === 'geral' ? atividades : atividades.filter(a => periodoKey(a.data_atividade, gran) === period);
 
-  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number; correcoes: number; exercicios: number; outras: number }> = {};
+  const map: Record<string, { cadastros: number; analises: Set<number>; posicoes: number; movimentos: number; exercicios: number; outras: number }> = {};
 
   const bucket = (responsavel: string) => {
-    if (!map[responsavel]) map[responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0 };
+    if (!map[responsavel]) map[responsavel] = { cadastros: 0, analises: new Set(), posicoes: 0, movimentos: 0, exercicios: 0, outras: 0 };
     return map[responsavel];
   };
 
@@ -6665,15 +6663,14 @@ function computeStats(events: ProdEvento[], atividades: GpcAtividadeAvulsa[], gr
 
     if (e.evento === 'CADASTRO')       s.cadastros++;
 
-    if (e.evento === 'INICIO_ANALISE') s.analises.add(e.registro_id);
+    // Correção documental é trabalho analítico (o técnico revisa páginas do processo) —
+    // toda correção conta como processo analisado, no mesmo Set deduplicado por
+    // registro_id de INICIO_ANALISE (não tem coluna própria na Produtividade).
+    if (e.evento === 'INICIO_ANALISE' || e.evento === 'CORRECAO') s.analises.add(e.registro_id);
 
     if (e.evento === 'POSICAO')        s.posicoes++;
 
     if (e.evento === 'MOVIMENTO')      s.movimentos++;
-
-    // Correção documental é trabalho analítico (o técnico revisa páginas do processo) —
-    // contada em sua própria categoria, não escondida dentro de "Movimentos".
-    if (e.evento === 'CORRECAO')       s.correcoes++;
 
     if (e.evento === 'CADASTRO_EXERCICIO') s.exercicios++;
 
@@ -6697,13 +6694,11 @@ function computeStats(events: ProdEvento[], atividades: GpcAtividadeAvulsa[], gr
 
     movimentos: s.movimentos,
 
-    correcoes:  s.correcoes,
-
     exercicios: s.exercicios,
 
     outras:     s.outras,
 
-    total:      s.analises.size + s.posicoes + s.movimentos + s.correcoes + s.exercicios + s.outras, // cadastros NOT counted in total
+    total:      s.analises.size + s.posicoes + s.movimentos + s.exercicios + s.outras, // cadastros NOT counted in total
 
   })).sort((a, b) => b.total - a.total);
 
@@ -6864,15 +6859,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     movimentos: acc.movimentos + s.movimentos,
 
-    correcoes: acc.correcoes + s.correcoes,
-
     exercicios: acc.exercicios + s.exercicios,
 
     outras: acc.outras + s.outras,
 
     total: acc.total + s.total,
 
-  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0, total: 0 }), [stats]);
+  }), { analises: 0, posicoes: 0, movimentos: 0, exercicios: 0, outras: 0, total: 0 }), [stats]);
 
 
 
@@ -6884,15 +6877,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     movimentos: acc.movimentos + s.movimentos,
 
-    correcoes: acc.correcoes + s.correcoes,
-
     exercicios: acc.exercicios + s.exercicios,
 
     outras: acc.outras + s.outras,
 
     total: acc.total + s.total,
 
-  }), { analises: 0, posicoes: 0, movimentos: 0, correcoes: 0, exercicios: 0, outras: 0, total: 0 }), [prevStats]);
+  }), { analises: 0, posicoes: 0, movimentos: 0, exercicios: 0, outras: 0, total: 0 }), [prevStats]);
 
 
 
@@ -7060,13 +7051,13 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     // Sheet 1: Resumo por técnico
 
-    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento', 'Correções Documentais', 'Exercícios Cadastrados', 'Outras Atividades',
+    const h1 = ['Técnico', 'Cadastros', 'Processos Analisados', 'Avanços de Posição', 'Atualizações de Movimento', 'Exercícios Cadastrados', 'Outras Atividades',
 
       'Total de Ações', 'Ações no Fluxo', 'Páginas Trabalhadas', 'Horas em Outras Atividades', 'Efic. (pág/ação)', 'Tempo Médio (dias)', 'Último Registro'];
 
     const b1 = technicians.map(t => [
 
-      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.correcoes, t.exercicios, t.outras, t.total,
+      t.responsavel, t.cadastros, t.analises, t.posicoes, t.movimentos, t.exercicios, t.outras, t.total,
 
       t.fluxoRegistros, t.paginas, t.horasOutras,
 
@@ -7080,7 +7071,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...b1]);
 
-    ws1['!cols'] = [25, 20, 20, 24, 14, 20, 20, 16, 14, 18, 16, 16, 17, 17, 20].map(w => ({ wch: w }));
+    ws1['!cols'] = [25, 20, 20, 24, 14, 20, 16, 14, 18, 16, 16, 17, 17, 20].map(w => ({ wch: w }));
 
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por Técnico');
 
@@ -7249,7 +7240,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
       {/* KPI totals */}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
 
         <div className="bg-white rounded-2xl border border-sky-100 shadow-sm px-5 py-4">
 
@@ -7263,7 +7254,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
           <div className="text-xs font-bold text-slate-600 mt-1">Processos Analisados</div>
 
-          <div className="text-xs text-slate-400 mt-0.5">início de análise no período</div>
+          <div className="text-xs text-slate-400 mt-0.5">início de análise ou correção documental no período</div>
 
           <Delta cur={totals.analises} prev={prevTotals.analises} />
 
@@ -7302,24 +7293,6 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
           <div className="text-xs text-slate-400 mt-0.5">estágios registrados</div>
 
           <Delta cur={totals.movimentos} prev={prevTotals.movimentos} />
-
-        </div>
-
-        <div className="bg-white rounded-2xl border border-rose-100 shadow-sm px-5 py-4">
-
-          <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center mb-3">
-
-            <PenLine size={18} className="text-rose-600" />
-
-          </div>
-
-          <div className="text-3xl font-black text-rose-700">{totals.correcoes.toLocaleString('pt-BR')}</div>
-
-          <div className="text-xs font-bold text-slate-600 mt-1">Correções Documentais</div>
-
-          <div className="text-xs text-slate-400 mt-0.5">trabalho analítico de revisão</div>
-
-          <Delta cur={totals.correcoes} prev={prevTotals.correcoes} />
 
         </div>
 
@@ -7419,19 +7392,17 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Processos cadastrados no sistema (não conta no total)">Cadastros</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-sky-500 uppercase tracking-wider" title="Processos distintos com início de análise">Analisados</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-sky-500 uppercase tracking-wider" title="Processos distintos com início de análise ou correção documental — toda correção documental conta como processo analisado">Analisados</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-amber-500 uppercase tracking-wider" title="Avanços de posição registrados">Posições</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-purple-500 uppercase tracking-wider" title="Alterações de estágio/status do processo (sem revisão de páginas)">Movimentos</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-rose-500 uppercase tracking-wider" title="Correções documentais registradas — trabalho analítico de revisão do processo">Correções</th>
-
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-teal-500 uppercase tracking-wider" title="Exercícios registrados nos processos">Exercícios</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-indigo-500 uppercase tracking-wider" title="Trabalho registrado sem vínculo a um processo do GPC — pode envolver processo de outro setor/departamento (auxílio a outro setor, elaboração de documento, etc.)">Outras</th>
 
-                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider" title="Analisados + Posições + Movimentos + Correções + Exercícios + Outras Atividades (Cadastros não entram no total)">Total</th>
+                <th className="px-4 py-2.5 text-center text-[11px] font-bold text-blue-500 uppercase tracking-wider" title="Analisados + Posições + Movimentos + Exercícios + Outras Atividades (Cadastros não entram no total)">Total</th>
 
                 <th className="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider" title="Soma das páginas dos processos analisados (uma vez por processo) + páginas de cada correção documental + páginas de cada atividade avulsa registrada">Páginas Trabalhadas</th>
 
@@ -7447,7 +7418,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
               {technicians.map(t => {
 
-                const totalComposition = t.analises + t.posicoes + t.movimentos + t.correcoes + t.exercicios + t.outras;
+                const totalComposition = t.analises + t.posicoes + t.movimentos + t.exercicios + t.outras;
 
                 const pct = totals.total > 0 ? Math.round((t.total / totals.total) * 100) : 0;
 
@@ -7539,18 +7510,6 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                     </td>
 
-                    {/* Correções */}
-
-                    <td className="px-4 py-3 text-center">
-
-                      {t.correcoes > 0
-
-                        ? <span className="inline-block min-w-[32px] px-2 py-0.5 bg-rose-50 text-rose-700 rounded-lg text-sm font-bold">{t.correcoes}</span>
-
-                        : <span className="text-slate-300">—</span>}
-
-                    </td>
-
                     {/* Exercícios */}
 
                     <td className="px-4 py-3 text-center">
@@ -7632,8 +7591,6 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                             {t.movimentos > 0 && <div style={{ width: `${(t.movimentos / totalComposition) * 100}%` }} className="bg-purple-400" />}
 
-                            {t.correcoes  > 0 && <div style={{ width: `${(t.correcoes  / totalComposition) * 100}%` }} className="bg-rose-400" />}
-
                             {t.exercicios > 0 && <div style={{ width: `${(t.exercicios / totalComposition) * 100}%` }} className="bg-teal-400" />}
 
                             {t.outras     > 0 && <div style={{ width: `${(t.outras     / totalComposition) * 100}%` }} className="bg-indigo-400" />}
@@ -7678,9 +7635,6 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                 {/* Movimentos */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold">{totals.movimentos}</span></td>
 
-                {/* Correções */}
-                <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-rose-50 text-rose-700 rounded-lg text-xs font-bold">{totals.correcoes}</span></td>
-
                 {/* Exercícios */}
                 <td className="px-4 py-2.5 text-center"><span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-700 rounded-lg text-xs font-bold">{totals.exercicios}</span></td>
 
@@ -7708,13 +7662,11 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
             <span className="font-semibold text-slate-500">Composição:</span>
 
-            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-sky-400 inline-block" />Processos analisados</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-sky-400 inline-block" />Processos analisados (inclui correções documentais)</span>
 
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-amber-400 inline-block" />Avanços de posição</span>
 
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-purple-400 inline-block" />Atualizações de movimento</span>
-
-            <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-rose-400 inline-block" />Correções documentais</span>
 
             <span className="flex items-center gap-1.5"><span className="w-3 h-1.5 rounded bg-teal-400 inline-block" />Exercícios cadastrados</span>
 
@@ -7778,7 +7730,7 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
 
                 <>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-7 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100 flex-shrink-0">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100 flex-shrink-0">
 
                     {[
 
@@ -7787,8 +7739,6 @@ const ProdutividadePage = ({ rows: allRows }: { rows: GpcRecebido[] }) => {
                       { label: 'Posições', value: st.posicoes, color: 'text-amber-700', bg: 'bg-amber-50' },
 
                       { label: 'Movimentos', value: st.movimentos, color: 'text-purple-700', bg: 'bg-purple-50' },
-
-                      { label: 'Correções', value: st.correcoes, color: 'text-rose-700', bg: 'bg-rose-50' },
 
                       { label: 'Exercícios', value: st.exercicios, color: 'text-teal-700', bg: 'bg-teal-50' },
 
