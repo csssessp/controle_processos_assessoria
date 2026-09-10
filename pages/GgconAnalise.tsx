@@ -335,7 +335,7 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   doc.setFontSize(9);
   ensureSpace(5);
   doc.text(
-    `Analista Responsável: ${analise.analista_atual ?? '-'}      Status: ${GGCON_ANALISE_STATUS_LABELS[analise.status]}`,
+    `Conferente Responsável: ${analise.analista_atual ?? '-'}      Status: ${GGCON_ANALISE_STATUS_LABELS[analise.status]}`,
     14, footerY,
   );
   footerY += 5;
@@ -2483,7 +2483,7 @@ const COLUNAS: { label: string; field: GgconAnaliseSortField | null }[] = [
   { label: 'Interessado', field: 'interessado' },
   { label: 'Tipo', field: 'tipo_conveniada' },
   { label: 'Status', field: 'status' },
-  { label: 'Analista', field: 'analista_atual' },
+  { label: 'Conferente', field: 'analista_atual' },
   { label: 'Progresso', field: null },
   { label: 'Páginas', field: null },
   { label: 'Recebimento', field: 'data_recebimento' },
