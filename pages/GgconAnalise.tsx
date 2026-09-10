@@ -320,11 +320,14 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     });
   }
 
-  // Rodapé (Analista/Status/datas/Pendência/Observações) — os dois campos livres
+  // Rodapé (datas/Pendência/Observações/Conferente/Status) — os dois campos livres
   // (Pendência/Observações) usam writeParagraph, que já garante nunca cortar mesmo com
   // texto maior que uma página inteira (caso real: pendencia_descricao com ~8000
   // caracteres/15 parágrafos que saía cortada na borda inferior da folha, porque a
-  // versão antiga só decidia "cabe o bloco inteiro ou não" uma única vez).
+  // versão antiga só decidia "cabe o bloco inteiro ou não" uma única vez). "Conferente
+  // Responsável/Status" fica por último de propósito — a pedido do usuário, precisa
+  // estar sempre no final do arquivo (era a primeira linha do rodapé antes, o que podia
+  // deixá-la isolada no fim de uma página enquanto o resto do rodapé ia pra próxima).
   let footerY = cursorY;
   const ensureSpace = (neededHeight: number) => {
     if (footerY + neededHeight > pageHeight - bottomMargin) {
@@ -333,12 +336,6 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
     }
   };
   doc.setFontSize(9);
-  ensureSpace(5);
-  doc.text(
-    `Conferente Responsável: ${analise.analista_atual ?? '-'}      Status: ${GGCON_ANALISE_STATUS_LABELS[analise.status]}`,
-    14, footerY,
-  );
-  footerY += 5;
   ensureSpace(5);
   doc.text(
     `Recebimento: ${fmtDate(analise.data_recebimento)}      Atribuição: ${fmtDate(analise.data_liberacao)}      Analisado: ${fmtDate(analise.data_analise)}      Encaminhamento: ${analise.area_encaminhamento ?? '-'} (${fmtDate(analise.data_encaminhamento)})`,
@@ -351,6 +348,12 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   if (analise.observacoes) {
     footerY = writeParagraph(`Observações: ${analise.observacoes}`, 14, footerY, 270);
   }
+  footerY += 2;
+  ensureSpace(5);
+  doc.text(
+    `Conferente Responsável: ${analise.analista_atual ?? '-'}      Status: ${GGCON_ANALISE_STATUS_LABELS[analise.status]}`,
+    14, footerY,
+  );
 
   doc.save(`analise_${analise.processo_sei.replace(/\D/g, '')}.pdf`);
 };
