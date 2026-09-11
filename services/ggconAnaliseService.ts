@@ -39,10 +39,10 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 
 // Interpreta o campo "página" de um link de documento SEI (texto livre, digitado pelo
 // técnico) pra estimar quantas páginas ele documentou. Convenção validada com o
-// usuário em 2026-09-09 com 3 exemplos reais: cada trecho separado por vírgula soma 1
-// se for um número solto ("10" -> 1) ou a DIFERENÇA entre os dois números se for uma
-// faixa "A-B" ("15-40" -> 25, "10-20" -> 10) — não é contagem inclusiva (B-A+1), é
-// literalmente B-A. Ex. combinado: "10,15-30" -> 1 (do "10") + 15 (do "15-30") = 16.
+// usuário em 2026-09-11 com 3 exemplos reais: cada trecho separado por vírgula soma 1
+// se for um número solto ("10" -> 1) ou a contagem INCLUSIVA (B-A+1) se for uma faixa
+// "A-B" ("15-40" -> 26, "10-20" -> 11, pois a página inicial também conta). Ex.
+// combinado: "10,15-30" -> 1 (do "10") + 16 (do "15-30") = 17.
 function contarPaginasTexto(pagina: string): number {
   let total = 0;
   for (const parteRaw of pagina.split(',')) {
@@ -50,7 +50,7 @@ function contarPaginasTexto(pagina: string): number {
     if (!parte) continue;
     const range = parte.match(/^(\d+)\s*-\s*(\d+)$/);
     if (range) {
-      total += Math.abs(parseInt(range[2], 10) - parseInt(range[1], 10)) || 1;
+      total += Math.abs(parseInt(range[2], 10) - parseInt(range[1], 10)) + 1;
     } else if (/\d/.test(parte)) {
       total += 1;
     }
