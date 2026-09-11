@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Search, Plus, X, Check, Loader2, AlertCircle, ClipboardCheck, Send, UserCog,
   History, ChevronLeft, ChevronRight, Lock, Trash2, MoreVertical, RotateCcw, Inbox,
@@ -1422,6 +1422,8 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
 }) => {
   const [novoLink, setNovoLink] = useState('');
   const [novaPagina, setNovaPagina] = useState('');
+  const linkGroupRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
   const links = toLinks(item.documento_sei);
 
   const addLink = () => {
@@ -1430,6 +1432,18 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
     onChange({ documento_sei: [...links, serializeLink({ url: v, pagina: novaPagina })] });
     setNovoLink('');
     setNovaPagina('');
+  };
+  // Muita gente digita o link (e às vezes a página) e já sai clicando no próximo item
+  // sem apertar "Adicionar" — e depois reclama que o sistema "não salva". Ao perder o
+  // foco do grupo inteiro (link + página + botão), salva sozinho o que tiver digitado.
+  // Usa relatedTarget pra não disparar ao só trocar de campo dentro do próprio grupo
+  // (ex.: Tab do link pra página), senão perderíamos a página antes de ela ser digitada.
+  const handleLinkGroupBlur = (e: React.FocusEvent) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && linkGroupRef.current?.contains(next)) return;
+    if (!novoLink.trim()) return;
+    addLink();
+    toast('success', 'Link salvo automaticamente.');
   };
   const removeLink = (idx: number) => {
     const next = links.filter((_, i) => i !== idx);
@@ -1501,7 +1515,7 @@ const ChecklistItemRow = ({ item, dica, readOnly, onChange }: {
           );
         })}
         {!readOnly ? (
-          <div className="flex gap-1.5">
+          <div ref={linkGroupRef} onBlur={handleLinkGroupBlur} className="flex gap-1.5">
             <input
               className="flex-1 min-w-[180px] border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
               placeholder={dica ? `Colar link do Documento SEI... (${dica})` : 'Colar link do Documento SEI...'}
