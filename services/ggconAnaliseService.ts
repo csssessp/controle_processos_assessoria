@@ -263,6 +263,16 @@ export const GgconAnaliseService = {
     return exercicioRow as GgconAnaliseExercicio;
   },
 
+  // Observação do checklist deste exercício (independente da "Observações" do
+  // cabeçalho, que é uma nota do processo inteiro) — mesmo padrão de autosave no
+  // blur, e é o que sai no PDF exportado daquele exercício (ver parte_83).
+  atualizarObservacoesExercicio: async (exercicioId: number, observacoes: string | null): Promise<void> => {
+    const { error } = await supabase.from('cgof_ggcon_analise_exercicios').update({
+      observacoes: observacoes?.trim() || null,
+    }).eq('id', exercicioId);
+    if (error) throw new Error(error.message);
+  },
+
   // Corrige/preenche o ano de um exercício já criado (inclusive o "não especificado"
   // herdado da migração de análises antigas com um único checklist).
   atualizarExercicio: async (exercicioId: number, exercicio: number | null): Promise<void> => {

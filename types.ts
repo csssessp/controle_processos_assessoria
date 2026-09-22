@@ -564,6 +564,7 @@ export interface GgconAnaliseExercicio {
   id: number;
   analise_id: number;
   exercicio: number | null;
+  observacoes: string | null;
   created_at?: string;
   created_by: string | null;
   // agregados calculados no service, não persistidos

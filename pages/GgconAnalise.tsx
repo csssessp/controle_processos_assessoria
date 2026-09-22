@@ -297,7 +297,19 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
         }
       },
     });
-    cursorY = (doc as any).lastAutoTable.finalY + 8;
+    cursorY = (doc as any).lastAutoTable.finalY + 4;
+    // Observação do checklist deste exercício (independente da "Observações" do
+    // rodapé, que é uma nota única do processo inteiro e por isso sai igual em
+    // qualquer PDF exportado) — cada exercício tem a sua própria.
+    if (ex.observacoes) {
+      if (cursorY + 5 > pageHeight - bottomMargin) { doc.addPage(); cursorY = topMarginNovaPagina; }
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Observação do exercício:', marginX, cursorY);
+      doc.setFont('helvetica', 'normal');
+      cursorY = writeParagraph(ex.observacoes, marginX, cursorY + 4, pageWidth - marginX * 2) + 2;
+    }
+    cursorY += 4;
   });
 
   // Itens cuja observação não coube inteira na tabela (ver OBSERVACAO_MAX_LINHAS_TABELA
@@ -705,6 +717,42 @@ const ExerciciosBar = ({ exercicios, itens, activeId, onSelect, analiseId, tipoC
             <Plus size={12}/>Adicionar Exercício
           </button>
         )
+      )}
+    </div>
+  );
+};
+
+// Observação do checklist do exercício ativo — independente da "Observações" do
+// cabeçalho (nota do processo inteiro, mostrada na listagem): esta é específica do
+// exercício e é o que sai no PDF exportado daquele exercício. Montada com
+// `key={exercicio.id}` pelo chamador — ao trocar de aba o componente remonta do
+// zero (em vez de ressincronizar via useEffect), então não há risco de um blur em
+// voo salvar no exercício errado depois de uma troca rápida de aba.
+const ExercicioObservacaoBox = ({ exercicio, readOnly, onSave }: {
+  exercicio: GgconAnaliseExercicio;
+  readOnly: boolean;
+  onSave: (exercicioId: number, texto: string) => void;
+}) => {
+  const [texto, setTexto] = useState(exercicio.observacoes ?? '');
+  const salvar = () => {
+    if ((exercicio.observacoes ?? '') === texto) return;
+    onSave(exercicio.id, texto);
+  };
+  if (readOnly && !exercicio.observacoes) return null;
+  return (
+    <div className="mb-2.5 bg-white rounded-xl border border-slate-200 p-3">
+      <h5 className="text-xs font-bold text-slate-600 flex items-center gap-1.5 mb-1.5"><StickyNote size={12}/>Observação deste Exercício</h5>
+      {readOnly ? (
+        <p className="text-xs text-slate-500 whitespace-pre-wrap">{exercicio.observacoes}</p>
+      ) : (
+        <textarea
+          className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+          rows={2}
+          placeholder={`Observação sobre o checklist do Exercício ${exercicio.exercicio} (sai no PDF deste exercício)...`}
+          value={texto}
+          onChange={e => setTexto(e.target.value)}
+          onBlur={salvar}
+        />
       )}
     </div>
   );
@@ -1726,6 +1774,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
     () => itens.filter(i => i.exercicio_id === activeExercicioId),
     [itens, activeExercicioId],
   );
+  const exercicioAtivo = exercicios.find(ex => ex.id === activeExercicioId) ?? null;
   // Quantidade de páginas informadas pelos técnicos nos links de Documento SEI do
   // checklist (mesmo cálculo usado na Produtividade — ver contarPaginas no service) —
   // mostrado tanto do exercício em edição quanto do total da análise.
@@ -1851,6 +1900,13 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
       // salvo e dispare outro PATCH à toa.
       setAnalise(prev => prev ? { ...prev, observacoes: observacoesTexto.trim() || null } : prev);
       onChanged();
+    } catch (ex: any) { toast('error', ex.message); }
+  };
+
+  const handleSalvarObservacaoExercicio = async (exercicioId: number, texto: string) => {
+    try {
+      await GgconAnaliseService.atualizarObservacoesExercicio(exercicioId, texto);
+      setExercicios(prev => prev.map(e => e.id === exercicioId ? { ...e, observacoes: texto.trim() || null } : e));
     } catch (ex: any) { toast('error', ex.message); }
   };
 
@@ -1982,6 +2038,9 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
                   {temExercicioValido ? (
                     <>
+                      {exercicioAtivo && (
+                        <ExercicioObservacaoBox key={exercicioAtivo.id} exercicio={exercicioAtivo} readOnly={!canManage} onSave={handleSalvarObservacaoExercicio}/>
+                      )}
                       <div className="flex items-center justify-between mb-2.5">
                         <p className="text-[11px] text-slate-400 italic">Todas as documentações devem estar atualizadas e assinadas.</p>
                         {exerciciosValidos.length > 1 && (
