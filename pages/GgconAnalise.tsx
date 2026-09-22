@@ -722,12 +722,14 @@ const ExerciciosBar = ({ exercicios, itens, activeId, onSelect, analiseId, tipoC
   );
 };
 
-// Observação do checklist do exercício ativo — independente da "Observações" do
-// cabeçalho (nota do processo inteiro, mostrada na listagem): esta é específica do
-// exercício e é o que sai no PDF exportado daquele exercício. Montada com
-// `key={exercicio.id}` pelo chamador — ao trocar de aba o componente remonta do
-// zero (em vez de ressincronizar via useEffect), então não há risco de um blur em
-// voo salvar no exercício errado depois de uma troca rápida de aba.
+// Observação do checklist do exercício ativo — independente da "Observação Geral"
+// do cabeçalho (nota do processo inteiro, mostrada na listagem): esta é específica
+// do exercício e é o que sai no PDF exportado daquele exercício. Visual roxo
+// deliberadamente diferente do resto da tela (usuário reportou confundir as duas
+// observações) — destaque forte pra deixar claro que é um campo à parte. Montada
+// com `key={exercicio.id}` pelo chamador — ao trocar de aba o componente remonta
+// do zero (em vez de ressincronizar via useEffect), então não há risco de um blur
+// em voo salvar no exercício errado depois de uma troca rápida de aba.
 const ExercicioObservacaoBox = ({ exercicio, readOnly, onSave }: {
   exercicio: GgconAnaliseExercicio;
   readOnly: boolean;
@@ -740,15 +742,16 @@ const ExercicioObservacaoBox = ({ exercicio, readOnly, onSave }: {
   };
   if (readOnly && !exercicio.observacoes) return null;
   return (
-    <div className="mb-2.5 bg-white rounded-xl border border-slate-200 p-3">
-      <h5 className="text-xs font-bold text-slate-600 flex items-center gap-1.5 mb-1.5"><StickyNote size={12}/>Observação deste Exercício</h5>
+    <div className="mb-3 bg-violet-50 rounded-xl border-2 border-violet-300 p-3 shadow-sm">
+      <h5 className="text-sm font-bold text-violet-800 flex items-center gap-1.5 mb-0.5"><StickyNote size={14}/>Observação DESTE Exercício ({exercicio.exercicio})</h5>
+      <p className="text-[11px] text-violet-500 mb-1.5">Só vale para o checklist do Exercício {exercicio.exercicio} — sai apenas no PDF exportado dele. Diferente da "Observação Geral" da barra lateral, que vale para o processo inteiro.</p>
       {readOnly ? (
-        <p className="text-xs text-slate-500 whitespace-pre-wrap">{exercicio.observacoes}</p>
+        <p className="text-xs text-violet-700 whitespace-pre-wrap">{exercicio.observacoes}</p>
       ) : (
         <textarea
-          className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+          className="w-full border border-violet-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
           rows={2}
-          placeholder={`Observação sobre o checklist do Exercício ${exercicio.exercicio} (sai no PDF deste exercício)...`}
+          placeholder={`Observação sobre o checklist do Exercício ${exercicio.exercicio} (sai só no PDF deste exercício)...`}
           value={texto}
           onChange={e => setTexto(e.target.value)}
           onBlur={salvar}
@@ -2205,10 +2208,16 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                   )}
                 </div>
 
-                {/* Observações — nota de acompanhamento livre, editável pelo analista dono ou por
-                    quem libera, em qualquer status (inclusive depois de concluída/encaminhada). */}
+                {/* Observação geral — nota de acompanhamento livre do PROCESSO INTEIRO (não do
+                    checklist de um exercício específico — ver ExercicioObservacaoBox, dentro do
+                    checklist), editável pelo analista dono ou por quem libera, em qualquer status
+                    (inclusive depois de concluída/encaminhada). Também aparece na coluna
+                    "Observações" da listagem principal e sai igual em todo PDF exportado, não
+                    importa o exercício — rótulo/legenda deixam isso explícito pra não confundir
+                    com a observação por exercício (usuário reportou confusão entre as duas). */}
                 <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
-                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><StickyNote size={14}/>Observações</h4>
+                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><StickyNote size={14}/>Observação Geral (todos os exercícios)</h4>
+                  <p className="text-[11px] text-slate-400 -mt-1">Nota sobre o processo como um todo — aparece na listagem e é igual em todo PDF exportado, independente do exercício. Para uma nota específica de um exercício, use "Observação deste Exercício" dentro do checklist.</p>
                   {canManage ? (
                     <textarea
                       className={INPUT}
@@ -2219,7 +2228,7 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                       onBlur={handleSalvarObservacoes}
                     />
                   ) : (
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{analise.observacoes || 'Nenhuma observação registrada.'}</p>
+                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{analise.observacoes || 'Nenhuma observação geral registrada.'}</p>
                   )}
                 </div>
 
