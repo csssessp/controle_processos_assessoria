@@ -558,6 +558,7 @@ export interface GgconAnalise {
   itens_total?: number;
   itens_respondidos?: number;
   itens_paginas?: number;
+  exercicio_observacao?: string | null; // observação do 1º exercício — usada na coluna "Observações" da listagem
 }
 
 export interface GgconAnaliseExercicio {

@@ -131,10 +131,21 @@ export interface GgconAnaliseFiltro {
 async function comProgresso(rows: GgconAnalise[]): Promise<GgconAnalise[]> {
   if (!rows.length) return rows;
   const ids = rows.map(r => r.id);
-  const data = await fetchAllRows<{ analise_id: number; resposta: string | null; documento_sei: string[] | null }>(
-    'cgof_ggcon_analise_itens', 'analise_id, resposta, documento_sei',
-    q => q.in('analise_id', ids),
-  );
+  const [data, exercicios] = await Promise.all([
+    fetchAllRows<{ analise_id: number; resposta: string | null; documento_sei: string[] | null }>(
+      'cgof_ggcon_analise_itens', 'analise_id, resposta, documento_sei',
+      q => q.in('analise_id', ids),
+    ),
+    // Observação exibida na coluna "Observações" da listagem — não existe mais um
+    // campo único por análise (ver [[project_ggcon_analise_module]]/parte_83), então
+    // a listagem mostra a observação do PRIMEIRO exercício de cada análise (menor
+    // ano; exercícios "sem ano" — placeholder legado — só entram se não houver
+    // nenhum com ano definido).
+    fetchAllRows<{ analise_id: number; exercicio: number | null; observacoes: string | null }>(
+      'cgof_ggcon_analise_exercicios', 'analise_id, exercicio, observacoes',
+      q => q.in('analise_id', ids),
+    ),
+  ]);
   const totais = new Map<number, { total: number; respondidos: number; paginas: number }>();
   for (const item of data) {
     const cur = totais.get(item.analise_id) ?? { total: 0, respondidos: 0, paginas: 0 };
@@ -143,11 +154,19 @@ async function comProgresso(rows: GgconAnalise[]): Promise<GgconAnalise[]> {
     cur.paginas += contarPaginas(item.documento_sei);
     totais.set(item.analise_id, cur);
   }
+  const primeiroExercicio = new Map<number, { exercicio: number | null; observacoes: string | null }>();
+  for (const ex of exercicios) {
+    const atual = primeiroExercicio.get(ex.analise_id);
+    if (!atual || (ex.exercicio != null && (atual.exercicio == null || ex.exercicio < atual.exercicio))) {
+      primeiroExercicio.set(ex.analise_id, ex);
+    }
+  }
   return rows.map(r => ({
     ...r,
     itens_total: totais.get(r.id)?.total ?? 0,
     itens_respondidos: totais.get(r.id)?.respondidos ?? 0,
     itens_paginas: totais.get(r.id)?.paginas ?? 0,
+    exercicio_observacao: primeiroExercicio.get(r.id)?.observacoes ?? null,
   }));
 }
 
@@ -598,17 +617,6 @@ export const GgconAnaliseService = {
 
   deleteAnalise: async (id: number): Promise<void> => {
     const { error } = await supabase.from('cgof_ggcon_analises').delete().eq('id', id);
-    if (error) throw new Error(error.message);
-  },
-
-  // Nota de acompanhamento livre (campo "Observações" do cabeçalho) — editável a
-  // qualquer momento do fluxo pelo analista responsável ou por quem libera, com
-  // autosave no blur do textarea (sem precisar abrir o formulário de Editar Cadastro).
-  atualizarObservacoes: async (id: number, observacoes: string | null): Promise<void> => {
-    const { error } = await supabase.from('cgof_ggcon_analises').update({
-      observacoes: observacoes?.trim() || null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id);
     if (error) throw new Error(error.message);
   },
 

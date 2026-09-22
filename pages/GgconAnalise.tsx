@@ -357,9 +357,6 @@ const exportAnaliseFichaPDF = async (analise: GgconAnalise, itens: GgconAnaliseI
   if (analise.pendencia_descricao) {
     footerY = writeParagraph(`Pendência (${fmtDate(analise.data_pendencia)}): ${analise.pendencia_descricao}`, 14, footerY, 270);
   }
-  if (analise.observacoes) {
-    footerY = writeParagraph(`Observações: ${analise.observacoes}`, 14, footerY, 270);
-  }
   footerY += 2;
   ensureSpace(5);
   doc.text(
@@ -953,16 +950,10 @@ const DespachoForm = ({ initial, onSave, onClose, lockRecebimento }: {
       </div>
 
       <Sec title="Recebimento" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className={LABEL}>Data de Recebimento</label>
-          <input className={INPUT} type="date" value={form.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)} disabled={lockRecebimento}/>
-          {lockRecebimento && <p className="text-[11px] text-slate-400 mt-1">Só quem libera processos para análise pode corrigir a data de recebimento.</p>}
-        </div>
-        <div className="sm:col-span-2">
-          <label className={LABEL}>Observações</label>
-          <textarea className={INPUT} rows={2} value={form.observacoes ?? ''} onChange={e => set('observacoes', e.target.value)}/>
-        </div>
+      <div>
+        <label className={LABEL}>Data de Recebimento</label>
+        <input className={INPUT} type="date" value={form.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)} disabled={lockRecebimento}/>
+        {lockRecebimento && <p className="text-[11px] text-slate-400 mt-1">Só quem libera processos para análise pode corrigir a data de recebimento.</p>}
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
@@ -1679,7 +1670,6 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [busy, setBusy] = useState(false);
   const [areaEncaminhamento, setAreaEncaminhamento] = useState('');
   const [showEncaminhar, setShowEncaminhar] = useState(false);
-  const [observacoesTexto, setObservacoesTexto] = useState('');
   const [analistaGpcTexto, setAnalistaGpcTexto] = useState('');
   const [gpcAnalistas, setGpcAnalistas] = useState<string[]>([]);
   useEffect(() => { GgconService.getGpcAnalistas().then(setGpcAnalistas); }, []);
@@ -1719,7 +1709,6 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
       ? prev
       : (ex.find(e => e.exercicio != null)?.id ?? ex[0]?.id ?? null));
     setHistorico(h);
-    setObservacoesTexto(a?.observacoes ?? '');
     setAreaEncaminhamento(a?.area_encaminhamento ?? '');
     setAnalistaGpcTexto(a?.analista_gpc ?? '');
     setLoading(false);
@@ -1892,19 +1881,6 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
       toast('success', analise.status === 'CONCLUIDA' ? 'Encaminhamento atualizado.' : 'Processo encaminhado.');
     } catch (ex: any) { toast('error', ex.message); }
     finally { setBusy(false); }
-  };
-
-  const handleSalvarObservacoes = async () => {
-    if (!analise) return;
-    if ((analise.observacoes ?? '') === observacoesTexto) return;
-    try {
-      await GgconAnaliseService.atualizarObservacoes(analise.id, observacoesTexto);
-      // Atualiza o estado local (em vez de esperar um load() completo) para que um
-      // segundo blur sem mudanças não ache que o texto ainda difere do que já foi
-      // salvo e dispare outro PATCH à toa.
-      setAnalise(prev => prev ? { ...prev, observacoes: observacoesTexto.trim() || null } : prev);
-      onChanged();
-    } catch (ex: any) { toast('error', ex.message); }
   };
 
   const handleSalvarObservacaoExercicio = async (exercicioId: number, texto: string) => {
@@ -2210,34 +2186,13 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                     o usuário reportou que era grande/chamativa demais e atrapalhava o
                     preenchimento; movida pra cá (barra lateral), lado a lado com a "Observação
                     Geral" logo abaixo, pra facilitar comparar as duas sem competir com o
-                    checklist pelo espaço. */}
+                    checklist pelo espaço. O campo "Observação Geral" do processo (que existia
+                    aqui antes, ao lado deste) foi removido a pedido do usuário — a coluna
+                    "Observações" da listagem agora mostra a observação do 1º exercício em vez
+                    dele (ver `exercicio_observacao` em `comProgresso`, ggconAnaliseService.ts). */}
                 {exercicioAtivo && (
                   <ExercicioObservacaoBox key={exercicioAtivo.id} exercicio={exercicioAtivo} readOnly={!canManage} onSave={handleSalvarObservacaoExercicio}/>
                 )}
-
-                {/* Observação geral — nota de acompanhamento livre do PROCESSO INTEIRO (não do
-                    checklist de um exercício específico — ver ExercicioObservacaoBox, acima),
-                    editável pelo analista dono ou por quem libera, em qualquer status (inclusive
-                    depois de concluída/encaminhada). Também aparece na coluna "Observações" da
-                    listagem principal e sai igual em todo PDF exportado, não importa o exercício
-                    — rótulo/legenda deixam isso explícito pra não confundir com a observação por
-                    exercício (usuário reportou confusão entre as duas). */}
-                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
-                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><StickyNote size={14}/>Observação Geral (todos os exercícios)</h4>
-                  <p className="text-[11px] text-slate-400 -mt-1">Nota sobre o processo como um todo — aparece na listagem e é igual em todo PDF exportado, independente do exercício. Para uma nota específica de um exercício, use o campo "Observação do Exercício" acima.</p>
-                  {canManage ? (
-                    <textarea
-                      className={INPUT}
-                      rows={3}
-                      placeholder="Anotações sobre este processo (pendências, contexto, combinados com o DRS/entidade...)"
-                      value={observacoesTexto}
-                      onChange={e => setObservacoesTexto(e.target.value)}
-                      onBlur={handleSalvarObservacoes}
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{analise.observacoes || 'Nenhuma observação geral registrada.'}</p>
-                  )}
-                </div>
 
                 {canEdit && (
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -3003,7 +2958,7 @@ export const GgconAnalisePage = () => {
                           </span>
                         ) : '-'}
                       </td>
-                      <td className="px-3 py-3 text-sm text-slate-500 max-w-[220px] truncate" title={r.observacoes ?? ''}>{r.observacoes ?? '-'}</td>
+                      <td className="px-3 py-3 text-sm text-slate-500 max-w-[220px] truncate" title={r.exercicio_observacao ?? ''}>{r.exercicio_observacao ?? '-'}</td>
                       <td className="px-3 py-3"><RowMenu items={menuItems}/></td>
                     </tr>
                   );
