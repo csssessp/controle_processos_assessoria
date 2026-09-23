@@ -57,6 +57,13 @@ export const DRS_UNIDADES = [
 
 const PRESTACAO_CONTAS = 'Prestação de Contas';
 
+// Data de hoje no fuso local ("YYYY-MM-DD") — toISOString() usa UTC e, depois das 21h
+// em Brasília, já devolveria o dia seguinte.
+const hojeLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 // "2024, 2025" -> [2024, 2025] (sem repetição, em ordem) — mesmo formato de texto livre
 // do campo Exercício(s) do cadastro da Análise GGCON.
 const parseExercicios = (texto: string): number[] => Array.from(new Set(
@@ -176,7 +183,8 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
 }) => {
   const [form, setForm] = useState<Partial<GgconProcesso>>(initial ?? {
     aguardando_assinatura: false, comite_gestor: false, consultoria_juridica: false,
-    data_entrada: new Date().toISOString().slice(0, 10),
+    data_entrada: hojeLocal(),
+    data_movimentacao: hojeLocal(),
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -961,10 +969,15 @@ export const GgconProcessos = () => {
     setOverlay({ type: 'form', data: row, returnToHistorico: processoSei });
   };
 
-  const abrirNovaMovimentacao = () => {
+  // Técnico da nova movimentação = o último atribuído ao processo: a movimentação mais
+  // recente que tenha técnico preenchido (não só a última, que pode estar vazia) e, se
+  // nenhuma tiver, o conferente da Análise GGCON do mesmo processo.
+  const abrirNovaMovimentacao = async () => {
     if (!historico.length) return;
     const atual = historico[historico.length - 1];
     const processoSei = overlay?.type === 'historico' ? overlay.processoSei : undefined;
+    let tecnico = [...historico].reverse().find(h => h.tecnico_responsavel?.trim())?.tecnico_responsavel ?? null;
+    if (!tecnico) tecnico = (await GgconService.getAnaliseResumoDoProcesso(atual.processo_sei))?.conferente ?? null;
     setOverlay({
       type: 'form',
       data: {
@@ -975,8 +988,9 @@ export const GgconProcessos = () => {
         interessado: atual.interessado,
         tipo: atual.tipo,
         exercicios: atual.exercicios,
-        tecnico_responsavel: atual.tecnico_responsavel,
-        data_entrada: new Date().toISOString().slice(0, 10),
+        tecnico_responsavel: tecnico,
+        data_entrada: hojeLocal(),
+        data_movimentacao: hojeLocal(),
       },
       returnToHistorico: processoSei,
     });
