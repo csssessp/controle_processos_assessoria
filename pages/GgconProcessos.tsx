@@ -184,7 +184,6 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
   const [form, setForm] = useState<Partial<GgconProcesso>>(initial ?? {
     aguardando_assinatura: false, comite_gestor: false, consultoria_juridica: false,
     data_entrada: hojeLocal(),
-    data_movimentacao: hojeLocal(),
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -228,6 +227,8 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
   // chegou com um processo_sei (edição, ou "Nova Movimentação" pré-preenchida a partir
   // do histórico), reencontrar o mesmo SEI é esperado, não um alerta.
   const skipDupCheck = !!initial?.processo_sei;
+  // "Nova Movimentação" (a partir do histórico): chega com processo_sei, mas sem codigo.
+  const isNovaMovimentacao = !!initial?.processo_sei && !initial?.codigo;
   const [dupWarning, setDupWarning] = useState<{ totalMovimentacoes: number; etapaAtual?: string | null; tecnico?: string | null } | null>(null);
 
   const handleProcessoSeiBlur = async () => {
@@ -358,17 +359,24 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
           <label className={LABEL}>Analista GPC</label>
           <ListInput id="dl-analista-gpc" options={gpcAnalistas} value={form.analista_gpc ?? ''} onChange={v => set('analista_gpc', v || null)}/>
         </div>
-        <div>
-          <label className={LABEL}>Data de Entrada</label>
-          <input className={INPUT} type="date" value={form.data_entrada ?? ''} onChange={e => set('data_entrada', e.target.value || null)}/>
-        </div>
+        {/* Data de Entrada (dia do lançamento no controle) quase sempre repete a Data da
+            Movimentação — numa Nova Movimentação fica oculta e vai preenchida com hoje. */}
+        {!isNovaMovimentacao && (
+          <div>
+            <label className={LABEL}>Data de Entrada</label>
+            <input className={INPUT} type="date" value={form.data_entrada ?? ''} onChange={e => set('data_entrada', e.target.value || null)}/>
+            <p className="text-[11px] text-slate-400 mt-1">Dia em que foi lançado neste controle.</p>
+          </div>
+        )}
         <div>
           <label className={LABEL}>Data de Recebimento</label>
           <input className={INPUT} type="date" value={form.data_recebimento ?? ''} onChange={e => set('data_recebimento', e.target.value || null)}/>
+          <p className="text-[11px] text-slate-400 mt-1">Quando o processo chegou ao GGCON.</p>
         </div>
         <div>
           <label className={LABEL}>Data da Movimentação</label>
           <input className={INPUT} type="date" value={form.data_movimentacao ?? ''} onChange={e => set('data_movimentacao', e.target.value || null)}/>
+          <p className="text-[11px] text-slate-400 mt-1">Data desta etapa — base dos dias parado.</p>
         </div>
       </div>
 
@@ -978,6 +986,8 @@ export const GgconProcessos = () => {
     const processoSei = overlay?.type === 'historico' ? overlay.processoSei : undefined;
     let tecnico = [...historico].reverse().find(h => h.tecnico_responsavel?.trim())?.tecnico_responsavel ?? null;
     if (!tecnico) tecnico = (await GgconService.getAnaliseResumoDoProcesso(atual.processo_sei))?.conferente ?? null;
+    // Recebimento é do processo (chegou uma vez ao GGCON), não da movimentação.
+    const dataRecebimento = [...historico].reverse().find(h => h.data_recebimento)?.data_recebimento ?? null;
     setOverlay({
       type: 'form',
       data: {
@@ -989,6 +999,7 @@ export const GgconProcessos = () => {
         tipo: atual.tipo,
         exercicios: atual.exercicios,
         tecnico_responsavel: tecnico,
+        data_recebimento: dataRecebimento,
         data_entrada: hojeLocal(),
         data_movimentacao: hojeLocal(),
       },
