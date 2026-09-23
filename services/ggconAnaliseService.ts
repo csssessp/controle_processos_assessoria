@@ -3,7 +3,7 @@ import { emitError } from './errorBus';
 import { DbService } from './dbService';
 import { GgconService } from './ggconService';
 import {
-  GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
+  GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseRodada, GgconAnaliseStatus,
   GgconAnaliseResposta, GgconTipoConveniada, userHasArea, UserRole,
   GgconProdutividadeLinha, GgconProdutividadeDetalheLinha,
 } from '../types';
@@ -241,6 +241,49 @@ export const GgconAnaliseService = {
     const { data, error } = await supabase.from('cgof_ggcon_analises').select('id').eq('processo_sei', processoSei).limit(1);
     if (error) { console.error(error); return false; }
     return !!data && data.length > 0;
+  },
+
+  // Análises anteriores guardadas a cada Retorno GPC (ver GgconService.sincronizarRetornoGpc).
+  getRodadas: async (analiseId: number): Promise<GgconAnaliseRodada[]> => {
+    const { data, error } = await supabase
+      .from('cgof_ggcon_analise_rodadas')
+      .select('*')
+      .eq('analise_id', analiseId)
+      .order('numero', { ascending: true });
+    if (error) { console.error(error); return []; }
+    return (data ?? []) as GgconAnaliseRodada[];
+  },
+
+  // Exercícios informados no cadastro de Processos GGCON (Prestação de Contas) que a
+  // análise do mesmo processo_sei ainda não tem ganham seu checklist aqui — nunca
+  // remove exercício (isso continua sendo feito só dentro da Análise). Se a análise
+  // só tem o placeholder "sem ano" herdado da migração, o 1º ano informado vira o ano
+  // dele (mesma regra da ExerciciosBar), preservando o checklist já preenchido.
+  // Devolve os anos adicionados; no-op se não existe análise pra esse processo.
+  sincronizarExerciciosDoProcesso: async (processoSei: string, exercicios: number[], criadoPor: string): Promise<number[]> => {
+    if (!exercicios.length) return [];
+    const { data, error } = await supabase
+      .from('cgof_ggcon_analises')
+      .select('id, tipo_conveniada')
+      .eq('processo_sei', processoSei)
+      .order('id', { ascending: false })
+      .limit(1);
+    if (error) throw new Error(error.message);
+    const analise = data?.[0] as { id: number; tipo_conveniada: GgconTipoConveniada } | undefined;
+    if (!analise) return [];
+    const atuais = await GgconAnaliseService.getExercicios(analise.id);
+    const jaTem = new Set(atuais.map(e => e.exercicio).filter((n): n is number => n != null));
+    const faltando = exercicios.filter(n => !jaTem.has(n));
+    if (!faltando.length) return [];
+    let pendentes = faltando;
+    if (atuais.length === 1 && atuais[0].exercicio == null) {
+      await GgconAnaliseService.atualizarExercicio(atuais[0].id, faltando[0]);
+      pendentes = faltando.slice(1);
+    }
+    for (const ano of pendentes) {
+      await GgconAnaliseService.adicionarExercicio(analise.id, ano, analise.tipo_conveniada, criadoPor);
+    }
+    return faltando;
   },
 
   getExercicios: async (analiseId: number): Promise<GgconAnaliseExercicio[]> => {

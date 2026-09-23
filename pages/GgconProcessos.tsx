@@ -8,7 +8,7 @@ import {
   X, Check, Loader2, AlertCircle, Download, Scale, Activity, Lock, ArrowUp, ArrowDown, ArrowUpDown, Flag, MoreVertical, RotateCcw,
   ClipboardCheck, Building2, Landmark,
 } from 'lucide-react';
-import { GgconService, GgconSortField, diasSemMovimentacao, alertaComiteGestor, deriveSituacaoFromEtapa } from '../services/ggconService';
+import { GgconService, GgconSortField, diasSemMovimentacao, alertaComiteGestor, deriveSituacaoFromEtapa, isEtapaRetornoGpc } from '../services/ggconService';
 import { GgconAnaliseService } from '../services/ggconAnaliseService';
 import { MUNICIPIOS, buscarDRSPorMunicipio } from '../services/ggconMunicipios';
 import { useToast } from '../context/ToastContext';
@@ -54,6 +54,14 @@ export const DRS_UNIDADES = [
 ];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+const PRESTACAO_CONTAS = 'Prestação de Contas';
+
+// "2024, 2025" -> [2024, 2025] (sem repetição, em ordem) — mesmo formato de texto livre
+// do campo Exercício(s) do cadastro da Análise GGCON.
+const parseExercicios = (texto: string): number[] => Array.from(new Set(
+  texto.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => Number.isInteger(n) && n > 0),
+)).sort((a, b) => a - b);
 
 const fmtDate = (d: string | null | undefined) => {
   if (!d) return '-';
@@ -173,6 +181,40 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const set = (k: keyof GgconProcesso, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const [exerciciosTexto, setExerciciosTexto] = useState((initial?.exercicios ?? []).join(', '));
+  const isPrestacaoContas = form.tipo === PRESTACAO_CONTAS;
+  // Conferente da Análise GGCON sugerido num Retorno GPC (só pra mostrar a legenda).
+  const [conferenteRetorno, setConferenteRetorno] = useState<string | null>(null);
+
+  // Prestação de Contas sem exercício informado (movimentação antiga, ou "Nova
+  // Movimentação" de um processo cadastrado antes deste campo existir): traz os
+  // exercícios que a Análise GGCON do processo já tem.
+  useEffect(() => {
+    const sei = initial?.processo_sei;
+    if (!sei || initial?.tipo !== PRESTACAO_CONTAS || initial?.exercicios?.length) return;
+    let cancelado = false;
+    GgconService.getAnaliseResumoDoProcesso(sei).then(r => {
+      if (!cancelado && r?.exercicios.length) setExerciciosTexto(t => t.trim() ? t : r.exercicios.join(', '));
+    });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Ao marcar a etapa como Retorno GPC, o processo volta pra reanálise com o mesmo
+  // conferente da Análise GGCON — já preenche o Técnico com ele (continua editável).
+  const handleEtapaChange = async (v: string) => {
+    const eraRetorno = isEtapaRetornoGpc(form.etapa);
+    set('etapa', v || null);
+    if (!isEtapaRetornoGpc(v)) { setConferenteRetorno(null); return; }
+    if (eraRetorno) return;
+    const sei = GgconService.formatarProcessoSei(form.processo_sei ?? '');
+    if (!sei) return;
+    const r = await GgconService.getAnaliseResumoDoProcesso(sei);
+    if (r?.conferente) {
+      setConferenteRetorno(r.conferente);
+      set('tecnico_responsavel', r.conferente);
+    }
+  };
 
   // Duplicidade só faz sentido para um cadastro totalmente novo — se o formulário já
   // chegou com um processo_sei (edição, ou "Nova Movimentação" pré-preenchida a partir
@@ -193,8 +235,10 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.processo_sei?.trim()) { setErr('Informe o número do processo SEI.'); return; }
+    const exercicios = isPrestacaoContas ? parseExercicios(exerciciosTexto) : [];
+    if (isPrestacaoContas && exerciciosTexto.trim() && !exercicios.length) { setErr('Exercício(s) inválido(s) — use o ano, ex.: 2024, 2025.'); return; }
     setSaving(true); setErr('');
-    try { await onSave(form); onClose(); }
+    try { await onSave({ ...form, exercicios: exercicios.length ? exercicios : null }); onClose(); }
     catch (ex: any) { setErr(ex.message); }
     finally { setSaving(false); }
   };
@@ -241,6 +285,13 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
             {form.tipo && !TIPOS.includes(form.tipo) && <option value={form.tipo}>{form.tipo}</option>}
           </select>
         </div>
+        {isPrestacaoContas && (
+          <div>
+            <label className={LABEL}>Exercício(s)</label>
+            <input className={INPUT} value={exerciciosTexto} onChange={e => setExerciciosTexto(e.target.value)} placeholder="2024, 2025"/>
+            <p className="text-[11px] text-slate-400 mt-1">Separe por vírgula. Cada exercício vira um checklist na Análise GGCON.</p>
+          </div>
+        )}
         <div>
           <label className={LABEL}>Valor do Estado (R$)</label>
           <input className={INPUT} type="number" step="0.01" min={0} value={form.valor_estado ?? ''} onChange={e => set('valor_estado', e.target.value ? Number(e.target.value) : null)}/>
@@ -287,10 +338,13 @@ const GgconForm = ({ initial, tecnicos, gpcAnalistas, onSave, onClose }: {
         <div>
           <label className={LABEL}>Técnico Responsável</label>
           <ListInput id="dl-tecnico" options={tecnicos} value={form.tecnico_responsavel ?? ''} onChange={v => set('tecnico_responsavel', v || null)}/>
+          {conferenteRetorno && (
+            <p className="text-[11px] text-rose-600 mt-1">Retorno GPC: volta para reanálise com o conferente <strong>{conferenteRetorno}</strong>.</p>
+          )}
         </div>
         <div>
           <label className={LABEL}>Etapa Atual</label>
-          <ListInput id="dl-etapa" options={ETAPAS} value={form.etapa ?? ''} onChange={v => set('etapa', v || null)}/>
+          <ListInput id="dl-etapa" options={ETAPAS} value={form.etapa ?? ''} onChange={handleEtapaChange}/>
         </div>
         <div>
           <label className={LABEL}>Analista GPC</label>
@@ -378,11 +432,10 @@ const NovaAnaliseAutomaticaModal = ({ processo, onConfirm, onSkip }: {
 }) => {
   const [busy, setBusy] = useState<GgconTipoConveniada | null>(null);
   const [err, setErr] = useState('');
-  const [exerciciosTexto, setExerciciosTexto] = useState('');
+  // Já vem preenchido com o que foi informado no cadastro do processo.
+  const [exerciciosTexto, setExerciciosTexto] = useState((processo.exercicios ?? []).join(', '));
 
-  const exercicios = Array.from(new Set(
-    exerciciosTexto.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n)),
-  ));
+  const exercicios = parseExercicios(exerciciosTexto);
 
   const escolher = async (tipo: GgconTipoConveniada) => {
     if (!exercicios.length) { setErr('Informe ao menos um exercício.'); return; }
@@ -671,6 +724,9 @@ const HistoricoTimelineModal = ({ processoSei, rows, loading, isViewOnly, onClos
                         </div>
                       </div>
                       <p className="text-sm text-slate-700 line-clamp-2">{item.assunto || '-'}</p>
+                      {!!item.exercicios?.length && (
+                        <p className="text-[11px] text-slate-500 mt-1">Exercício(s): <span className="font-semibold text-slate-700">{item.exercicios.join(', ')}</span></p>
+                      )}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-100 text-[11px]">
                         <div><span className="text-slate-400 block">Técnico</span><span className="font-medium text-slate-700">{item.tecnico_responsavel ?? '-'}</span></div>
                         <div><span className="text-slate-400 block">Coordenadoria</span><span className="font-medium text-slate-700">{item.coordenadoria ?? '-'}</span></div>
@@ -836,12 +892,20 @@ export const GgconProcessos = () => {
   // Depois de salvar um processo Tipo = "Prestação de Contas", sugere criar o
   // registro correspondente na Análise GGCON — só se ainda não existir um (evita
   // duplicar quando o mesmo processo é salvo de novo, ex.: editar outra movimentação).
+  // Se a análise já existe, os exercícios novos informados no cadastro ganham seu
+  // checklist lá (nunca cria uma segunda análise pro mesmo processo).
   const salvarProcessoEChecarAnalise = async (p: Partial<GgconProcesso>) => {
-    await GgconService.saveProcesso(p, currentUser?.name ?? null);
+    const saved = await GgconService.saveProcesso(p, currentUser?.name ?? null);
     await refreshAfterChange();
-    if (p.tipo?.trim() === 'Prestação de Contas' && p.processo_sei) {
-      const jaExiste = await GgconAnaliseService.existeParaProcesso(p.processo_sei);
-      if (!jaExiste) setSugestaoAnalise(p);
+    if (p.tipo?.trim() === PRESTACAO_CONTAS && saved.processo_sei) {
+      const jaExiste = await GgconAnaliseService.existeParaProcesso(saved.processo_sei);
+      if (!jaExiste) { setSugestaoAnalise(saved); return; }
+      if (saved.exercicios?.length && currentUser) {
+        try {
+          const adicionados = await GgconAnaliseService.sincronizarExerciciosDoProcesso(saved.processo_sei, saved.exercicios, currentUser.name);
+          if (adicionados.length) toast('success', `Exercício(s) ${adicionados.join(', ')} adicionado(s) na Análise GGCON.`);
+        } catch (ex: any) { toast('error', `Movimentação salva, mas não foi possível adicionar os exercícios na Análise GGCON: ${ex.message}`); }
+      }
     }
   };
 
@@ -910,6 +974,7 @@ export const GgconProcessos = () => {
         coordenadoria: atual.coordenadoria,
         interessado: atual.interessado,
         tipo: atual.tipo,
+        exercicios: atual.exercicios,
         tecnico_responsavel: atual.tecnico_responsavel,
         data_entrada: new Date().toISOString().slice(0, 10),
       },

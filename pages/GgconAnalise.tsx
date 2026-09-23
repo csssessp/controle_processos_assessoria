@@ -18,7 +18,7 @@ import { useToast } from '../context/ToastContext';
 import { useApp } from '../context/AppContext';
 import { DbService } from '../services/dbService';
 import {
-  GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseStatus,
+  GgconAnalise, GgconAnaliseItem, GgconAnaliseExercicio, GgconAnaliseHistorico, GgconAnaliseRodada, GgconAnaliseStatus,
   GgconAnaliseResposta, GgconTipoConveniada, GGCON_ANALISE_STATUS_LABELS, podeLiberarAnalise, podeAssinarGgcon, podeAdministrarAnalise,
   podeVerProdutividadeAnalise, GgconProdutividadeLinha, GgconProdutividadeDetalheLinha, User, UserRole,
 } from '../types';
@@ -1653,6 +1653,75 @@ const HistoricoResponsaveis = ({ historico }: { historico: GgconAnaliseHistorico
   </div>
 );
 
+// ─── Análise anterior (somente leitura) — cópia fixa gravada a cada Retorno GPC
+// (cgof_ggcon_analise_rodadas, ver GgconService.sincronizarRetornoGpc). Mostra o
+// checklist como estava antes da reanálise, com o mesmo componente de item do
+// checklist vivo em modo leitura. ────────────────────────────────────────────────
+
+const RodadaAnteriorModal = ({ rodada, onClose }: { rodada: GgconAnaliseRodada; onClose: () => void }) => {
+  const { analise, exercicios, itens } = rodada.snapshot;
+  const exerciciosValidos = exercicios.filter(e => e.exercicio != null);
+  const listaExercicios = exerciciosValidos.length ? exerciciosValidos : exercicios;
+  const [activeId, setActiveId] = useState<number | null>(listaExercicios[0]?.id ?? null);
+  const itensAtivos = itens.filter(i => i.exercicio_id === activeId);
+  const exercicioAtivo = listaExercicios.find(e => e.id === activeId) ?? null;
+  const dicaPorItem = new Map(CHECKLISTS[analise.tipo_conveniada].map(t => [t.numero, t.dica]));
+  return (
+    <Modal
+      title={`${rodada.numero}ª análise — somente leitura`}
+      subtitle={`${analise.processo_sei} — guardada em ${fmtDate(rodada.created_at)} (Retorno GPC)`}
+      onClose={onClose}
+      size="xl"
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-white rounded-xl border border-slate-200 p-4">
+          <div><span className="text-slate-400 block">Conferente</span><span className="font-semibold text-slate-700">{rodada.conferente ?? '-'}</span></div>
+          <div><span className="text-slate-400 block">Status na época</span>{rodada.status_anterior ? <StatusBadge status={rodada.status_anterior as GgconAnaliseStatus}/> : '-'}</div>
+          <div><span className="text-slate-400 block">Analisado</span><span className="font-semibold text-slate-700">{fmtDate(rodada.data_analise)}</span></div>
+          <div><span className="text-slate-400 block">Encaminhado ao GPC</span><span className="font-semibold text-slate-700">{fmtDate(rodada.data_encaminhamento_gpc)}</span></div>
+          <div className="col-span-2 sm:col-span-4"><span className="text-slate-400 block">Analista GPC</span><span className="font-semibold text-slate-700">{rodada.analista_gpc ?? '-'}</span></div>
+        </div>
+        {rodada.pendencia_descricao && (
+          <div className="bg-orange-50 rounded-xl border border-orange-200 p-4 space-y-1">
+            <h4 className="text-sm font-bold text-orange-800 flex items-center gap-1.5"><AlertTriangle size={14}/>Pendência registrada</h4>
+            <p className="text-xs text-orange-700 whitespace-pre-wrap">{rodada.pendencia_descricao}</p>
+            <p className="text-[11px] text-orange-500">{fmtDate(rodada.data_pendencia)}</p>
+          </div>
+        )}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex flex-wrap gap-1.5">
+              {listaExercicios.map(ex => (
+                <button
+                  key={ex.id}
+                  onClick={() => setActiveId(ex.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${ex.id === activeId ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}
+                >
+                  {ex.exercicio != null ? `Exercício ${ex.exercicio}` : 'Sem exercício'}
+                </button>
+              ))}
+            </div>
+            <button className={BTN_MUTED} onClick={() => exportAnaliseFichaPDF(analise, itens, listaExercicios)}>
+              <Download size={12}/>PDF desta análise
+            </button>
+          </div>
+          {exercicioAtivo?.observacoes && (
+            <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 whitespace-pre-wrap">
+              <span className="font-semibold">Observação do exercício: </span>{exercicioAtivo.observacoes}
+            </p>
+          )}
+          <div className="space-y-2.5 max-h-[55vh] overflow-y-auto pr-1">
+            {itensAtivos.map(item => (
+              <ChecklistItemRow key={item.id} item={item} dica={dicaPorItem.get(item.item_numero)} readOnly onChange={() => {}}/>
+            ))}
+            {!itensAtivos.length && <p className="text-sm text-slate-400 text-center py-6">Nenhum item salvo neste exercício.</p>}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 // ─── Overlay de análise (tela cheia) ───────────────────────────────────────────
 
 const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, onChanged }: {
@@ -1666,6 +1735,8 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
   const [activeExercicioId, setActiveExercicioId] = useState<number | null>(null);
   const [showEscolherExercicioPdf, setShowEscolherExercicioPdf] = useState(false);
   const [historico, setHistorico] = useState<GgconAnaliseHistorico[]>([]);
+  const [rodadas, setRodadas] = useState<GgconAnaliseRodada[]>([]);
+  const [rodadaAberta, setRodadaAberta] = useState<GgconAnaliseRodada | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [areaEncaminhamento, setAreaEncaminhamento] = useState('');
@@ -1694,12 +1765,14 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [a, i, ex, h] = await Promise.all([
+    const [a, i, ex, h, r] = await Promise.all([
       GgconAnaliseService.getById(analiseId),
       GgconAnaliseService.getItens(analiseId),
       GgconAnaliseService.getExercicios(analiseId),
       GgconAnaliseService.getHistorico(analiseId),
+      GgconAnaliseService.getRodadas(analiseId),
     ]);
+    setRodadas(r);
     setAnalise(a);
     setItens(i);
     setExercicios(ex);
@@ -2158,8 +2231,36 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
                   )}
                 </div>
 
+                {/* Análises anteriores guardadas a cada Retorno GPC — a análise viva
+                    continua sendo esta mesma (o processo não é duplicado); cada item aqui
+                    é a cópia fixa de como ela estava antes de voltar pra reanálise. */}
+                {rodadas.length > 0 && (
+                  <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 space-y-2">
+                    <h4 className="text-sm font-bold text-rose-800 flex items-center gap-1.5">
+                      <History size={14}/>Análises anteriores (Retorno GPC)
+                    </h4>
+                    {analise.status === 'RETORNO_GPC' && (
+                      <p className="text-[11px] text-rose-700">Em reanálise ({rodadas.length + 1}ª análise). As respostas foram copiadas da análise anterior.</p>
+                    )}
+                    <div className="space-y-1.5">
+                      {rodadas.map(r => (
+                        <button
+                          key={r.id}
+                          onClick={() => setRodadaAberta(r)}
+                          className="w-full text-left bg-white rounded-lg border border-rose-200 px-3 py-2 hover:border-rose-400 transition-colors"
+                        >
+                          <span className="text-xs font-semibold text-rose-800 block">{r.numero}ª análise — {r.conferente ?? 'sem conferente'}</span>
+                          <span className="text-[11px] text-rose-600">
+                            Analisado {fmtDate(r.data_analise)}{r.pendencia_descricao ? ' · com pendência' : ''} · retornou em {fmtDate(r.created_at)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-1.5">
-                  <h4 className="text-sm font-bold text-slate-700 mb-1">Analista Responsável</h4>
+                  <h4 className="text-sm font-bold text-slate-700 mb-1">{analise.status === 'RETORNO_GPC' ? 'Conferente (reanálise)' : 'Analista Responsável'}</h4>
                   <p className="text-sm text-slate-600">{analise.analista_atual ?? 'Não atribuído'}</p>
                   {analise.liberado_por && <p className="text-[11px] text-slate-400">Liberado por {analise.liberado_por}</p>}
                 </div>
@@ -2465,6 +2566,8 @@ const AnaliseDetalheOverlay = ({ analiseId, currentUser, canLiberar, onClose, on
           </div>
         </Modal>
       )}
+
+      {rodadaAberta && <RodadaAnteriorModal rodada={rodadaAberta} onClose={() => setRodadaAberta(null)}/>}
 
       {showEscolherExercicioPdf && analise && (
         <Modal

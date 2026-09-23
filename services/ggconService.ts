@@ -64,6 +64,11 @@ export function deriveSituacaoFromEtapa(etapa: string | null | undefined): {
 // usado em etapaTone, pages/GgconProcessos.tsx) em vez de exigir o texto exato — a
 // etapa continua sendo um campo de texto livre (ver ETAPAS, só uma sugestão de
 // datalist), então o usuário pode digitar variações ("Retorno do GPC" etc.).
+// Status em que a análise já foi concluída (por qualquer caminho) e portanto pode voltar
+// pra reanálise num Retorno GPC. Em andamento (AGUARDANDO_*/EM_ANALISE) ou já em
+// RETORNO_GPC, o retorno é ignorado — ver sincronizarRetornoGpc.
+export const STATUS_REABRIVEIS_RETORNO_GPC = ['ENCAMINHADO_GPC', 'CONCLUIDA', 'CONFERENCIA_PENDENCIA', 'AGUARDANDO_ASSINATURA'];
+
 export function isEtapaRetornoGpc(etapa: string | null | undefined): boolean {
   const e = (etapa ?? '').toLowerCase();
   return e.includes('retorno') && e.includes('gpc');
@@ -204,6 +209,9 @@ export const GgconService = {
       proxima_providencia: p.proxima_providencia ?? null,
       urgente: p.urgente ?? false,
       analista_gpc: p.analista_gpc ?? null,
+      // Exercícios só fazem sentido em Prestação de Contas (viram os checklists da
+      // Análise GGCON) — nos outros tipos a coluna nem é enviada.
+      ...(p.tipo === 'Prestação de Contas' ? { exercicios: p.exercicios?.length ? p.exercicios : null } : {}),
     };
     let saved: GgconProcesso;
     if (p.codigo) {
@@ -216,7 +224,19 @@ export const GgconService = {
       saved = data as GgconProcesso;
     }
     if (saved.processo_sei && isEtapaRetornoGpc(saved.etapa)) {
-      await GgconService.sincronizarRetornoGpc(saved.processo_sei, usuarioResponsavel ?? null);
+      // A movimentação já foi gravada — uma falha na Análise vira aviso, não exceção
+      // (senão o formulário continuaria aberto e salvar de novo duplicaria a movimentação).
+      let conferente: string | null = null;
+      try { conferente = await GgconService.sincronizarRetornoGpc(saved.processo_sei, usuarioResponsavel ?? null); }
+      catch (ex: any) { emitError(ex.message); }
+      // A reanálise continua com o mesmo conferente — se a movimentação foi salva sem
+      // técnico, grava o conferente nela também (a tela já sugere o nome, mas isso
+      // cobre quem apagou o campo ou salvou antes da sugestão carregar).
+      if (conferente && !saved.tecnico_responsavel) {
+        const { error } = await supabase.from('cgof_ggcon_processos').update({ tecnico_responsavel: conferente }).eq('codigo', saved.codigo);
+        if (error) console.error(error);
+        else saved = { ...saved, tecnico_responsavel: conferente };
+      }
     }
     return saved;
   },
@@ -292,22 +312,64 @@ export const GgconService = {
 
   // Reconhece que uma movimentação com etapa "Retorno GPC" foi registrada em Processos
   // GGCON (ver isEtapaRetornoGpc, chamado a partir de saveProcesso) e propaga pra
-  // Análise GGCON correspondente: volta o status pra RETORNO_GPC e reabre o checklist
-  // pra edição (zera as datas de conclusão/assinatura, mas NÃO mexe nas respostas dos
-  // itens — o técnico só corrige o que for preciso, diferente de "Resetar Análise").
-  // Só age se a análise estiver em ENCAMINHADO_GPC — idempotente, evita reagir de novo
-  // a cada edição futura da mesma movimentação (mesmo raciocínio "no-op silencioso" do
-  // sync do técnico acima).
-  sincronizarRetornoGpc: async (processoSei: string, usuarioResponsavel: string | null): Promise<void> => {
+  // Análise GGCON correspondente, SEM criar uma análise nova (o processo continua sendo
+  // uma única linha em cgof_ggcon_analises):
+  //   1. guarda uma cópia fixa da análise que estava valendo (cabeçalho, datas,
+  //      conferente, pendência, exercícios e checklist) em cgof_ggcon_analise_rodadas
+  //      como "Nª análise" (parte_84) — se essa cópia falhar, NÃO reabre, pra nunca
+  //      perder a versão anterior;
+  //   2. volta o status pra RETORNO_GPC mantendo o mesmo conferente (analista_atual) e
+  //      as respostas do checklist (o técnico só corrige o que o GPC apontou), zerando
+  //      datas de conclusão/assinatura/encaminhamento e a pendência da rodada anterior
+  //      (que ficam na cópia) pra reabrir os botões de Conferência.
+  // Aceita qualquer análise já concluída (STATUS_REABRIVEIS_RETORNO_GPC). Em análise
+  // ainda em andamento (ou já em RETORNO_GPC) é no-op — idempotente, não reage de novo
+  // a cada edição da mesma movimentação. Devolve o conferente da análise (ou null se
+  // não existe análise pra esse processo).
+  sincronizarRetornoGpc: async (processoSei: string, usuarioResponsavel: string | null): Promise<string | null> => {
     const { data: analises, error } = await supabase
       .from('cgof_ggcon_analises')
-      .select('id, status')
+      .select('*')
       .eq('processo_sei', processoSei)
       .order('id', { ascending: false })
       .limit(1);
-    if (error) { console.error(error); return; }
-    const analise = analises?.[0] as { id: number; status: string } | undefined;
-    if (!analise || analise.status !== 'ENCAMINHADO_GPC') return;
+    if (error) { console.error(error); return null; }
+    const analise = analises?.[0] as any;
+    if (!analise) return null;
+    if (!STATUS_REABRIVEIS_RETORNO_GPC.includes(analise.status)) return analise.analista_atual ?? null;
+
+    const [exRes, itensRes, rodadasRes] = await Promise.all([
+      supabase.from('cgof_ggcon_analise_exercicios').select('*').eq('analise_id', analise.id).order('exercicio', { ascending: true }),
+      // Uma análise tem no máximo ~47 itens por exercício — bem abaixo do limite de
+      // 1000 linhas do PostgREST mesmo com vários exercícios.
+      supabase.from('cgof_ggcon_analise_itens').select('*').eq('analise_id', analise.id).order('item_numero', { ascending: true }),
+      supabase.from('cgof_ggcon_analise_rodadas').select('numero').eq('analise_id', analise.id).order('numero', { ascending: false }).limit(1),
+    ]);
+    const leituraError = exRes.error ?? itensRes.error ?? rodadasRes.error;
+    if (leituraError) {
+      console.error(leituraError);
+      throw new Error(`Não foi possível salvar a análise anterior antes do Retorno GPC (${leituraError.message}). A movimentação foi salva, mas a análise não foi reaberta.`);
+    }
+    const numero = ((rodadasRes.data?.[0] as any)?.numero ?? 0) + 1;
+    const { error: rodadaError } = await supabase.from('cgof_ggcon_analise_rodadas').insert({
+      analise_id: analise.id,
+      numero,
+      conferente: analise.analista_atual ?? null,
+      status_anterior: analise.status,
+      data_analise: analise.data_analise ?? null,
+      data_pendencia: analise.data_pendencia ?? null,
+      pendencia_descricao: analise.pendencia_descricao ?? null,
+      data_encaminhamento_gpc: analise.data_encaminhamento_gpc ?? null,
+      analista_gpc: analise.analista_gpc ?? null,
+      snapshot: { analise, exercicios: exRes.data ?? [], itens: itensRes.data ?? [] },
+      motivo: 'Retorno GPC',
+      created_by: usuarioResponsavel,
+    });
+    if (rodadaError) {
+      console.error(rodadaError);
+      throw new Error(`Não foi possível salvar a análise anterior antes do Retorno GPC (${rodadaError.message}). A movimentação foi salva, mas a análise não foi reaberta.`);
+    }
+
     const { error: updError } = await supabase.from('cgof_ggcon_analises').update({
       status: 'RETORNO_GPC',
       data_analise: null,
@@ -315,16 +377,47 @@ export const GgconService = {
       data_assinatura: null,
       assinado_por: null,
       data_encaminhamento_gpc: null,
+      data_encaminhamento: null,
+      area_encaminhamento: null,
+      data_pendencia: null,
+      pendencia_descricao: null,
       updated_at: new Date().toISOString(),
     }).eq('id', analise.id);
-    if (updError) { console.error(updError); return; }
+    if (updError) { console.error(updError); throw new Error(updError.message); }
     const { error: histError } = await supabase.from('cgof_ggcon_analise_historico').insert({
       analise_id: analise.id,
       evento: 'RETORNO_GPC',
       usuario_responsavel: usuarioResponsavel,
-      observacao: 'Retorno registrado em Processos GGCON',
+      analista_novo: analise.analista_atual ?? null,
+      observacao: `Retorno registrado em Processos GGCON — ${numero}ª análise salva; reanálise com ${analise.analista_atual ?? 'conferente não atribuído'}`,
     });
     if (histError) console.error('Falha ao registrar evento no histórico (ação principal já foi aplicada):', histError);
+    return analise.analista_atual ?? null;
+  },
+
+  // Conferente (analista_atual) e exercícios da Análise GGCON do mesmo processo_sei —
+  // usado pelo formulário de Processos GGCON pra sugerir o Técnico num Retorno GPC e
+  // preencher os exercícios de uma Prestação de Contas que já tem análise. Supabase
+  // direto (não GgconAnaliseService) pelo mesmo motivo de sincronizarRetornoGpc: evitar
+  // import circular entre os dois services.
+  getAnaliseResumoDoProcesso: async (processoSei: string): Promise<{ conferente: string | null; exercicios: number[] } | null> => {
+    const { data, error } = await supabase
+      .from('cgof_ggcon_analises')
+      .select('id, analista_atual')
+      .eq('processo_sei', processoSei)
+      .order('id', { ascending: false })
+      .limit(1);
+    if (error) { console.error(error); return null; }
+    const analise = data?.[0] as { id: number; analista_atual: string | null } | undefined;
+    if (!analise) return null;
+    const { data: ex, error: exError } = await supabase
+      .from('cgof_ggcon_analise_exercicios')
+      .select('exercicio')
+      .eq('analise_id', analise.id);
+    if (exError) console.error(exError);
+    const exercicios = ((ex ?? []) as { exercicio: number | null }[])
+      .map(e => e.exercicio).filter((n): n is number => n != null).sort((a, b) => a - b);
+    return { conferente: analise.analista_atual, exercicios };
   },
 
   // Nomes elegíveis para "Analista GPC": usuários ativos com acesso ao GPC (mesma

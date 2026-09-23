@@ -476,6 +476,7 @@ export interface GgconProcesso {
   proxima_providencia: string | null;
   urgente: boolean;
   analista_gpc: string | null; // sincronizado com cgof_ggcon_analises.analista_gpc (mesmo processo_sei)
+  exercicios?: number[] | null; // só Prestação de Contas — viram os checklists da Análise GGCON (parte_84)
   created_at?: string;
   updated_at?: string;
 }
@@ -583,6 +584,26 @@ export interface GgconAnaliseItem {
   documento_sei: string[] | null; // lista de links dos documentos SEI comprobatórios deste item
   observacao: string | null;
   updated_at?: string;
+}
+
+// Cópia fixa de uma análise anterior, gravada quando um Retorno GPC reabre a análise
+// para reanálise (ver GgconService.sincronizarRetornoGpc / parte_84). O checklist da
+// reanálise continua na análise viva; aqui fica a versão como estava antes do retorno.
+export interface GgconAnaliseRodada {
+  id: number;
+  analise_id: number;
+  numero: number;
+  conferente: string | null;
+  status_anterior: string | null;
+  data_analise: string | null;
+  data_pendencia: string | null;
+  pendencia_descricao: string | null;
+  data_encaminhamento_gpc: string | null;
+  analista_gpc: string | null;
+  snapshot: { analise: GgconAnalise; exercicios: GgconAnaliseExercicio[]; itens: GgconAnaliseItem[] };
+  motivo: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export type GgconAnaliseEvento =
